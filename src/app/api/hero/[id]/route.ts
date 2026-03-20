@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-export const dynamic = 'force-dynamic';
+// Development-only proxy — not called by the client app.
+// generateStaticParams returns [] so Next.js generates no static files
+// for this route during `output: 'export'` builds.
+export function generateStaticParams() { return []; }
 
 const BASE_URL = 'https://mlbb-stats.rone.dev/api';
 

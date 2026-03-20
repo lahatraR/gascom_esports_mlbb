@@ -116,8 +116,9 @@ async function main() {
     };
   });
 
-  // Write output
+  // Write output (ensure public/ exists — Git doesn't track empty dirs)
   const outPath = path.join(process.cwd(), 'public', 'heroes.json');
+  fs.mkdirSync(path.dirname(outPath), { recursive: true });
   fs.writeFileSync(outPath, JSON.stringify(heroes));
   console.log(`[fetch-heroes] ✓ Wrote ${heroes.length} heroes to public/heroes.json`);
 }
