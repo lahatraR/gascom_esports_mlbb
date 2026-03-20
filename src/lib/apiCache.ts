@@ -41,4 +41,5 @@ export async function getCachedHeroRank(): Promise<ParsedHeroRank[]> {
   const data = await fetchHeroRank();
   cache.set(key, data, 10 * 60_000);
   return data;
+  
 }
