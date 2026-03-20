@@ -1,107 +1,34 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Image from 'next/image';
 import dynamic from 'next/dynamic';
 import clsx from 'clsx';
 import { useDraftStore } from '@/store/draftStore';
 import type { GameMode } from '@/types/draft';
 
-// ─── DraftBoard — SSR disabled (Zustand singleton hydration) ─────────────────
+// ─── DraftBoard — SSR disabled ────────────────────────────────────────────────
 const DraftBoard = dynamic(
   () => import('@/components/draft/DraftBoard').then((m) => m.DraftBoard),
   {
     ssr: false,
     loading: () => (
-      <div className="flex-1 flex items-center justify-center">
+      <div className="flex-1 flex items-center justify-center min-h-48">
         <div className="text-center space-y-4">
           <div
             className="w-14 h-14 rounded-full border-2 border-t-transparent animate-spin mx-auto"
             style={{ borderColor: '#7c1a0f', borderTopColor: 'transparent' }}
           />
-          <p className="text-slate-400 text-sm font-medium tracking-wide">Loading draft engine…</p>
+          <p className="text-slate-400 text-sm font-medium tracking-widest uppercase">
+            Loading draft engine…
+          </p>
         </div>
       </div>
     ),
   }
 );
 
-// ─── GES Shield Logo SVG ──────────────────────────────────────────────────────
-// Matches the real GES logo shape: pentagon shield + 3-point crown + GES lettering
-
-function GESLogo({
-  size    = 40,
-  white   = true,  // true = white logo, false = crimson logo
-  glow    = false,
-  opacity = 1,
-}: {
-  size?:    number;
-  white?:   boolean;
-  glow?:    boolean;
-  opacity?: number;
-}) {
-  const h = Math.round(size * 1.18);
-  const fill   = white ? '#ffffff' : '#7c1a0f';
-  const shadow = glow
-    ? 'drop-shadow(0 0 12px rgba(180,40,20,0.95)) drop-shadow(0 0 30px rgba(120,20,10,0.6))'
-    : undefined;
-
-  return (
-    <svg
-      width={size}
-      height={h}
-      viewBox="0 0 120 142"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-label="Gascom Esports — GES"
-      style={{ filter: shadow, opacity }}
-    >
-      {/* ── Crown (3 points) ── */}
-      {/* Left point */}
-      <polygon points="14,8 22,36 38,36 30,20" fill={fill} />
-      {/* Centre point (taller pentagon) */}
-      <polygon points="60,2 72,28 60,22 48,28" fill={fill} />
-      {/* Right point */}
-      <polygon points="106,8 98,36 82,36 90,20" fill={fill} />
-      {/* Crown base bar connecting all 3 */}
-      <rect x="22" y="30" width="76" height="10" rx="1" fill={fill} />
-
-      {/* ── Shield body ── */}
-      {/*
-        Pentagon shield:
-          top-left (16,42) → top-right (104,42)
-          → right-notch (104,96) → right-lower (90,96) → bottom-tip (60,138)
-          → left-lower (30,96) → left-notch (16,96) → close
-        The notch creates the "G2-style" angular base before the bottom point
-      */}
-      <path
-        d="M16,42 L104,42 L104,94 L78,94 L60,136 L42,94 L16,94 Z"
-        fill={fill}
-      />
-
-      {/* ── GES cut-outs (negative space letters inside shield) ──
-          Only shown on white/large logo for visual accuracy
-          Uses dark cut-outs to reveal the crimson bg behind
-      */}
-      {white && (
-        <g fill="#7c1a0f">
-          {/* G — left portion */}
-          <path d="M26,56 L26,80 L45,80 L45,72 L36,72 L36,64 L45,64 L45,56 Z" />
-          <rect x="36" y="72" width="9" height="8" />
-          {/* E — centre */}
-          <rect x="50" y="56" width="20" height="8" />
-          <rect x="50" y="68" width="15" height="8" />
-          <rect x="50" y="80" width="20" height="8" />
-          <rect x="50" y="56" width="4" height="32" />
-          {/* S — right portion */}
-          <path d="M76,56 L76,64 L90,64 L90,72 L76,72 L76,88 L94,88 L94,80 L82,80 L82,72 L94,72 L94,56 Z" />
-        </g>
-      )}
-    </svg>
-  );
-}
-
 // ─── Mode options ─────────────────────────────────────────────────────────────
-
 const MODE_OPTIONS: { value: GameMode; label: string; desc: string }[] = [
   { value: 'ranked',     label: 'Ranked',     desc: 'Comfort & flexibility' },
   { value: 'tournament', label: 'Tournament', desc: 'Meta & coordination' },
@@ -109,7 +36,6 @@ const MODE_OPTIONS: { value: GameMode; label: string; desc: string }[] = [
 ];
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
-
 export default function Home() {
   const loadHeroPool   = useDraftStore((s) => s.loadHeroPool);
   const resetDraft     = useDraftStore((s) => s.resetDraft);
@@ -136,74 +62,173 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: '#030304' }}>
+    <div
+      className="min-h-screen flex flex-col"
+      style={{ background: '#030304' }}
+    >
 
-      {/* ══════════════════════════════════════════════════════════════════════
-          CINEMATIC BACKGROUND — matches the GES brand image exactly:
-          Deep crimson radial glow top-left, fading to brand black
-          ════════════════════════════════════════════════════════════════════ */}
+      {/* ══════════════════════════════════════════════════════════════════
+          BACKGROUND — cinematic crimson radial (matches brand image)
+          ════════════════════════════════════════════════════════════════ */}
       <div
         aria-hidden="true"
         className="fixed inset-0 pointer-events-none z-0"
         style={{
           background: `
-            radial-gradient(ellipse 130% 80% at 18% -8%,
-              rgba(110,22,12,0.92) 0%,
-              rgba(70,14,7,0.65)   18%,
-              rgba(25,5,3,0.35)    38%,
-              transparent          58%
+            radial-gradient(ellipse 130% 85% at 18% -10%,
+              rgba(110,22,12,0.95) 0%,
+              rgba(70,14,7,0.65)   20%,
+              rgba(20,4,2,0.30)    42%,
+              transparent          60%
             ),
-            radial-gradient(ellipse 60% 40% at 88% 105%,
-              rgba(60,12,6,0.30) 0%,
-              transparent        45%
+            radial-gradient(ellipse 55% 35% at 90% 108%,
+              rgba(55,11,5,0.35) 0%,
+              transparent        50%
             )
           `,
         }}
       />
 
-      {/* GES shield watermark — centered, same as brand image */}
+      {/* GES watermark — large logo centred, very subtle */}
       <div
         aria-hidden="true"
         className="fixed pointer-events-none z-0"
         style={{
           top: '50%', left: '50%',
-          transform: 'translate(-50%, -52%)',
-          opacity: 0.055,
+          transform: 'translate(-50%, -50%)',
+          opacity: 0.04,
+          width: 520,
+          height: 520,
         }}
       >
-        <GESLogo size={520} white={false} />
+        <Image
+          src="/ges-logo.png"
+          alt=""
+          width={520}
+          height={520}
+          style={{ objectFit: 'contain', filter: 'brightness(0) invert(1)' }}
+          priority={false}
+          draggable={false}
+        />
       </div>
 
-      {/* ── All content above background ─────────────────────────────────── */}
+      {/* ── All content ──────────────────────────────────────────────────── */}
       <div className="relative z-10 flex flex-col flex-1 min-h-screen">
 
-        {/* ── Header ─────────────────────────────────────────────────────── */}
-        <header
-          className="flex items-center justify-between gap-2 px-3 sm:px-6 py-2.5 sticky top-0 z-40 border-b"
+        {/* ══════════════════════════════════════════════════════════════
+            BRAND HERO — seen immediately on load, full identity
+            ════════════════════════════════════════════════════════════ */}
+        <div
+          className="relative flex flex-col items-center justify-center overflow-hidden"
           style={{
-            background: 'rgba(3,3,4,0.88)',
-            backdropFilter: 'blur(16px)',
-            borderColor: 'rgba(124,26,15,0.40)',
-            boxShadow: '0 1px 30px rgba(100,18,8,0.25)',
+            background: `
+              linear-gradient(
+                to bottom,
+                rgba(100,18,8,0.55) 0%,
+                rgba(50,9,4,0.35)   40%,
+                transparent         100%
+              )
+            `,
+            paddingTop:    'clamp(18px, 3vw, 32px)',
+            paddingBottom: 'clamp(14px, 2.5vw, 26px)',
+            borderBottom:  '1px solid rgba(124,26,15,0.45)',
           }}
         >
-          {/* GES Logo + title */}
-          <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
-            <GESLogo size={44} glow />
-            <div className="flex flex-col justify-center">
-              <h1
-                className="font-display text-white leading-tight tracking-widest"
-                style={{ fontSize: 'clamp(14px, 2.6vw, 19px)' }}
-              >
-                GASCOM ESPORTS
-              </h1>
-              <p
-                className="text-[9px] sm:text-[10px] font-bold tracking-[0.22em] uppercase leading-none"
-                style={{ color: 'rgba(180,80,55,0.9)' }}
-              >
-                MLBB · Draft Simulator
-              </p>
-            </div>
+          {/* Crimson glow halo behind logo */}
+          <div
+            aria-hidden="true"
+            className="absolute pointer-events-none"
+            style={{
+              top: '50%', left: '50%',
+              transform: 'translate(-50%, -50%)',
+              width: 300, height: 200,
+              borderRadius: '50%',
+              background: 'radial-gradient(ellipse, rgba(140,30,15,0.45) 0%, transparent 70%)',
+              filter: 'blur(30px)',
+            }}
+          />
+
+          {/* GES Logo — real PNG, prominent */}
+          <div
+            className="relative"
+            style={{
+              filter: 'drop-shadow(0 0 18px rgba(180,40,20,0.85)) drop-shadow(0 0 48px rgba(120,20,10,0.45))',
+            }}
+          >
+            <Image
+              src="/ges-logo.png"
+              alt="Gascom Esports Logo"
+              width={90}
+              height={106}
+              className="object-contain"
+              style={{
+                width:  'clamp(64px, 9vw, 104px)',
+                height: 'auto',
+              }}
+              priority
+            />
+          </div>
+
+          {/* Brand text */}
+          <div className="flex flex-col items-center gap-1 mt-3 text-center px-4">
+            <h1
+              className="font-display text-white tracking-[0.20em] leading-none"
+              style={{ fontSize: 'clamp(22px, 4.5vw, 42px)' }}
+            >
+              GASCOM ESPORTS
+            </h1>
+            <div
+              className="h-px w-24 sm:w-36 my-1"
+              style={{ background: 'linear-gradient(to right, transparent, #7c1a0f, transparent)' }}
+            />
+            <p
+              className="font-display tracking-[0.25em] leading-none"
+              style={{
+                fontSize: 'clamp(10px, 1.8vw, 14px)',
+                color: 'rgba(210,100,70,0.90)',
+              }}
+            >
+              MLBB · DRAFT SIMULATOR
+            </p>
+            <p
+              className="text-[10px] sm:text-[11px] italic font-medium tracking-wider mt-0.5"
+              style={{ color: 'rgba(150,60,40,0.75)' }}
+            >
+              « UNIS PAR UNE SEULE PASSION, L&apos;ESPORTS »
+            </p>
+          </div>
+        </div>
+
+        {/* ══════════════════════════════════════════════════════════════
+            CONTROLS BAR — compact, sticky
+            ════════════════════════════════════════════════════════════ */}
+        <div
+          className="sticky top-0 z-40 flex items-center justify-between gap-2 px-3 sm:px-6 py-2 border-b"
+          style={{
+            background: 'rgba(3,3,4,0.94)',
+            backdropFilter: 'blur(16px)',
+            borderColor: 'rgba(124,26,15,0.35)',
+            boxShadow: '0 2px 24px rgba(80,14,6,0.20)',
+          }}
+        >
+          {/* Mini logo + title — visible once hero scrolls away */}
+          <div className="flex items-center gap-2 shrink-0">
+            <Image
+              src="/ges-logo.png"
+              alt="GES"
+              width={28}
+              height={33}
+              style={{
+                width: 28, height: 'auto',
+                filter: 'drop-shadow(0 0 5px rgba(160,32,14,0.8))',
+              }}
+            />
+            <span
+              className="font-display tracking-widest text-white hidden sm:block"
+              style={{ fontSize: 13 }}
+            >
+              GASCOM ESPORTS
+            </span>
           </div>
 
           {/* Mode selector */}
@@ -221,13 +246,11 @@ export default function Home() {
                 onClick={() => { setGameMode(mode.value); resetDraft(); }}
                 className={clsx(
                   'px-2 sm:px-3 py-1 sm:py-1.5 rounded-md text-[10px] sm:text-xs font-bold tracking-wide transition-all',
-                  gameMode === mode.value
-                    ? 'text-white'
-                    : 'text-slate-500 hover:text-slate-300'
+                  gameMode === mode.value ? 'text-white' : 'text-slate-500 hover:text-slate-300'
                 )}
                 style={gameMode === mode.value ? {
                   background: 'linear-gradient(135deg, #8c1e10, #5a1208)',
-                  boxShadow: '0 0 16px rgba(124,26,15,0.6)',
+                  boxShadow:  '0 0 14px rgba(124,26,15,0.55)',
                 } : {}}
               >
                 <span className="sm:hidden">{mode.label.slice(0, 4)}</span>
@@ -236,7 +259,7 @@ export default function Home() {
             ))}
           </div>
 
-          {/* Right: status + actions */}
+          {/* Status + actions */}
           <div className="flex items-center gap-1.5 sm:gap-2">
 
             {/* Status dot (mobile) */}
@@ -268,7 +291,6 @@ export default function Home() {
               ) : null}
             </span>
 
-            {/* Undo */}
             {currentStep > 0 && (
               <button
                 onClick={undoLastAction}
@@ -279,7 +301,6 @@ export default function Home() {
               </button>
             )}
 
-            {/* Reset */}
             <button
               onClick={handleReset}
               className={clsx(
@@ -296,9 +317,9 @@ export default function Home() {
               }
             </button>
           </div>
-        </header>
+        </div>
 
-        {/* ── Main ── */}
+        {/* ── Draft tool ── */}
         <main className="flex-1 p-2 sm:p-4 overflow-auto flex flex-col pb-20 md:pb-4">
           <DraftBoard />
         </main>
@@ -307,7 +328,7 @@ export default function Home() {
         <footer
           className="hidden md:flex px-6 py-2 border-t items-center justify-between"
           style={{
-            background: 'rgba(3,3,4,0.90)',
+            background: 'rgba(3,3,4,0.92)',
             borderColor: 'rgba(124,26,15,0.25)',
           }}
         >
@@ -324,18 +345,24 @@ export default function Home() {
             </a>
             {' '}· Tier list: @gosugamersmlbb
           </span>
-          <div className="flex items-center gap-2">
-            <GESLogo size={18} glow={false} />
+          <div className="flex items-center gap-2 opacity-60">
+            <Image
+              src="/ges-logo.png"
+              alt="GES"
+              width={16}
+              height={19}
+              style={{ width: 16, height: 'auto' }}
+            />
             <span
               className="text-[10px] font-display tracking-widest"
-              style={{ color: 'rgba(124,26,15,0.65)' }}
+              style={{ color: 'rgba(180,60,40,0.8)' }}
             >
               GASCOM ESPORTS
             </span>
           </div>
         </footer>
 
-      </div>{/* end z-10 */}
+      </div>
     </div>
   );
 }
