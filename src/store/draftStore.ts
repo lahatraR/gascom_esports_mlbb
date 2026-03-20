@@ -112,32 +112,25 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
   roleFilter:  'All',
 
   // ── Load hero pool ────────────────────────────────────────────────────────
-  // Tries /api/heroes first (dev + Vercel), then /{basePath}/heroes.json
-  // (generated at build time for GitHub Pages static export), then offline.
+  // Fetches heroes.json (generated at prebuild time by scripts/fetch-heroes.ts).
+  // Falls back to offline static data if the file is unavailable.
   loadHeroPool: async () => {
     set({ isLoadingPool: true, poolError: null });
 
     const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
-    const endpoints = [
-      '/api/heroes',
-      `${basePath}/heroes.json`,
-    ];
 
-    for (const url of endpoints) {
-      try {
-        const res = await fetch(url);
-        if (!res.ok) continue;
-        const json = await res.json();
-        // /api/heroes returns { data: HeroData[] }; heroes.json is a flat array
-        const pool: HeroData[] = Array.isArray(json) ? json : json.data;
+    try {
+      const res = await fetch(`${basePath}/heroes.json`);
+      if (res.ok) {
+        const pool: HeroData[] = await res.json();
         if (Array.isArray(pool) && pool.length > 0) {
           set({ heroPool: pool, isLoadingPool: false });
           return;
         }
-      } catch { /* try next endpoint */ }
-    }
+      }
+    } catch { /* fall through to offline */ }
 
-    // All endpoints failed — offline fallback
+    // heroes.json unavailable — offline fallback
     const fallback = buildFallbackPool();
     set({ heroPool: fallback, isLoadingPool: false, poolError: 'API unavailable — using offline data' });
   },
