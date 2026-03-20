@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s \"https://mlbb-stats.rone.dev/api/hero-rank/\")",
+      "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); recs=d[''''data''''][''''records'''']; print\\(''''Total hero-rank:'''', len\\(recs\\)\\); print\\(''''Keys:'''', list\\(recs[0].keys\\(\\)\\)\\); print\\(''''Sample:'''', json.dumps\\(recs[0], indent=2\\)\\)\")",
+      "Bash(curl -s \"https://mlbb-stats.rone.dev/api/hero-position/\")",
+      "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d, indent=2\\)\\)\")",
+      "Bash(curl -s \"https://mlbb-stats.rone.dev/api/academy/heroes/\")",
+      "Bash(curl -s \"https://mlbb-stats.rone.dev/api/hero-detail/Kagura/\")",
+      "Bash(curl -s http://localhost:3002/api/heroes)",
+      "Bash(curl -s http://localhost:3000/api/heroes)",
+      "Read(//tmp/**)",
+      "Bash(python -c \":*)",
+      "Read(//d/ProjetStage/gascom_esports_mlbb grep -rn HeroListHero/|HeroRankEntry/|HeroRelationData/|HeroCounterEntry/|HeroCompatibilityEntry/|selectCurrentStep/|getCachedHeroRelation src/**)",
+      "Read(//d/ProjetStage/**)"
+    ]
+  }
+}

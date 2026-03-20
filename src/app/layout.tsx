@@ -3,7 +3,7 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: 'GASCOM Esports — MLBB Draft Simulator',
-  description: 'Real-time draft analysis, prediction and decision engine for Mobile Legends: Bang Bang',
+  description: 'Real-time draft analysis, prediction and decision engine for Mobile Legends: Bang Bang — by Gascom Esports',
   icons: { icon: '/favicon.ico' },
 };
 

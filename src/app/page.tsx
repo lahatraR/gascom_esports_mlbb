@@ -14,19 +14,58 @@ const DraftBoard = dynamic(
     loading: () => (
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center space-y-3">
-          <div className="w-12 h-12 rounded-full border-2 border-blue-500 border-t-transparent animate-spin mx-auto" />
-          <p className="text-slate-400 text-sm">Loading draft engine…</p>
+          <div className="w-12 h-12 rounded-full border-2 border-[#7c1a0f] border-t-transparent animate-spin mx-auto" />
+          <p className="text-slate-400 text-sm font-medium">Loading draft engine…</p>
         </div>
       </div>
     ),
   }
 );
 
+// ─── GES Shield Logo ──────────────────────────────────────────────────────────
+
+function GESLogo({ size = 36 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 100 110"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-label="Gascom Esports Logo"
+    >
+      {/* Crown */}
+      <path d="M28 28 L18 8 L38 20 L50 4 L62 20 L82 8 L72 28 Z" fill="#ffffff" />
+      {/* Shield body */}
+      <path d="M15 30 L85 30 L85 72 L50 106 L15 72 Z" fill="#7c1a0f" />
+      {/* Shield outline */}
+      <path d="M15 30 L85 30 L85 72 L50 106 L15 72 Z" stroke="#ffffff" strokeWidth="2.5" fill="none" />
+      {/* GES text */}
+      <text
+        x="50"
+        y="76"
+        textAnchor="middle"
+        fill="#ffffff"
+        fontSize="30"
+        fontWeight="900"
+        fontFamily="'Bebas Neue', 'Arial Black', sans-serif"
+        letterSpacing="1"
+      >
+        GES
+      </text>
+    </svg>
+  );
+}
+
+// ─── Mode options ─────────────────────────────────────────────────────────────
+
 const MODE_OPTIONS: { value: GameMode; label: string; desc: string }[] = [
   { value: 'ranked',     label: 'Ranked',     desc: 'Comfort & flexibility' },
   { value: 'tournament', label: 'Tournament', desc: 'Meta & coordination' },
   { value: 'custom',     label: 'Custom',     desc: 'Scrim simulation' },
 ];
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Home() {
   const loadHeroPool   = useDraftStore((s) => s.loadHeroPool);
@@ -56,27 +95,39 @@ export default function Home() {
   }
 
   return (
-    <div
-      className="min-h-screen flex flex-col"
-      style={{ background: 'linear-gradient(160deg, #03071280 0%, #050b18 30%, #030712 100%)' }}
-    >
+    <div className="min-h-screen flex flex-col ges-bg">
+
       {/* ── Header ── */}
-      <header className="flex items-center justify-between gap-2 px-3 sm:px-6 py-2 sm:py-3 border-b border-white/5 bg-navy-900/80 backdrop-blur sticky top-0 z-40">
-        {/* Logo */}
+      <header
+        className="flex items-center justify-between gap-2 px-3 sm:px-6 py-2 sm:py-3 sticky top-0 z-40 border-b"
+        style={{
+          background: 'rgba(3,3,4,0.92)',
+          backdropFilter: 'blur(14px)',
+          borderColor: 'rgba(124,26,15,0.35)',
+        }}
+      >
+        {/* GES Logo + title */}
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-gradient-to-br from-blue-600 to-blue-900 flex items-center justify-center border border-blue-500/30 shadow-lg shadow-blue-900/50">
-            <span className="text-white font-black text-sm">G</span>
-          </div>
+          <GESLogo size={34} />
           <div>
-            <h1 className="font-black text-white text-xs sm:text-sm tracking-wide">GASCOM ESPORTS</h1>
-            <p className="text-[9px] sm:text-[10px] text-blue-400/80 tracking-widest uppercase font-medium hidden xs:block">
+            <h1
+              className="font-display text-white tracking-widest leading-none"
+              style={{ fontSize: 'clamp(13px, 2.5vw, 17px)' }}
+            >
+              GASCOM ESPORTS
+            </h1>
+            <p className="text-[9px] sm:text-[10px] tracking-widest uppercase font-medium hidden xs:block"
+               style={{ color: 'rgba(200,100,80,0.85)' }}>
               MLBB Draft Simulator
             </p>
           </div>
         </div>
 
-        {/* Mode selector — abbreviated on mobile */}
-        <div className="flex items-center gap-0.5 sm:gap-1 bg-navy-800/80 rounded-lg p-1 border border-slate-700/40">
+        {/* Mode selector */}
+        <div
+          className="flex items-center gap-0.5 sm:gap-1 rounded-lg p-1 border"
+          style={{ background: 'rgba(20,5,3,0.8)', borderColor: 'rgba(124,26,15,0.3)' }}
+        >
           {MODE_OPTIONS.map((mode) => (
             <button
               key={mode.value}
@@ -85,11 +136,14 @@ export default function Home() {
               className={clsx(
                 'px-2 sm:px-3 py-1 sm:py-1.5 rounded-md text-[10px] sm:text-xs font-bold transition-all',
                 gameMode === mode.value
-                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50'
-                  : 'text-slate-400 hover:text-white'
+                  ? 'text-white shadow-lg'
+                  : 'text-slate-500 hover:text-slate-300'
               )}
+              style={gameMode === mode.value
+                ? { background: 'var(--brand-crimson)', boxShadow: '0 0 14px rgba(124,26,15,0.5)' }
+                : {}
+              }
             >
-              {/* Show first 3 chars on very small screens */}
               <span className="sm:hidden">{mode.label.slice(0, 4)}</span>
               <span className="hidden sm:inline">{mode.label}</span>
             </button>
@@ -98,31 +152,32 @@ export default function Home() {
 
         {/* Right: status + actions */}
         <div className="flex items-center gap-1.5 sm:gap-2">
-          {/* Status dot — icon only on mobile */}
+
+          {/* Status dot (mobile) */}
           {isLoading ? (
-            <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-pulse inline-block sm:hidden" />
+            <span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse inline-block sm:hidden" />
           ) : poolError ? (
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block sm:hidden" title={poolError} />
+            <span className="w-2 h-2 rounded-full bg-orange-500 inline-block sm:hidden" title={poolError} />
           ) : heroPoolLen > 0 ? (
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block sm:hidden" />
+            <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block sm:hidden" />
           ) : null}
 
-          {/* Full status text — hidden on mobile */}
+          {/* Full status text (desktop) */}
           <span className="hidden sm:flex">
             {isLoading ? (
               <span className="text-[10px] text-slate-500 flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-pulse inline-block" />
-                Loading {heroPoolLen > 0 ? `${heroPoolLen}` : ''} heroes…
+                Loading…
               </span>
             ) : poolError ? (
-              <span className="text-[10px] text-amber-500/80 flex items-center gap-1.5" title={poolError}>
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" />
-                Offline ({heroPoolLen} heroes)
+              <span className="text-[10px] text-orange-400/80 flex items-center gap-1.5" title={poolError}>
+                <span className="w-1.5 h-1.5 rounded-full bg-orange-500 inline-block" />
+                Offline ({heroPoolLen})
               </span>
             ) : heroPoolLen > 0 ? (
-              <span className="text-[10px] text-emerald-500/80 flex items-center gap-1.5">
+              <span className="text-[10px] text-emerald-400/80 flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
-                {heroPoolLen} heroes loaded
+                {heroPoolLen} heroes
               </span>
             ) : null}
           </span>
@@ -131,7 +186,8 @@ export default function Home() {
           {currentStep > 0 && (
             <button
               onClick={undoLastAction}
-              className="px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-navy-800 border border-slate-700/50 text-slate-400 hover:text-white hover:border-slate-500 text-[10px] sm:text-xs font-medium transition-all"
+              className="px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-[10px] sm:text-xs font-medium transition-all border border-slate-700/40 text-slate-400 hover:text-white hover:border-slate-500"
+              style={{ background: 'rgba(20,5,3,0.7)' }}
             >
               ↩ <span className="hidden sm:inline">Undo</span>
             </button>
@@ -143,12 +199,13 @@ export default function Home() {
             className={clsx(
               'px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-[10px] sm:text-xs font-bold transition-all border',
               confirmReset
-                ? 'bg-red-600/20 border-red-500/50 text-red-400 animate-pulse'
-                : 'bg-navy-800 border-slate-700/50 text-slate-400 hover:text-red-400 hover:border-red-500/40'
+                ? 'border-red-500/60 text-red-400 animate-pulse'
+                : 'border-slate-700/40 text-slate-400 hover:text-red-400 hover:border-red-500/40'
             )}
+            style={{ background: confirmReset ? 'rgba(124,26,15,0.25)' : 'rgba(20,5,3,0.7)' }}
           >
             {confirmReset
-              ? <><span className="hidden sm:inline">⚠️ Confirm </span>Reset</>
+              ? <><span className="hidden sm:inline">⚠ Confirm </span>Reset</>
               : <><span className="hidden sm:inline">↺ </span>Reset</>
             }
           </button>
@@ -160,8 +217,11 @@ export default function Home() {
         <DraftBoard />
       </main>
 
-      {/* ── Footer — hidden on mobile (covered by tab bar) ── */}
-      <footer className="hidden md:flex px-6 py-2 border-t border-white/5 bg-navy-900/60 items-center justify-between">
+      {/* ── Footer ── */}
+      <footer
+        className="hidden md:flex px-6 py-2 border-t items-center justify-between"
+        style={{ background: 'rgba(3,3,4,0.85)', borderColor: 'rgba(124,26,15,0.2)' }}
+      >
         <span className="text-[10px] text-slate-600">
           Data:{' '}
           <a
@@ -171,11 +231,11 @@ export default function Home() {
             className="text-slate-500 hover:text-slate-400"
           >
             mlbb-stats.rone.dev
-          </a>{' '}
-          by ridwaanhall
+          </a>
+          {' '}· Tier list: @gosugamersmlbb
         </span>
-        <span className="text-[10px] text-slate-600">
-          GASCOM Esports MLBB Draft Simulator v1.0
+        <span className="text-[10px]" style={{ color: 'rgba(124,26,15,0.7)' }}>
+          GASCOM ESPORTS · MLBB Draft Simulator
         </span>
       </footer>
     </div>

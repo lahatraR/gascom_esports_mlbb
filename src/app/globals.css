@@ -1,15 +1,27 @@
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Geologica:wght@300;400;500;600;700;800;900&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ─── Gascom Esports Brand Palette ──────────────────────────────────────────
+   Primary:   #030304  (brand black)
+   Accent:    #7c1a0f  (brand crimson)
+   Text:      #ffffff  (white)
+   Surface:   #0d0d10  (elevated surface)
+   Border:    #7c1a0f33 (crimson with opacity)
+   ─────────────────────────────────────────────────────────────────────────── */
+
 :root {
-  --navy-950: #030712;
-  --navy-900: #050b18;
-  --navy-800: #0a1628;
-  --navy-700: #0d1b2a;
-  --navy-600: #111f33;
+  --brand-black:   #030304;
+  --brand-crimson: #7c1a0f;
+  --brand-red:     #a02010;     /* slightly brighter for hover/active */
+  --brand-surface: #0d0d10;
+  --brand-border:  rgba(124, 26, 15, 0.30);
+
+  /* Team colors — kept distinguishable from brand crimson */
   --blue-team: #1e6fff;
-  --red-team:  #ff3c3c;
+  --red-team:  #e83535;
   --gold:      #f5c518;
 }
 
@@ -24,25 +36,31 @@ html {
 }
 
 body {
-  background-color: var(--navy-950);
-  color: #e2e8f0;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background-color: var(--brand-black);
+  color: #e8e8e8;
+  font-family: 'Geologica', system-ui, -apple-system, sans-serif;
   min-height: 100vh;
   overflow-x: hidden;
 }
 
-/* ─── Scrollbar ──────────────────────────────────────────────────────────── */
-::-webkit-scrollbar        { width: 6px; height: 6px; }
-::-webkit-scrollbar-track  { background: #0a1628; }
-::-webkit-scrollbar-thumb  { background: #1e3a5f; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #1e6fff; }
+/* ─── Headings use Bebas Neue (Zalando-style expanded sans) ─────────────── */
+h1, h2, h3, .font-display {
+  font-family: 'Bebas Neue', 'Geologica', system-ui, sans-serif;
+  letter-spacing: 0.05em;
+}
 
-/* ─── Glassmorphism card ─────────────────────────────────────────────────── */
+/* ─── Scrollbar ──────────────────────────────────────────────────────────── */
+::-webkit-scrollbar        { width: 5px; height: 5px; }
+::-webkit-scrollbar-track  { background: #0a0a0e; }
+::-webkit-scrollbar-thumb  { background: #7c1a0f55; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--brand-crimson); }
+
+/* ─── Glassmorphism card — brand-tinted ──────────────────────────────────── */
 .glass {
-  background: rgba(13, 27, 42, 0.85);
+  background: rgba(13, 13, 16, 0.88);
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 12px;
+  border: 1px solid var(--brand-border);
+  border-radius: 10px;
 }
 
 /* ─── Team glow utilities ────────────────────────────────────────────────── */
@@ -50,16 +68,19 @@ body {
   box-shadow: 0 0 12px rgba(30, 111, 255, 0.4), 0 0 32px rgba(30, 111, 255, 0.15);
 }
 .glow-red {
-  box-shadow: 0 0 12px rgba(255, 60, 60, 0.4), 0 0 32px rgba(255, 60, 60, 0.15);
+  box-shadow: 0 0 12px rgba(232, 53, 53, 0.4), 0 0 32px rgba(232, 53, 53, 0.15);
 }
 .glow-gold {
-  box-shadow: 0 0 12px rgba(245, 197, 24, 0.4), 0 0 32px rgba(245, 197, 24, 0.15);
+  box-shadow: 0 0 12px rgba(245, 197, 24, 0.5), 0 0 32px rgba(245, 197, 24, 0.15);
+}
+.glow-crimson {
+  box-shadow: 0 0 14px rgba(124, 26, 15, 0.6), 0 0 40px rgba(124, 26, 15, 0.25);
 }
 
 /* ─── Pulsing active indicator ───────────────────────────────────────────── */
 @keyframes activePulse {
   0%, 100% { opacity: 1; }
-  50%       { opacity: 0.5; }
+  50%       { opacity: 0.45; }
 }
 .active-pulse {
   animation: activePulse 1.5s ease-in-out infinite;
@@ -67,14 +88,14 @@ body {
 
 /* ─── Slide-in animation ─────────────────────────────────────────────────── */
 @keyframes slideInUp {
-  from { opacity: 0; transform: translateY(12px); }
+  from { opacity: 0; transform: translateY(10px); }
   to   { opacity: 1; transform: translateY(0);    }
 }
 .slide-in {
-  animation: slideInUp 0.3s ease-out;
+  animation: slideInUp 0.28s ease-out;
 }
 
-/* ─── Hero image fallback ring ───────────────────────────────────────────── */
+/* ─── Hero image border rings ────────────────────────────────────────────── */
 .hero-ring-blue { border: 2px solid var(--blue-team); }
 .hero-ring-red  { border: 2px solid var(--red-team);  }
 
@@ -84,5 +105,20 @@ body {
   to   { width: var(--bar-width); }
 }
 .bar-animated {
-  animation: barFill 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  animation: barFill 0.55s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
+
+/* ─── GES Brand gradient background ─────────────────────────────────────── */
+.ges-bg {
+  background: linear-gradient(
+    160deg,
+    #12030280 0%,
+    #030304 30%,
+    #030304 100%
+  );
+}
+
+/* ─── Crimson accent border ──────────────────────────────────────────────── */
+.border-crimson { border-color: var(--brand-crimson); }
+.text-crimson   { color: var(--brand-crimson); }
+.bg-crimson     { background-color: var(--brand-crimson); }

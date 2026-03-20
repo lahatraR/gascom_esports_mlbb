@@ -1,4 +1,5 @@
 import type { HeroData, DraftSuggestion, ScoreBreakdown, GameMode } from '@/types/draft';
+import { getHeroTierScore } from '@/data/tierList';
 
 // ─── Weight configuration per game mode ─────────────────────────────────────
 
@@ -48,20 +49,29 @@ export function calculateSynergyScore(hero: HeroData, alliedTeam: HeroData[]): n
 
 /**
  * Meta Score (0–10):
- * Based on win rate, pick rate, ban rate from hero-rank data.
- * S-tier: banRate > 25% OR (winRate > 53% AND pickRate > 10%) → 9-10
- * A-tier: banRate > 10% OR winRate > 52% → 7-8
- * B-tier: winRate > 50% → 5-6
- * C-tier: winRate ≤ 50% → 3-4
+ * Combines:
+ *  - Lane tier list score (from gosugamers patch tier list, weight 60%)
+ *  - Statistical score from hero-rank win/ban/pick rates (weight 40%)
+ *
+ * Tier list gives much stronger signal for draft priority than raw win rates
+ * because it accounts for patch context, pro-play viability, and lane fit.
  */
 export function calculateMetaScore(hero: HeroData): number {
+  // Tier list component (0–10)
+  const tierScore = getHeroTierScore(hero.name, hero.roles);
+
+  // Statistical component (0–10)
   const { winRate, pickRate, banRate } = hero;
-  if (banRate > 0.25 || (winRate > 0.53 && pickRate > 0.10)) return 9.5;
-  if (banRate > 0.15 || (winRate > 0.52 && pickRate > 0.07)) return 8.0;
-  if (banRate > 0.08 || winRate > 0.515) return 6.5;
-  if (winRate > 0.505) return 5.5;
-  if (winRate >= 0.495) return 4.5;
-  return 3.0;
+  let statScore: number;
+  if (banRate > 0.25 || (winRate > 0.53 && pickRate > 0.10)) statScore = 9.5;
+  else if (banRate > 0.15 || (winRate > 0.52 && pickRate > 0.07)) statScore = 8.0;
+  else if (banRate > 0.08 || winRate > 0.515) statScore = 6.5;
+  else if (winRate > 0.505) statScore = 5.5;
+  else if (winRate >= 0.495) statScore = 4.5;
+  else statScore = 3.0;
+
+  // Weighted blend: tier list is the primary signal
+  return clamp(tierScore * 0.60 + statScore * 0.40, 0, 10);
 }
 
 /**
