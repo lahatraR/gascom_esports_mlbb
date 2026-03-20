@@ -157,7 +157,10 @@ export function DraftBoard() {
       </div>
 
       {/* Mobile tab bar — fixed at bottom */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-stretch bg-navy-900/95 backdrop-blur border-t border-white/10 safe-bottom">
+      <div
+        className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-stretch backdrop-blur border-t safe-bottom"
+        style={{ background: 'rgba(9,9,9,0.97)', borderColor: 'rgba(124,26,15,0.4)' }}
+      >
         {MOBILE_TABS.map((tab) => {
           const isActive = mobileTab === tab.id;
           const isPulse  = !isDone && tab.id !== 'draft' && tab.id !== 'analysis' && activeTeamTab === tab.id;

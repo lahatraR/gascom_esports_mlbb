@@ -61,7 +61,10 @@ export function HeroSelector() {
           placeholder="Search hero…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full bg-navy-800 border border-slate-700/60 rounded-lg px-3 py-2 pl-8 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-slate-500 transition-colors"
+          className="w-full bg-navy-800 border border-slate-700/40 rounded-lg px-3 py-2 pl-8 text-sm text-slate-200 placeholder-slate-600 focus:outline-none transition-colors"
+          style={{ borderColor: 'rgba(124,26,15,0.3)' }}
+          onFocus={(e) => (e.target.style.borderColor = 'rgba(124,26,15,0.7)')}
+          onBlur={(e)  => (e.target.style.borderColor = 'rgba(124,26,15,0.3)')}
         />
         <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 text-sm">🔍</span>
         {search && (

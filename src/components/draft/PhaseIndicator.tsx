@@ -102,7 +102,7 @@ export function PhaseIndicator({ currentStep }: PhaseIndicatorProps) {
                         isBlue ? 'bg-blue-800/70' : 'bg-red-800/70',
                         isBan  ? 'text-red-300'   : 'text-white'
                       )
-                    : 'bg-navy-700 text-slate-600',
+                    : 'bg-navy-800 text-slate-700',
               )}
             >
               {isBan ? '✕' : (isBlue ? 'B' : 'R')}

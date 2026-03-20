@@ -200,7 +200,7 @@ export function EmptySlot({ label, active, team, variant = 'pick', size = 'md' }
           'rounded-lg border-2 border-dashed flex items-center justify-center',
           sz.container,
           active ? activeBorder : 'border-slate-700/50',
-          variant === 'ban' ? 'bg-red-950/20' : 'bg-navy-800/50',
+          variant === 'ban' ? 'bg-red-950/20' : 'bg-navy-800/60',
         )}
       >
         {active && (

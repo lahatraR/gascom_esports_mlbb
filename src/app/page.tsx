@@ -24,32 +24,35 @@ const DraftBoard = dynamic(
 
 // ─── GES Shield Logo ──────────────────────────────────────────────────────────
 
-function GESLogo({ size = 36 }: { size?: number }) {
+function GESLogo({ size = 36, glow = false }: { size?: number; glow?: boolean }) {
   return (
     <svg
       width={size}
-      height={size}
+      height={Math.round(size * 1.1)}
       viewBox="0 0 100 110"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       aria-label="Gascom Esports Logo"
+      style={glow ? { filter: 'drop-shadow(0 0 10px rgba(124,26,15,0.9)) drop-shadow(0 0 24px rgba(200,50,30,0.5))' } : undefined}
     >
       {/* Crown */}
-      <path d="M28 28 L18 8 L38 20 L50 4 L62 20 L82 8 L72 28 Z" fill="#ffffff" />
-      {/* Shield body */}
-      <path d="M15 30 L85 30 L85 72 L50 106 L15 72 Z" fill="#7c1a0f" />
+      <path d="M26 28 L14 6 L36 20 L50 3 L64 20 L86 6 L74 28 Z" fill="#ffffff" />
+      {/* Shield body — crimson fill */}
+      <path d="M12 32 L88 32 L88 74 L50 108 L12 74 Z" fill="#7c1a0f" />
+      {/* Shield inner bevel */}
+      <path d="M18 38 L82 38 L82 72 L50 100 L18 72 Z" fill="#5a1208" />
       {/* Shield outline */}
-      <path d="M15 30 L85 30 L85 72 L50 106 L15 72 Z" stroke="#ffffff" strokeWidth="2.5" fill="none" />
+      <path d="M12 32 L88 32 L88 74 L50 108 L12 74 Z" stroke="#ffffff" strokeWidth="2" fill="none" />
       {/* GES text */}
       <text
         x="50"
-        y="76"
+        y="79"
         textAnchor="middle"
         fill="#ffffff"
-        fontSize="30"
+        fontSize="31"
         fontWeight="900"
-        fontFamily="'Bebas Neue', 'Arial Black', sans-serif"
-        letterSpacing="1"
+        fontFamily="'Bebas Neue', 'Arial Black', Impact, sans-serif"
+        letterSpacing="2"
       >
         GES
       </text>
@@ -95,9 +98,20 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col ges-bg">
+    <div className="min-h-screen flex flex-col" style={{
+      background: 'linear-gradient(160deg, #120302 0%, #030304 25%, #030304 100%)',
+    }}>
+      {/* GES watermark — faint logo centred behind all content */}
+      <div
+        aria-hidden="true"
+        className="fixed inset-0 pointer-events-none z-0 flex items-center justify-center overflow-hidden"
+        style={{ opacity: 0.03 }}
+      >
+        <GESLogo size={500} />
+      </div>
 
       {/* ── Header ── */}
+      <div className="relative z-10 flex flex-col flex-1">
       <header
         className="flex items-center justify-between gap-2 px-3 sm:px-6 py-2 sm:py-3 sticky top-0 z-40 border-b"
         style={{
@@ -107,18 +121,21 @@ export default function Home() {
         }}
       >
         {/* GES Logo + title */}
-        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-          <GESLogo size={34} />
-          <div>
+        <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
+          {/* Logo with crimson glow */}
+          <div className="relative">
+            <GESLogo size={42} glow />
+          </div>
+          <div className="flex flex-col">
             <h1
-              className="font-display text-white tracking-widest leading-none"
-              style={{ fontSize: 'clamp(13px, 2.5vw, 17px)' }}
+              className="font-display text-white leading-none tracking-widest"
+              style={{ fontSize: 'clamp(15px, 2.8vw, 20px)' }}
             >
               GASCOM ESPORTS
             </h1>
-            <p className="text-[9px] sm:text-[10px] tracking-widest uppercase font-medium hidden xs:block"
-               style={{ color: 'rgba(200,100,80,0.85)' }}>
-              MLBB Draft Simulator
+            <p className="text-[9px] sm:text-[11px] font-bold tracking-[0.2em] uppercase"
+               style={{ color: '#a05040' }}>
+              MLBB · Draft Simulator
             </p>
           </div>
         </div>
@@ -238,6 +255,7 @@ export default function Home() {
           GASCOM ESPORTS · MLBB Draft Simulator
         </span>
       </footer>
+      </div>{/* end z-10 wrapper */}
     </div>
   );
 }
