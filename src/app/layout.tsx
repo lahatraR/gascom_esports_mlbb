@@ -4,7 +4,11 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'GASCOM Esports — MLBB Draft Simulator',
   description: 'Real-time draft analysis, prediction and decision engine for Mobile Legends: Bang Bang — by Gascom Esports',
-  icons: { icon: '/favicon.ico' },
+  icons: {
+    icon: '/ges-logo.png',
+    shortcut: '/ges-logo.png',
+    apple: '/ges-logo.png',
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
