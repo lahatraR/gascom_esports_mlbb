@@ -4,7 +4,8 @@ import { useState } from 'react';
 import clsx from 'clsx';
 import { useDraftStore } from '@/store/draftStore';
 import { getDraftSequence } from '@/types/draft';
-import { PhaseIndicator }     from './PhaseIndicator';
+import { PhaseIndicator }        from './PhaseIndicator';
+import { ActionAnnouncement }   from './ActionAnnouncement';
 import { TeamColumn }         from './TeamColumn';
 import { HeroSelector }       from './HeroSelector';
 import { SuggestionPanel }    from '@/components/analysis/SuggestionPanel';
@@ -89,6 +90,13 @@ export function DraftBoard() {
 
   return (
     <div className="flex flex-col gap-3 h-full">
+
+      {/* ── Action Announcement banner ── */}
+      <ActionAnnouncement
+        currentStep={currentStep}
+        activeStep={activeStep}
+        isDone={isDone}
+      />
 
       {/* ── Phase Indicator ── */}
       <div className="glass p-3">
