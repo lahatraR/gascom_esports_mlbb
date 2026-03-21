@@ -1,13 +1,15 @@
 import type { Metadata } from 'next';
 import './globals.css';
 
+const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
+
 export const metadata: Metadata = {
   title: 'GASCOM Esports — MLBB Draft Simulator',
   description: 'Real-time draft analysis, prediction and decision engine for Mobile Legends: Bang Bang — by Gascom Esports',
   icons: {
-    icon: '/ges-logo.png',
-    shortcut: '/ges-logo.png',
-    apple: '/ges-logo.png',
+    icon: `${BASE}/ges-logo.png`,
+    shortcut: `${BASE}/ges-logo.png`,
+    apple: `${BASE}/ges-logo.png`,
   },
 };
 

@@ -7,6 +7,8 @@ import clsx from 'clsx';
 import { useDraftStore } from '@/store/draftStore';
 import type { GameMode } from '@/types/draft';
 
+const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
+
 // ─── DraftBoard — SSR disabled ────────────────────────────────────────────────
 const DraftBoard = dynamic(
   () => import('@/components/draft/DraftBoard').then((m) => m.DraftBoard),
@@ -102,7 +104,7 @@ export default function Home() {
         }}
       >
         <Image
-          src="/ges-logo.png"
+          src={`${BASE}/ges-logo.png`}
           alt=""
           width={520}
           height={520}
@@ -156,7 +158,7 @@ export default function Home() {
             }}
           >
             <Image
-              src="/ges-logo.png"
+              src={`${BASE}/ges-logo.png`}
               alt="Gascom Esports Logo"
               width={90}
               height={106}
@@ -214,7 +216,7 @@ export default function Home() {
           {/* Mini logo + title — visible once hero scrolls away */}
           <div className="flex items-center gap-2 shrink-0">
             <Image
-              src="/ges-logo.png"
+              src={`${BASE}/ges-logo.png`}
               alt="GES"
               width={28}
               height={33}
@@ -347,7 +349,7 @@ export default function Home() {
           </span>
           <div className="flex items-center gap-2 opacity-60">
             <Image
-              src="/ges-logo.png"
+              src={`${BASE}/ges-logo.png`}
               alt="GES"
               width={16}
               height={19}
