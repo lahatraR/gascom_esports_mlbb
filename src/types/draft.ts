@@ -82,6 +82,31 @@ export const DRAFT_SEQUENCE: DraftStep[] = [
   { step: 19, team: 'blue', action: 'pick', phase: 'pick2', label: 'Blue Pick 5' },
 ];
 
+// ─── Counter Composition types ────────────────────────────────────────────────
+
+export type LaneRole = 'Gold' | 'Jungle' | 'Mid' | 'EXP' | 'Roam';
+
+export interface CompositionSlot {
+  hero:      HeroData;
+  laneRole:  LaneRole;
+  reason:    string;
+}
+
+export interface CounterComposition {
+  archetype:     DraftArchetype;
+  slots:         CompositionSlot[];  // 5 slots
+  winCondition:  string;
+  counterReason: string;
+  strength:      number;  // 0–100
+}
+
+export interface EnemyCompAnalysis {
+  predictedArchetype: DraftArchetype;
+  confidence:         number;   // 0–100
+  reasoning:          string;   // e.g. "Fanny + Ling → high burst + mobile CC"
+  counterComps:       CounterComposition[];  // top 2 counter archetypes
+}
+
 // ─── Analysis types ──────────────────────────────────────────────────────────
 
 export interface ScoreBreakdown {
@@ -127,4 +152,5 @@ export interface DraftAnalysis {
   enemyPredictions: EnemyPrediction[];
   blueArchetype: ArchetypeResult | null;
   redArchetype:  ArchetypeResult | null;
+  enemyCompAnalysis: EnemyCompAnalysis | null;
 }

@@ -11,7 +11,8 @@ import { SuggestionPanel }    from '@/components/analysis/SuggestionPanel';
 import { WinProbabilityGauge }  from '@/components/analysis/WinProbabilityGauge';
 import { TeamComparisonPanel }  from '@/components/analysis/TeamComparisonPanel';
 import { EnemyPredictionPanel } from '@/components/analysis/EnemyPredictionPanel';
-import { ArchetypePanel }       from '@/components/analysis/ArchetypePanel';
+import { ArchetypePanel }             from '@/components/analysis/ArchetypePanel';
+import { CounterCompositionPanel }   from '@/components/analysis/CounterCompositionPanel';
 import type { DraftAnalysis } from '@/types/draft';
 
 type MobileTab = 'draft' | 'blue' | 'red' | 'analysis';
@@ -58,6 +59,10 @@ function AnalysisPanels({
       )}
       <EnemyPredictionPanel
         predictions={analysis?.enemyPredictions ?? []}
+        enemyTeam={enemyTeam}
+      />
+      <CounterCompositionPanel
+        analysis={analysis?.enemyCompAnalysis ?? null}
         enemyTeam={enemyTeam}
       />
     </div>
@@ -127,6 +132,11 @@ export function DraftBoard() {
           )}
           <EnemyPredictionPanel predictions={analysis?.enemyPredictions ?? []} enemyTeam={enemyTeam} />
         </div>
+        {/* Counter composition — full width below */}
+        <CounterCompositionPanel
+          analysis={analysis?.enemyCompAnalysis ?? null}
+          enemyTeam={enemyTeam}
+        />
       </div>
 
       {/* ══════════════════ MOBILE LAYOUT (< md) ══════════════════ */}

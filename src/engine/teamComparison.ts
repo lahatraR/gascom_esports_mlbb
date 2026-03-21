@@ -2,6 +2,7 @@ import type { HeroData, TeamMetrics, DraftAnalysis, GameMode } from '@/types/dra
 import { getSuggestions } from './draftEngine';
 import { predictEnemyPicks } from './predictionEngine';
 import { detectTeamArchetype } from './archetypeEngine';
+import { buildEnemyCompAnalysis } from './compositionEngine';
 
 // ─── Team metric calculation ─────────────────────────────────────────────────
 
@@ -151,6 +152,14 @@ export function runDraftAnalysis(
   const blueArchetype = detectTeamArchetype(blueTeam);
   const redArchetype  = detectTeamArchetype(redTeam);
 
+  // Enemy composition analysis: predict enemy strategy + build counter comps
+  const enemyCompAnalysis = buildEnemyCompAnalysis(
+    allHeroes,
+    enemyTeam,    // enemy's confirmed picks
+    bannedIds,
+    pickedIds,
+  );
+
   return {
     blueMetrics,
     redMetrics,
@@ -162,6 +171,7 @@ export function runDraftAnalysis(
     enemyPredictions,
     blueArchetype,
     redArchetype,
+    enemyCompAnalysis,
   };
 }
 
