@@ -17,7 +17,8 @@ export interface HeroStats {
   // Optional default rates (used when API hero-rank doesn't cover this hero)
   winRate?:  number;
   pickRate?: number;
-  banRate?:  number;
+  banRate?:  number; 
+  
 }
 
 // Default stats per primary role (used for heroes not explicitly listed)
