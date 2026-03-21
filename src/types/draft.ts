@@ -54,33 +54,108 @@ export interface DraftStep {
   label: string;      // e.g. "Blue Ban 1"
 }
 
-// Full 5v5 draft sequence (5 bans + 5 picks each = 20 total)
-export const DRAFT_SEQUENCE: DraftStep[] = [
-  // Ban Phase 1 (6 steps)
+// ─── RANKED sequence — 20 steps ──────────────────────────────────────────────
+// Ban Phase 1 (6) → Ban Phase 2 (4, immediately) → Pick Phase 1 (6) → Pick Phase 2 (4)
+// Picks: 1B, 2R, 2B, 2R, 2B, 1R
+export const RANKED_SEQUENCE: DraftStep[] = [
+  // Ban Phase 1 — 3 per side (alternating)
   { step: 0,  team: 'blue', action: 'ban',  phase: 'ban1',  label: 'Blue Ban 1'  },
   { step: 1,  team: 'red',  action: 'ban',  phase: 'ban1',  label: 'Red Ban 1'   },
   { step: 2,  team: 'blue', action: 'ban',  phase: 'ban1',  label: 'Blue Ban 2'  },
   { step: 3,  team: 'red',  action: 'ban',  phase: 'ban1',  label: 'Red Ban 2'   },
   { step: 4,  team: 'blue', action: 'ban',  phase: 'ban1',  label: 'Blue Ban 3'  },
   { step: 5,  team: 'red',  action: 'ban',  phase: 'ban1',  label: 'Red Ban 3'   },
-  // Pick Phase 1 (4 steps)
+  // Ban Phase 2 — 2 per side (immediately after, no picks between)
+  { step: 6,  team: 'blue', action: 'ban',  phase: 'ban2',  label: 'Blue Ban 4'  },
+  { step: 7,  team: 'red',  action: 'ban',  phase: 'ban2',  label: 'Red Ban 4'   },
+  { step: 8,  team: 'blue', action: 'ban',  phase: 'ban2',  label: 'Blue Ban 5'  },
+  { step: 9,  team: 'red',  action: 'ban',  phase: 'ban2',  label: 'Red Ban 5'   },
+  // Pick Phase 1 — 1B, 2R, 2B, 1R
+  { step: 10, team: 'blue', action: 'pick', phase: 'pick1', label: 'Blue Pick 1' },
+  { step: 11, team: 'red',  action: 'pick', phase: 'pick1', label: 'Red Pick 1'  },
+  { step: 12, team: 'red',  action: 'pick', phase: 'pick1', label: 'Red Pick 2'  },
+  { step: 13, team: 'blue', action: 'pick', phase: 'pick1', label: 'Blue Pick 2' },
+  { step: 14, team: 'blue', action: 'pick', phase: 'pick1', label: 'Blue Pick 3' },
+  { step: 15, team: 'red',  action: 'pick', phase: 'pick1', label: 'Red Pick 3'  },
+  // Pick Phase 2 — 2R, 2B, 1R
+  { step: 16, team: 'red',  action: 'pick', phase: 'pick2', label: 'Red Pick 4'  },
+  { step: 17, team: 'blue', action: 'pick', phase: 'pick2', label: 'Blue Pick 4' },
+  { step: 18, team: 'blue', action: 'pick', phase: 'pick2', label: 'Blue Pick 5' },
+  { step: 19, team: 'red',  action: 'pick', phase: 'pick2', label: 'Red Pick 5'  },
+];
+
+// ─── TOURNAMENT sequence — 20 steps ──────────────────────────────────────────
+// Ban1(6) → Pick1(6) → Ban2(4) → Pick2(4)
+// Pick1: 1B, 2R, 2B, 1R   |   Pick2: 1R, 2B, 1R
+export const TOURNAMENT_SEQUENCE: DraftStep[] = [
+  // Ban Phase 1 — 3 per side
+  { step: 0,  team: 'blue', action: 'ban',  phase: 'ban1',  label: 'Blue Ban 1'  },
+  { step: 1,  team: 'red',  action: 'ban',  phase: 'ban1',  label: 'Red Ban 1'   },
+  { step: 2,  team: 'blue', action: 'ban',  phase: 'ban1',  label: 'Blue Ban 2'  },
+  { step: 3,  team: 'red',  action: 'ban',  phase: 'ban1',  label: 'Red Ban 2'   },
+  { step: 4,  team: 'blue', action: 'ban',  phase: 'ban1',  label: 'Blue Ban 3'  },
+  { step: 5,  team: 'red',  action: 'ban',  phase: 'ban1',  label: 'Red Ban 3'   },
+  // Pick Phase 1 — 1B, 2R, 2B, 1R
   { step: 6,  team: 'blue', action: 'pick', phase: 'pick1', label: 'Blue Pick 1' },
   { step: 7,  team: 'red',  action: 'pick', phase: 'pick1', label: 'Red Pick 1'  },
   { step: 8,  team: 'red',  action: 'pick', phase: 'pick1', label: 'Red Pick 2'  },
   { step: 9,  team: 'blue', action: 'pick', phase: 'pick1', label: 'Blue Pick 2' },
-  // Ban Phase 2 (4 steps)
-  { step: 10, team: 'blue', action: 'ban',  phase: 'ban2',  label: 'Blue Ban 4'  },
-  { step: 11, team: 'red',  action: 'ban',  phase: 'ban2',  label: 'Red Ban 4'   },
-  { step: 12, team: 'blue', action: 'ban',  phase: 'ban2',  label: 'Blue Ban 5'  },
-  { step: 13, team: 'red',  action: 'ban',  phase: 'ban2',  label: 'Red Ban 5'   },
-  // Pick Phase 2 (6 steps)
-  { step: 14, team: 'red',  action: 'pick', phase: 'pick2', label: 'Red Pick 3'  },
-  { step: 15, team: 'blue', action: 'pick', phase: 'pick2', label: 'Blue Pick 3' },
-  { step: 16, team: 'blue', action: 'pick', phase: 'pick2', label: 'Blue Pick 4' },
-  { step: 17, team: 'red',  action: 'pick', phase: 'pick2', label: 'Red Pick 4'  },
-  { step: 18, team: 'red',  action: 'pick', phase: 'pick2', label: 'Red Pick 5'  },
-  { step: 19, team: 'blue', action: 'pick', phase: 'pick2', label: 'Blue Pick 5' },
+  { step: 10, team: 'blue', action: 'pick', phase: 'pick1', label: 'Blue Pick 3' },
+  { step: 11, team: 'red',  action: 'pick', phase: 'pick1', label: 'Red Pick 3'  },
+  // Ban Phase 2 — 2 per side
+  { step: 12, team: 'blue', action: 'ban',  phase: 'ban2',  label: 'Blue Ban 4'  },
+  { step: 13, team: 'red',  action: 'ban',  phase: 'ban2',  label: 'Red Ban 4'   },
+  { step: 14, team: 'blue', action: 'ban',  phase: 'ban2',  label: 'Blue Ban 5'  },
+  { step: 15, team: 'red',  action: 'ban',  phase: 'ban2',  label: 'Red Ban 5'   },
+  // Pick Phase 2 — 1R, 2B, 1R
+  { step: 16, team: 'red',  action: 'pick', phase: 'pick2', label: 'Red Pick 4'  },
+  { step: 17, team: 'blue', action: 'pick', phase: 'pick2', label: 'Blue Pick 4' },
+  { step: 18, team: 'blue', action: 'pick', phase: 'pick2', label: 'Blue Pick 5' },
+  { step: 19, team: 'red',  action: 'pick', phase: 'pick2', label: 'Red Pick 5'  },
 ];
+
+// ─── CUSTOM sequence — 16 steps ───────────────────────────────────────────────
+// Ban1(4) → Pick1(6) → Ban2(2) → Pick2(4)  — 3 bans per side, 5 picks per side
+// Pick1: 1B, 2R, 2B, 1R   |   Pick2: 1R, 2B, 1R
+export const CUSTOM_SEQUENCE: DraftStep[] = [
+  // Ban Phase 1 — 2 per side
+  { step: 0,  team: 'blue', action: 'ban',  phase: 'ban1',  label: 'Blue Ban 1'  },
+  { step: 1,  team: 'red',  action: 'ban',  phase: 'ban1',  label: 'Red Ban 1'   },
+  { step: 2,  team: 'blue', action: 'ban',  phase: 'ban1',  label: 'Blue Ban 2'  },
+  { step: 3,  team: 'red',  action: 'ban',  phase: 'ban1',  label: 'Red Ban 2'   },
+  // Pick Phase 1 — 1B, 2R, 2B, 1R
+  { step: 4,  team: 'blue', action: 'pick', phase: 'pick1', label: 'Blue Pick 1' },
+  { step: 5,  team: 'red',  action: 'pick', phase: 'pick1', label: 'Red Pick 1'  },
+  { step: 6,  team: 'red',  action: 'pick', phase: 'pick1', label: 'Red Pick 2'  },
+  { step: 7,  team: 'blue', action: 'pick', phase: 'pick1', label: 'Blue Pick 2' },
+  { step: 8,  team: 'blue', action: 'pick', phase: 'pick1', label: 'Blue Pick 3' },
+  { step: 9,  team: 'red',  action: 'pick', phase: 'pick1', label: 'Red Pick 3'  },
+  // Ban Phase 2 — 1 per side
+  { step: 10, team: 'blue', action: 'ban',  phase: 'ban2',  label: 'Blue Ban 3'  },
+  { step: 11, team: 'red',  action: 'ban',  phase: 'ban2',  label: 'Red Ban 3'   },
+  // Pick Phase 2 — 1R, 2B, 1R
+  { step: 12, team: 'red',  action: 'pick', phase: 'pick2', label: 'Red Pick 4'  },
+  { step: 13, team: 'blue', action: 'pick', phase: 'pick2', label: 'Blue Pick 4' },
+  { step: 14, team: 'blue', action: 'pick', phase: 'pick2', label: 'Blue Pick 5' },
+  { step: 15, team: 'red',  action: 'pick', phase: 'pick2', label: 'Red Pick 5'  },
+];
+
+// ─── Mode → sequence lookup ───────────────────────────────────────────────────
+
+export function getDraftSequence(mode: GameMode): DraftStep[] {
+  if (mode === 'tournament') return TOURNAMENT_SEQUENCE;
+  if (mode === 'custom')     return CUSTOM_SEQUENCE;
+  return RANKED_SEQUENCE;
+}
+
+/** Number of bans per side for the given mode */
+export function getBanCount(mode: GameMode): number {
+  const seq = getDraftSequence(mode);
+  return seq.filter((s) => s.team === 'blue' && s.action === 'ban').length;
+}
+
+/** @deprecated Use getDraftSequence('ranked') — kept for any remaining references */
+export const DRAFT_SEQUENCE = RANKED_SEQUENCE;
 
 // ─── Counter Composition types ────────────────────────────────────────────────
 

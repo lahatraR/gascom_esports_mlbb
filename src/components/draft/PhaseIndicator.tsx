@@ -1,40 +1,55 @@
 'use client';
 
 import clsx from 'clsx';
-import { DRAFT_SEQUENCE } from '@/types/draft';
+import type { DraftStep, DraftPhase } from '@/types/draft';
 
 interface PhaseIndicatorProps {
   currentStep: number;
+  sequence:    DraftStep[];
 }
 
-const PHASE_LABELS: Record<string, string> = {
+const PHASE_LABELS: Record<DraftPhase, string> = {
   ban1:  'BAN PHASE 1',
   pick1: 'PICK PHASE 1',
   ban2:  'BAN PHASE 2',
   pick2: 'PICK PHASE 2',
 };
 
-const PHASE_LABELS_SHORT: Record<string, string> = {
+const PHASE_LABELS_SHORT: Record<DraftPhase, string> = {
   ban1:  'BAN 1',
   pick1: 'PICK 1',
   ban2:  'BAN 2',
   pick2: 'PICK 2',
 };
 
-const PHASE_ORDER = ['ban1', 'pick1', 'ban2', 'pick2'];
+/** Extract phases in the order they first appear in the sequence */
+function getPhaseOrder(sequence: DraftStep[]): DraftPhase[] {
+  const seen  = new Set<DraftPhase>();
+  const order: DraftPhase[] = [];
+  for (const step of sequence) {
+    if (!seen.has(step.phase)) {
+      seen.add(step.phase);
+      order.push(step.phase);
+    }
+  }
+  return order;
+}
 
-export function PhaseIndicator({ currentStep }: PhaseIndicatorProps) {
-  const isDone     = currentStep >= DRAFT_SEQUENCE.length;
-  const activeStep = isDone ? null : DRAFT_SEQUENCE[currentStep];
-  const activePhase = activeStep?.phase ?? 'pick2';
+export function PhaseIndicator({ currentStep, sequence }: PhaseIndicatorProps) {
+  const isDone      = currentStep >= sequence.length;
+  const activeStep  = isDone ? null : sequence[currentStep];
+  const activePhase = activeStep?.phase ?? sequence[sequence.length - 1]?.phase ?? 'pick2';
+  const phaseOrder  = getPhaseOrder(sequence);
 
   return (
     <div className="flex flex-col gap-2">
       {/* Phase labels — hidden on xs, visible sm+ */}
       <div className="hidden sm:flex justify-center gap-4">
-        {PHASE_ORDER.map((phase) => {
-          const isActive  = phase === activePhase && !isDone;
-          const isPast    = PHASE_ORDER.indexOf(phase) < PHASE_ORDER.indexOf(activePhase) || isDone;
+        {phaseOrder.map((phase) => {
+          const phaseIdx   = phaseOrder.indexOf(phase);
+          const activeIdx  = phaseOrder.indexOf(activePhase);
+          const isActive   = phase === activePhase && !isDone;
+          const isPast     = phaseIdx < activeIdx || isDone;
           return (
             <div key={phase} className="flex flex-col items-center gap-1">
               <span
@@ -52,9 +67,11 @@ export function PhaseIndicator({ currentStep }: PhaseIndicatorProps) {
 
       {/* Mobile: compact phase pills */}
       <div className="flex sm:hidden justify-center gap-1.5">
-        {PHASE_ORDER.map((phase) => {
-          const isActive = phase === activePhase && !isDone;
-          const isPast   = PHASE_ORDER.indexOf(phase) < PHASE_ORDER.indexOf(activePhase) || isDone;
+        {phaseOrder.map((phase) => {
+          const phaseIdx  = phaseOrder.indexOf(phase);
+          const activeIdx = phaseOrder.indexOf(activePhase);
+          const isActive  = phase === activePhase && !isDone;
+          const isPast    = phaseIdx < activeIdx || isDone;
           return (
             <span
               key={phase}
@@ -73,7 +90,7 @@ export function PhaseIndicator({ currentStep }: PhaseIndicatorProps) {
 
       {/* Step dots */}
       <div className="flex items-center justify-center gap-0.5 sm:gap-1 flex-wrap">
-        {DRAFT_SEQUENCE.map((step, i) => {
+        {sequence.map((step, i) => {
           const isActive = i === currentStep && !isDone;
           const isPast   = i < currentStep;
           const isBlue   = step.team === 'blue';
@@ -85,7 +102,6 @@ export function PhaseIndicator({ currentStep }: PhaseIndicatorProps) {
               title={step.label}
               className={clsx(
                 'rounded-sm transition-all duration-300 flex items-center justify-center font-black',
-                // Smaller dots on mobile
                 isBan
                   ? 'w-4 h-4 sm:w-5 sm:h-5 text-[7px] sm:text-[8px]'
                   : 'w-5 h-5 sm:w-6 sm:h-6 text-[7px] sm:text-[8px]',

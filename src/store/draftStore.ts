@@ -3,7 +3,7 @@
 import { create } from 'zustand';
 import { HERO_STATS, getDefaultsForRoles, FALLBACK_HERO_NAMES } from '@/data/heroes';
 import type { HeroData, DraftAnalysis, GameMode, DraftTeam } from '@/types/draft';
-import { DRAFT_SEQUENCE } from '@/types/draft';
+import { getDraftSequence, getBanCount } from '@/types/draft';
 import { runDraftAnalysis } from '@/engine/teamComparison';
 
 // ─── Offline fallback hero list ───────────────────────────────────────────────
@@ -87,8 +87,8 @@ function reanalyze(
   const rPicks = redPicks.filter(Boolean)  as HeroData[];
   const bBans  = blueBans.filter(Boolean)  as HeroData[];
   const rBans  = redBans.filter(Boolean)   as HeroData[];
-  const currentTeam: DraftTeam =
-    nextStep < DRAFT_SEQUENCE.length ? DRAFT_SEQUENCE[nextStep].team : 'blue';
+  const seq         = getDraftSequence(gameMode);
+  const currentTeam: DraftTeam = nextStep < seq.length ? seq[nextStep].team : 'blue';
 
   return runDraftAnalysis(heroPool, bPicks, rPicks, bBans, rBans, currentTeam, gameMode);
 }
@@ -100,8 +100,8 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
   isLoadingPool:  false,
   poolError:      null,
 
-  blueBans:    makeSlots(5),
-  redBans:     makeSlots(5),
+  blueBans:    makeSlots(getBanCount('ranked')),
+  redBans:     makeSlots(getBanCount('ranked')),
   bluePicks:   makeSlots(5),
   redPicks:    makeSlots(5),
   currentStep: 0,
@@ -138,9 +138,10 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
   // ── Select hero for current draft step ───────────────────────────────────
   selectHero: (hero: HeroData) => {
     const state = get();
-    if (state.currentStep >= DRAFT_SEQUENCE.length) return;
+    const seq   = getDraftSequence(state.gameMode);
+    if (state.currentStep >= seq.length) return;
 
-    const step = DRAFT_SEQUENCE[state.currentStep];
+    const step = seq[state.currentStep];
     let blueBans  = [...state.blueBans];
     let redBans   = [...state.redBans];
     let bluePicks = [...state.bluePicks];
@@ -178,7 +179,7 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
     if (state.currentStep <= 0) return;
 
     const prevIdx = state.currentStep - 1;
-    const step    = DRAFT_SEQUENCE[prevIdx];
+    const step    = getDraftSequence(state.gameMode)[prevIdx];
 
     let blueBans  = [...state.blueBans];
     let redBans   = [...state.redBans];
@@ -209,8 +210,10 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
   },
 
   // ── Reset ─────────────────────────────────────────────────────────────────
-  resetDraft: () =>
-    set({ blueBans: makeSlots(5), redBans: makeSlots(5), bluePicks: makeSlots(5), redPicks: makeSlots(5), currentStep: 0, analysis: null }),
+  resetDraft: () => {
+    const bans = getBanCount(get().gameMode);
+    set({ blueBans: makeSlots(bans), redBans: makeSlots(bans), bluePicks: makeSlots(5), redPicks: makeSlots(5), currentStep: 0, analysis: null });
+  },
 
   setGameMode:   (mode) => set({ gameMode: mode }),
   setSearch:     (q)    => set({ search: q }),

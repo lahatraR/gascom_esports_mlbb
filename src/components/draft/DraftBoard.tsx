@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import clsx from 'clsx';
 import { useDraftStore } from '@/store/draftStore';
-import { DRAFT_SEQUENCE } from '@/types/draft';
+import { getDraftSequence } from '@/types/draft';
 import { PhaseIndicator }     from './PhaseIndicator';
 import { TeamColumn }         from './TeamColumn';
 import { HeroSelector }       from './HeroSelector';
@@ -77,8 +77,9 @@ export function DraftBoard() {
 
   const [mobileTab, setMobileTab] = useState<MobileTab>('draft');
 
-  const isDone      = currentStep >= DRAFT_SEQUENCE.length;
-  const activeStep  = isDone ? null : DRAFT_SEQUENCE[currentStep];
+  const sequence    = getDraftSequence(gameMode);
+  const isDone      = currentStep >= sequence.length;
+  const activeStep  = isDone ? null : sequence[currentStep];
   const isPickPhase = activeStep?.action === 'pick';
   const currentTeam = activeStep?.team ?? 'blue';
   const enemyTeam   = currentTeam === 'blue' ? 'red' : 'blue';
@@ -91,7 +92,7 @@ export function DraftBoard() {
 
       {/* ── Phase Indicator ── */}
       <div className="glass p-3">
-        <PhaseIndicator currentStep={currentStep} />
+        <PhaseIndicator currentStep={currentStep} sequence={sequence} />
       </div>
 
       {/* ══════════════════ DESKTOP LAYOUT (md+) ══════════════════ */}
