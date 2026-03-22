@@ -1,15 +1,11 @@
 // ─── Winning Lineup Engine ────────────────────────────────────────────────────
 //
-// Builds the optimal FULL 5-hero lineup for our team by:
-//  1. Assigning already-locked ally picks to their best lanes
-//  2. Choosing the archetype that best counters the enemy AND fits current picks
-//  3. Filling every remaining lane with the best available hero
-//
-// Result: WinningLineup with isLocked flags so the UI can show
-//         locked picks (✓) separately from fresh recommendations (→ PICK).
+// Builds the optimal FULL 5-hero lineup for our team with:
+//  · French contextual explanations per slot
+//  · Ban threat analysis (which of our heroes the enemy should ban + backups)
 
 import type {
-  HeroData, DraftArchetype, WinningLineup, WinningLineupSlot, LaneRole,
+  HeroData, DraftArchetype, WinningLineup, WinningLineupSlot, BanThreat, LaneRole,
 } from '@/types/draft';
 import {
   detectTeamArchetype,
@@ -20,7 +16,41 @@ import {
 import { calculateMetaScore } from './draftEngine';
 import { LANE_TIERS, TIER_META_SCORE, type TierRank } from '@/data/tierList';
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+// ─── French locale constants ──────────────────────────────────────────────────
+
+const LANE_FR: Record<LaneRole, string> = {
+  Gold:   'Gold Lane',
+  Roam:   'Roam/Support',
+  Jungle: 'Jungle',
+  Mid:    'Mid Lane',
+  EXP:    'EXP Lane',
+};
+
+const LANE_ROLE_FR: Record<LaneRole, string> = {
+  Gold:   'carry principal — source de dégâts en late game',
+  Roam:   'support/initiateur — vision, peel et protection pour l\'équipe',
+  Jungle: 'jungler — objectifs, buff et pression globale sur la map',
+  Mid:    'rotation et burst — frappe les carries ennemis rapidement',
+  EXP:    'dueliste — pression et avantage XP en solo lane',
+};
+
+const ARCHETYPE_FR: Record<DraftArchetype, string> = {
+  engage:  'Engage',
+  poke:    'Poke',
+  protect: 'Protect',
+  split:   'Split Push',
+  catch:   'Catch',
+};
+
+const WIN_CONDITIONS_FR: Record<DraftArchetype, string> = {
+  protect: 'Scalez en late game en sécurité — protégez votre carry à chaque ouverture de burst. Jouez conservativement et contrôlez les objectifs avec votre peel.',
+  poke:    'Usez les adversaires à distance avant chaque fight — forcez de mauvais engages ou cédez les objectifs. Maintenez la distance et pénalisez toute mauvaise position.',
+  engage:  'Forcez des team fights avec du CC en chaîne — écrasez l\'adversaire avant qu\'il puisse se repositionner. Cherchez des engages sur plusieurs cibles simultanément.',
+  split:   'Appliquez une pression simultanée sur plusieurs lanes — forcez des réponses 4v5 perdantes. Contrôlez la map et prenez des objectifs pendant que l\'ennemi court.',
+  catch:   'Éliminez les cibles isolées avant les fights — snowballez les picks en avantages d\'objectifs. Attendez une erreur de position puis frappez vite et fort.',
+};
+
+// ─── Lane constants ───────────────────────────────────────────────────────────
 
 const LANES: LaneRole[] = ['Gold', 'Roam', 'Jungle', 'Mid', 'EXP'];
 
@@ -30,14 +60,6 @@ const LANE_PRIMARY_ROLES: Record<LaneRole, string[]> = {
   Jungle: ['Assassin', 'Fighter'],
   Mid:    ['Mage', 'Assassin'],
   EXP:    ['Fighter', 'Tank'],
-};
-
-const WIN_CONDITIONS: Record<DraftArchetype, string> = {
-  protect: 'Scale to late game safely — peel and shield your carry through every burst window',
-  poke:    'Chip their HP from range and force bad engages — take objectives on your terms',
-  engage:  'Dive in with chain CC and overwhelm before they can reposition or react',
-  split:   'Apply pressure on multiple lanes simultaneously — force losing 4v5 responses',
-  catch:   'Eliminate isolated targets and snowball pick advantages into map control',
 };
 
 // ─── Lane tier score ──────────────────────────────────────────────────────────
@@ -63,7 +85,7 @@ function getLaneScore(hero: HeroData, lane: LaneRole): number {
   return 0;
 }
 
-// ─── Hero slot scoring ────────────────────────────────────────────────────────
+// ─── Slot scoring ─────────────────────────────────────────────────────────────
 
 function scoreHeroForSlot(
   hero:       HeroData,
@@ -72,13 +94,9 @@ function scoreHeroForSlot(
   enemyPicks: HeroData[],
   allyPicks:  HeroData[],
 ): number {
-  // Archetype fit (0–10) — 30%
-  const archFit = heroArchetypeFit(hero, archetype) * 10;
-
-  // Lane viability (0–10) — 30%
+  const archFit   = heroArchetypeFit(hero, archetype) * 10;
   const laneScore = getLaneScore(hero, lane);
 
-  // Counter value vs confirmed enemy picks (0–10) — 20%
   let counterRaw = 0;
   for (const e of enemyPicks) {
     if (hero.counters.includes(e.id))    counterRaw += 2;
@@ -86,18 +104,278 @@ function scoreHeroForSlot(
   }
   const counterScore = clamp(counterRaw + 5, 0, 10);
 
-  // Synergy with already-locked ally picks (0–10) — 10%
   let synergyRaw = 0;
   for (const a of allyPicks) {
     if (hero.synergies.includes(a.id)) synergyRaw += 2;
     if (a.synergies.includes(hero.id)) synergyRaw += 1;
   }
   const synergyScore = clamp(synergyRaw + 3, 0, 10);
-
-  // Meta score (0–10) — 10%
-  const metaScore = calculateMetaScore(hero);
+  const metaScore    = calculateMetaScore(hero);
 
   return archFit * 3 + laneScore * 3 + counterScore * 2 + synergyScore + metaScore;
+}
+
+// ─── French text generators ───────────────────────────────────────────────────
+
+function getHeroStrengthsFR(hero: HeroData): string[] {
+  const s: string[] = [];
+  if (hero.damage    > 7.5) s.push('fort potentiel de dégâts');
+  if (hero.cc        > 7.5) s.push('contrôle de foule puissant');
+  if (hero.tankiness > 7.5) s.push('excellente résistance');
+  if (hero.mobility  > 7.5) s.push('mobilité exceptionnelle');
+  if (hero.push      > 7.5) s.push('pression de lane élevée');
+  if (hero.late      > 7.5) s.push('scaling late game dominant');
+  if (hero.early     > 7.5) s.push('early game agressif');
+  if (hero.pressure  > 7.5) s.push('forte pression de map');
+  return s;
+}
+
+function buildShortReasonFR(
+  hero:       HeroData,
+  lane:       LaneRole,
+  archetype:  DraftArchetype,
+  enemyPicks: HeroData[],
+  allyPicks:  HeroData[],
+  isLocked:   boolean,
+): string {
+  if (isLocked) {
+    return getLaneScore(hero, lane) > 6
+      ? `Référence ${LANE_FR[lane]} · Verrouillé`
+      : `Assigné en ${LANE_FR[lane]} · Verrouillé`;
+  }
+
+  const parts: string[] = [];
+  const countered = enemyPicks.filter((e) => hero.counters.includes(e.id));
+  if (countered.length >= 2) parts.push(`Contre ${countered.map((e) => e.name).join(' & ')}`);
+  else if (countered.length === 1) parts.push(`Avantage sur ${countered[0].name}`);
+
+  const arcFit = heroArchetypeFit(hero, archetype);
+  if (arcFit > 0.70) parts.push(`Pilier ${ARCHETYPE_FR[archetype]}`);
+
+  const tier = getLaneScore(hero, lane);
+  if (tier > 7) parts.push(`Tier S/A ${LANE_FR[lane]}`);
+
+  const synergies = allyPicks.filter(
+    (a) => hero.synergies.includes(a.id) || a.synergies.includes(hero.id)
+  );
+  if (synergies.length > 0) parts.push(`Synergie avec ${synergies[0].name}`);
+
+  if (parts.length === 0) parts.push(`Meilleur disponible en ${LANE_FR[lane]}`);
+  return parts.join(' · ');
+}
+
+function buildDetailedReasonFR(
+  hero:       HeroData,
+  lane:       LaneRole,
+  archetype:  DraftArchetype,
+  enemyPicks: HeroData[],
+  allyPicks:  HeroData[],
+  isLocked:   boolean,
+): string {
+  const sentences: string[] = [];
+
+  // 1. Role
+  sentences.push(
+    `**${hero.name}** occupe la ${LANE_FR[lane]} en tant que ${LANE_ROLE_FR[lane]}.`
+  );
+
+  if (isLocked) {
+    sentences.push(`Ce héros est déjà verrouillé dans votre draft.`);
+    return sentences.join(' ');
+  }
+
+  // 2. Counter relationships
+  const countered   = enemyPicks.filter((e) => hero.counters.includes(e.id));
+  const counteredBy = enemyPicks.filter((e) => hero.counteredBy.includes(e.id));
+
+  if (countered.length >= 2) {
+    sentences.push(
+      `Il contrecarre directement **${countered.map((e) => e.name).join('** et **')}**, réduisant leur impact en team fight grâce à ses capacités de ${getHeroStrengthsFR(hero)[0] ?? 'pression'}.`
+    );
+  } else if (countered.length === 1) {
+    sentences.push(
+      `Il a un avantage direct sur **${countered[0].name}**, pick clé de l'adversaire.`
+    );
+  }
+
+  if (counteredBy.length > 0) {
+    sentences.push(
+      `⚠️ Faites attention : **${counteredBy.map((e) => e.name).join('** et **')}** peut le contrer — protégez-le avec du CC ou des soins.`
+    );
+  }
+
+  // 3. Archetype fit
+  const arcFit = heroArchetypeFit(hero, archetype);
+  if (arcFit > 0.70) {
+    sentences.push(
+      `C'est un pilier de votre stratégie **${ARCHETYPE_FR[archetype]}** avec ${Math.round(arcFit * 100)}% de compatibilité.`
+    );
+  } else if (arcFit > 0.50) {
+    sentences.push(
+      `Compatible avec votre plan **${ARCHETYPE_FR[archetype]}** (${Math.round(arcFit * 100)}%).`
+    );
+  }
+
+  // 4. Strengths
+  const strengths = getHeroStrengthsFR(hero);
+  if (strengths.length >= 2) {
+    sentences.push(`Forces principales : ${strengths.slice(0, 3).join(', ')}.`);
+  } else if (strengths.length === 1) {
+    sentences.push(`Point fort : ${strengths[0]}.`);
+  }
+
+  // 5. Synergy
+  const synergies = allyPicks.filter(
+    (a) => hero.synergies.includes(a.id) || a.synergies.includes(hero.id)
+  );
+  if (synergies.length >= 2) {
+    sentences.push(
+      `Synergie confirmée avec **${synergies.map((a) => a.name).join('** et **')}** — combinez leurs skills pour maximiser l'impact.`
+    );
+  } else if (synergies.length === 1) {
+    sentences.push(
+      `Joue bien avec **${synergies[0].name}** — exploitez leur synergie en team fight.`
+    );
+  }
+
+  // 6. Meta status
+  if (hero.banRate > 0.20) {
+    sentences.push(
+      `Ce héros est actuellement très présent en compétition (${Math.round(hero.banRate * 100)}% de ban rate) — priorité haute.`
+    );
+  }
+
+  return sentences.join(' ');
+}
+
+// ─── Ban threat analysis ──────────────────────────────────────────────────────
+
+function scoreBanThreat(
+  hero:       HeroData,
+  lane:       LaneRole,
+  archetype:  DraftArchetype,
+  enemyPicks: HeroData[],
+): number {
+  let score = 0;
+
+  // Meta priority — enemy will ban high-rate heroes
+  if (hero.banRate > 0.25) score += 5;
+  else if (hero.banRate > 0.15) score += 3;
+  else if (hero.banRate > 0.08) score += 1;
+
+  // Counter value — enemy bans heroes who counter their picks
+  const counterCount = enemyPicks.filter((e) => hero.counters.includes(e.id)).length;
+  score += counterCount * 3;
+
+  // Win rate
+  if (hero.winRate > 0.535) score += 2;
+  else if (hero.winRate > 0.515) score += 1;
+
+  // Lane tier
+  if (getLaneScore(hero, lane) > 7) score += 2;
+
+  // Archetype pillar
+  if (heroArchetypeFit(hero, archetype) > 0.70) score += 1;
+
+  return score;
+}
+
+function buildBanThreatReasonFR(
+  hero:       HeroData,
+  lane:       LaneRole,
+  archetype:  DraftArchetype,
+  enemyPicks: HeroData[],
+): string {
+  const reasons: string[] = [];
+
+  const countered = enemyPicks.filter((e) => hero.counters.includes(e.id));
+  if (countered.length >= 2) {
+    reasons.push(`contrecarre ${countered.map((e) => e.name).join(' et ')} simultanément`);
+  } else if (countered.length === 1) {
+    reasons.push(`domine ${countered[0].name}, pick clé de l'adversaire`);
+  }
+
+  if (hero.banRate > 0.20) {
+    reasons.push(`héros très banni en compétition (${Math.round(hero.banRate * 100)}% ban rate)`);
+  }
+
+  if (getLaneScore(hero, lane) > 7) {
+    reasons.push(`référence S/A-tier en ${LANE_FR[lane]}`);
+  }
+
+  if (heroArchetypeFit(hero, archetype) > 0.70) {
+    reasons.push(`pilier de votre stratégie ${ARCHETYPE_FR[archetype]}`);
+  }
+
+  if (reasons.length === 0) reasons.push(`fort potentiel dans votre composition`);
+
+  return `L'adversaire ciblera **${hero.name}** car il ${reasons.join(', ')}.`;
+}
+
+function buildBackupReasonFR(
+  backup:     HeroData,
+  lane:       LaneRole,
+  archetype:  DraftArchetype,
+  enemyPicks: HeroData[],
+): string {
+  const parts: string[] = [];
+
+  const arcFit = heroArchetypeFit(backup, archetype);
+  if (arcFit > 0.60) parts.push(`compatible ${ARCHETYPE_FR[archetype]} (${Math.round(arcFit * 100)}%)`);
+
+  const tier = getLaneScore(backup, lane);
+  if (tier > 6) parts.push(`bon niveau en ${LANE_FR[lane]}`);
+
+  const countered = enemyPicks.filter((e) => backup.counters.includes(e.id));
+  if (countered.length > 0) parts.push(`contre ${countered[0].name}`);
+
+  if (parts.length === 0) parts.push(`alternative viable en ${LANE_FR[lane]}`);
+
+  return parts.join(' · ');
+}
+
+function buildBanThreats(
+  slots:      WinningLineupSlot[],
+  archetype:  DraftArchetype,
+  enemyPicks: HeroData[],
+  available:  HeroData[],
+  usedIds:    Set<number>,
+): BanThreat[] {
+  // Only recommended (non-locked) picks are ban targets worth highlighting
+  const candidates = slots.filter((s) => !s.isLocked);
+
+  const scored = candidates.map((s) => ({
+    slot:  s,
+    score: scoreBanThreat(s.hero, s.laneRole, archetype, enemyPicks),
+  }));
+  scored.sort((a, b) => b.score - a.score);
+
+  const threats: BanThreat[] = [];
+
+  for (const { slot, score } of scored.slice(0, 3)) {
+    if (score < 3) break;  // not significant enough
+
+    // Find best backup for same lane
+    const backup = available
+      .filter((h) => !usedIds.has(h.id) && h.id !== slot.hero.id)
+      .map((h) => ({
+        hero:  h,
+        score: scoreHeroForSlot(h, slot.laneRole, archetype, enemyPicks, []),
+      }))
+      .sort((a, b) => b.score - a.score)[0] ?? null;
+
+    threats.push({
+      hero:         slot.hero,
+      banReason:    buildBanThreatReasonFR(slot.hero, slot.laneRole, archetype, enemyPicks),
+      priority:     score >= 6 ? 'high' : 'medium',
+      backupPick:   backup?.hero ?? null,
+      backupReason: backup
+        ? buildBackupReasonFR(backup.hero, slot.laneRole, archetype, enemyPicks)
+        : 'Aucune alternative disponible actuellement.',
+    });
+  }
+
+  return threats;
 }
 
 // ─── Archetype selection ──────────────────────────────────────────────────────
@@ -107,14 +385,11 @@ function chooseBestArchetype(
   allyPicks:  HeroData[],
 ): DraftArchetype {
   const ALL: DraftArchetype[] = ['poke', 'engage', 'protect', 'split', 'catch'];
-
-  // Determine which archetypes are valid (counter enemy if possible)
   const enemyArch      = enemyPicks.length >= 2 ? detectTeamArchetype(enemyPicks) : null;
   const validArchetypes = enemyArch
     ? ALL.filter((a) => ARCHETYPE_BEATS[a].includes(enemyArch.primary))
     : ALL;
 
-  // Among valid archetypes, prefer the one our locked picks best fit
   if (allyPicks.length >= 1) {
     const scored = validArchetypes.map((arch) => ({
       arch,
@@ -123,22 +398,18 @@ function chooseBestArchetype(
     scored.sort((a, b) => b.fit - a.fit);
     return scored[0].arch;
   }
-
   return validArchetypes[0];
 }
 
-// ─── Assign locked picks to lanes (greedy best-claim) ────────────────────────
+// ─── Lane assignment for locked picks ────────────────────────────────────────
 
-function assignLockedPicksToLanes(
-  lockedPicks: HeroData[],
-): Map<LaneRole, HeroData> {
-  const result     = new Map<LaneRole, HeroData>();
-  const usedIds    = new Set<number>();
-  const usedLanes  = new Set<LaneRole>();
+function assignLockedPicksToLanes(lockedPicks: HeroData[]): Map<LaneRole, HeroData> {
+  const result    = new Map<LaneRole, HeroData>();
+  const usedIds   = new Set<number>();
+  const usedLanes = new Set<LaneRole>();
 
-  // Score each hero on every lane, sort heroes by their single best lane score
   const heroScores = lockedPicks.map((h) => ({
-    hero: h,
+    hero:   h,
     ranked: LANES
       .map((lane) => ({ lane, score: getLaneScore(h, lane) }))
       .sort((a, b) => b.score - a.score),
@@ -159,30 +430,6 @@ function assignLockedPicksToLanes(
   return result;
 }
 
-// ─── Slot reason builder ──────────────────────────────────────────────────────
-
-function buildReason(
-  hero:       HeroData,
-  lane:       LaneRole,
-  archetype:  DraftArchetype,
-  enemyPicks: HeroData[],
-  isLocked:   boolean,
-): string {
-  if (isLocked) {
-    return getLaneScore(hero, lane) > 6
-      ? `top ${lane.toLowerCase()} lane · already locked`
-      : `assigned ${lane.toLowerCase()} lane · already locked`;
-  }
-
-  const parts: string[] = [];
-  const countered = enemyPicks.filter((e) => hero.counters.includes(e.id));
-  if (countered.length > 0) parts.push(`counters ${countered.map((e) => e.name).join(', ')}`);
-  if (heroArchetypeFit(hero, archetype) > 0.65) parts.push(`${ARCHETYPE_LABELS[archetype].toLowerCase()} fit`);
-  if (getLaneScore(hero, lane) > 6)             parts.push(`S/A-tier ${lane.toLowerCase()}`);
-  if (parts.length === 0)                       parts.push(`best available ${lane.toLowerCase()}`);
-  return parts.join(' · ');
-}
-
 // ─── Public entry point ───────────────────────────────────────────────────────
 
 export function buildWinningLineup(
@@ -192,9 +439,7 @@ export function buildWinningLineup(
   bannedIds:  Set<number>,
   pickedIds:  Set<number>,
 ): WinningLineup | null {
-  const archetype = chooseBestArchetype(enemyPicks, allyPicks);
-
-  // Assign locked picks to their best lanes
+  const archetype        = chooseBestArchetype(enemyPicks, allyPicks);
   const lockedAssignment = assignLockedPicksToLanes(allyPicks);
 
   const usedIds  = new Set<number>(allyPicks.map((h) => h.id));
@@ -208,47 +453,62 @@ export function buildWinningLineup(
     const locked = lockedAssignment.get(lane);
     if (locked) {
       slots.push({
-        hero:     locked,
-        laneRole: lane,
-        reason:   buildReason(locked, lane, archetype, enemyPicks, true),
-        isLocked: true,
+        hero:           locked,
+        laneRole:       lane,
+        reason:         buildShortReasonFR(locked, lane, archetype, enemyPicks, allyPicks, true),
+        detailedReason: buildDetailedReasonFR(locked, lane, archetype, enemyPicks, allyPicks, true),
+        isLocked:       true,
       });
     } else {
       const candidates = available.filter((h) => !usedIds.has(h.id));
       if (candidates.length === 0) break;
 
       const scored = candidates
-        .map((h) => ({ hero: h, score: scoreHeroForSlot(h, lane, archetype, enemyPicks, allyPicks) }))
+        .map((h) => ({
+          hero:  h,
+          score: scoreHeroForSlot(h, lane, archetype, enemyPicks, allyPicks),
+        }))
         .sort((a, b) => b.score - a.score);
 
       const best = scored[0];
       usedIds.add(best.hero.id);
       slots.push({
-        hero:     best.hero,
-        laneRole: lane,
-        reason:   buildReason(best.hero, lane, archetype, enemyPicks, false),
-        isLocked: false,
+        hero:           best.hero,
+        laneRole:       lane,
+        reason:         buildShortReasonFR(best.hero, lane, archetype, enemyPicks, allyPicks, false),
+        detailedReason: buildDetailedReasonFR(best.hero, lane, archetype, enemyPicks, allyPicks, false),
+        isLocked:       false,
       });
     }
   }
 
   if (slots.length < 5) return null;
 
-  // Strength = average slot score normalised to 0–100
+  // Strength
   const avgScore = slots.reduce(
     (s, sl) => s + scoreHeroForSlot(sl.hero, sl.laneRole, archetype, enemyPicks, allyPicks), 0
   ) / slots.length;
   const strength = clamp(Math.round((avgScore / 90) * 100), 0, 100);
 
-  // Archetype reason string
+  // Archetype reason (French)
   const enemyArch = enemyPicks.length >= 2 ? detectTeamArchetype(enemyPicks) : null;
   const archetypeReason = enemyArch
-    ? `${ARCHETYPE_LABELS[archetype]} counters enemy ${ARCHETYPE_LABELS[enemyArch.primary]} (${enemyArch.confidence}% confidence)`
+    ? `Stratégie **${ARCHETYPE_LABELS[archetype]}** — contrecarre le **${ARCHETYPE_LABELS[enemyArch.primary]}** ennemi (${enemyArch.confidence}% de confiance)`
     : allyPicks.length >= 1
-      ? `${ARCHETYPE_LABELS[archetype]} fits your current picks best`
-      : `${ARCHETYPE_LABELS[archetype]} is the strongest opening archetype`;
+      ? `Stratégie **${ARCHETYPE_LABELS[archetype]}** — meilleure cohérence avec vos picks actuels`
+      : `Stratégie **${ARCHETYPE_LABELS[archetype]}** — archétype le plus fort en ouverture`;
 
-  return { slots, archetype, archetypeReason, winCondition: WIN_CONDITIONS[archetype], strength };
+  // Ban threats
+  const banThreats = buildBanThreats(slots, archetype, enemyPicks, available, usedIds);
+
+  return {
+    slots,
+    archetype,
+    archetypeReason,
+    winCondition: WIN_CONDITIONS_FR[archetype],
+    strength,
+    banThreats,
+  };
 }
 
 // ─── Helper ───────────────────────────────────────────────────────────────────

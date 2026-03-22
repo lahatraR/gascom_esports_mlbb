@@ -170,18 +170,28 @@ export interface CompositionSlot {
 // ─── Winning Lineup types ─────────────────────────────────────────────────────
 
 export interface WinningLineupSlot {
-  hero:      HeroData;
-  laneRole:  LaneRole;
-  reason:    string;
-  isLocked:  boolean;   // true = already picked, false = recommendation
+  hero:           HeroData;
+  laneRole:       LaneRole;
+  reason:         string;          // short summary (French)
+  detailedReason: string;          // full French explanation (2-4 sentences)
+  isLocked:       boolean;         // true = already picked, false = recommendation
+}
+
+export interface BanThreat {
+  hero:         HeroData;          // hero in our lineup that the enemy should ban
+  banReason:    string;            // French: why the enemy would target this hero
+  priority:     'high' | 'medium';
+  backupPick:   HeroData | null;   // best alternative if this hero gets banned
+  backupReason: string;            // why the backup works
 }
 
 export interface WinningLineup {
   slots:           WinningLineupSlot[];  // always 5
   archetype:       DraftArchetype;
-  archetypeReason: string;              // why this archetype was chosen
-  winCondition:    string;
+  archetypeReason: string;              // why this archetype was chosen (French)
+  winCondition:    string;              // French win condition
   strength:        number;              // 0–100
+  banThreats:      BanThreat[];         // heroes the enemy might ban to hurt us
 }
 
 export interface CounterComposition {
