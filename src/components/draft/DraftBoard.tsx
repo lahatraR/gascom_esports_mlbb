@@ -14,6 +14,7 @@ import { TeamComparisonPanel }  from '@/components/analysis/TeamComparisonPanel'
 import { EnemyPredictionPanel } from '@/components/analysis/EnemyPredictionPanel';
 import { ArchetypePanel }             from '@/components/analysis/ArchetypePanel';
 import { CounterCompositionPanel }   from '@/components/analysis/CounterCompositionPanel';
+import { WinningLineupPanel }        from '@/components/analysis/WinningLineupPanel';
 import type { DraftAnalysis } from '@/types/draft';
 
 type MobileTab = 'draft' | 'blue' | 'red' | 'analysis';
@@ -30,12 +31,19 @@ const MOBILE_TABS: { id: MobileTab; icon: string; label: string }[] = [
 function AnalysisPanels({
   analysis,
   enemyTeam,
+  allyTeam,
 }: {
-  analysis: DraftAnalysis | null;
+  analysis:  DraftAnalysis | null;
   enemyTeam: 'blue' | 'red';
+  allyTeam:  'blue' | 'red';
 }) {
   return (
     <div className="flex flex-col gap-3">
+      {/* Winning lineup — most prominent, at the top */}
+      <WinningLineupPanel
+        lineup={analysis?.winningLineup ?? null}
+        allyTeam={allyTeam}
+      />
       <ArchetypePanel
         blueArchetype={analysis?.blueArchetype ?? null}
         redArchetype={analysis?.redArchetype ?? null}
@@ -127,8 +135,13 @@ export function DraftBoard() {
         </div>
       </div>
 
-      {/* Desktop archetype + analysis bar */}
+      {/* Desktop analysis bar */}
       <div className="hidden md:flex flex-col gap-3">
+        {/* Winning lineup — full width, most prominent */}
+        <WinningLineupPanel
+          lineup={analysis?.winningLineup ?? null}
+          allyTeam={currentTeam}
+        />
         <ArchetypePanel blueArchetype={analysis?.blueArchetype ?? null} redArchetype={analysis?.redArchetype ?? null} />
         <div className="grid grid-cols-3 gap-3">
           <WinProbabilityGauge probability={analysis?.winProbability ?? 50} blueRating={analysis?.blueRating} redRating={analysis?.redRating} />
@@ -171,7 +184,7 @@ export function DraftBoard() {
         )}
 
         {mobileTab === 'analysis' && (
-          <AnalysisPanels analysis={analysis} enemyTeam={enemyTeam} />
+          <AnalysisPanels analysis={analysis} enemyTeam={enemyTeam} allyTeam={currentTeam} />
         )}
       </div>
 

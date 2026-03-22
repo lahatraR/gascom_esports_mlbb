@@ -167,6 +167,23 @@ export interface CompositionSlot {
   reason:    string;
 }
 
+// ─── Winning Lineup types ─────────────────────────────────────────────────────
+
+export interface WinningLineupSlot {
+  hero:      HeroData;
+  laneRole:  LaneRole;
+  reason:    string;
+  isLocked:  boolean;   // true = already picked, false = recommendation
+}
+
+export interface WinningLineup {
+  slots:           WinningLineupSlot[];  // always 5
+  archetype:       DraftArchetype;
+  archetypeReason: string;              // why this archetype was chosen
+  winCondition:    string;
+  strength:        number;              // 0–100
+}
+
 export interface CounterComposition {
   archetype:     DraftArchetype;
   slots:         CompositionSlot[];  // 5 slots
@@ -228,4 +245,5 @@ export interface DraftAnalysis {
   blueArchetype: ArchetypeResult | null;
   redArchetype:  ArchetypeResult | null;
   enemyCompAnalysis: EnemyCompAnalysis | null;
+  winningLineup:     WinningLineup | null;
 }

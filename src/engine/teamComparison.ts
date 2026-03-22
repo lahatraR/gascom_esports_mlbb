@@ -3,6 +3,7 @@ import { getSuggestions } from './draftEngine';
 import { predictEnemyPicks } from './predictionEngine';
 import { detectTeamArchetype } from './archetypeEngine';
 import { buildEnemyCompAnalysis } from './compositionEngine';
+import { buildWinningLineup }     from './lineupEngine';
 
 // ─── Team metric calculation ─────────────────────────────────────────────────
 
@@ -155,7 +156,16 @@ export function runDraftAnalysis(
   // Enemy composition analysis: predict enemy strategy + build counter comps
   const enemyCompAnalysis = buildEnemyCompAnalysis(
     allHeroes,
-    enemyTeam,    // enemy's confirmed picks
+    enemyTeam,
+    bannedIds,
+    pickedIds,
+  );
+
+  // Winning lineup: build the optimal 5-hero team for the current allied side
+  const winningLineup = buildWinningLineup(
+    allHeroes,
+    alliedTeam,   // already-locked allied picks
+    enemyTeam,    // confirmed enemy picks
     bannedIds,
     pickedIds,
   );
@@ -172,6 +182,7 @@ export function runDraftAnalysis(
     blueArchetype,
     redArchetype,
     enemyCompAnalysis,
+    winningLineup,
   };
 }
 
