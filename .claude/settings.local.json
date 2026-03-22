@@ -12,7 +12,28 @@
       "Read(//tmp/**)",
       "Bash(python -c \":*)",
       "Read(//d/ProjetStage/gascom_esports_mlbb grep -rn HeroListHero/|HeroRankEntry/|HeroRelationData/|HeroCounterEntry/|HeroCompatibilityEntry/|selectCurrentStep/|getCachedHeroRelation src/**)",
-      "Read(//d/ProjetStage/**)"
+      "Read(//d/ProjetStage/**)",
+      "Bash(npm ci:*)",
+      "Bash(curl -s \"https://mlbb-stats.rone.dev/api/hero-list/\")",
+      "Bash(curl -sL \"https://mlbb-stats.rone.dev/api/hero-list\")",
+      "Bash(curl -sI -H \"Referer: https://lahatrar.github.io\" \"https://akmweb.youngjoygame.com/web/svnres/img/mlbb/homepage_2_1_42/100_df7603c292198bf4aa7b551d401ea5c1.png\")",
+      "Bash(curl -sL \"https://lahatrar.github.io/gascom_esports_mlbb/\")",
+      "WebFetch(domain:mlbb-stats.rone.dev)",
+      "Bash(npx tsc:*)",
+      "Bash(cmd.exe /c \"cd c:\\\\Lahatra\\\\gascom_esports_mlbb && npx tsc --noEmit 2>&1\")",
+      "Bash(cmd.exe /c \"cd c:\\\\Lahatra\\\\gascom_esports_mlbb && npx tsc --noEmit\")",
+      "Bash(cmd.exe /c \"cd c:\\\\Lahatra\\\\gascom_esports_mlbb && npm run build 2>&1\")",
+      "Bash(cmd.exe /c \"cd c:\\\\Lahatra\\\\gascom_esports_mlbb && npm run build\")",
+      "Bash(cmd.exe /c \"cd c:\\\\Lahatra\\\\gascom_esports_mlbb && npm run build > build_out.txt 2>&1 & type build_out.txt\")",
+      "Bash(cmd.exe /c \"cd /d c:\\\\Lahatra\\\\gascom_esports_mlbb && npm run build 1>build_out.txt 2>&1 && type build_out.txt\")",
+      "Bash(cmd.exe /c \"cd /d c:\\\\Lahatra\\\\gascom_esports_mlbb && git add src/types/draft.ts src/engine/archetypeEngine.ts src/engine/intelligenceEngine.ts src/engine/teamComparison.ts src/components/analysis/BanIntelligencePanel.tsx src/components/analysis/CompositionHolesPanel.tsx src/components/draft/DraftBoard.tsx && git status\")",
+      "Bash(git -C \"c:/Lahatra/gascom_esports_mlbb\" add src/types/draft.ts src/engine/archetypeEngine.ts src/engine/intelligenceEngine.ts src/engine/teamComparison.ts src/components/analysis/BanIntelligencePanel.tsx src/components/analysis/CompositionHolesPanel.tsx src/components/draft/DraftBoard.tsx)",
+      "Bash(git -C \"c:/Lahatra/gascom_esports_mlbb\" status)",
+      "Bash(git -C:*)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(''''total records:'''', len\\(d[''''data''''][''''records'''']\\)\\); print\\(''''keys:'''', list\\(d[''''data''''].keys\\(\\)\\)\\)\")",
+      "Bash(curl -s \"https://mlbb-stats.rone.dev/api/hero-list/?pageNum=1\")",
+      "Bash(curl -v \"https://mlbb-stats.rone.dev/api/hero-list/?pageNum=1\")",
+      "Bash(curl -s -L \"https://mlbb-stats.rone.dev/api/hero-list/?pageNum=1\")"
     ]
   }
 }

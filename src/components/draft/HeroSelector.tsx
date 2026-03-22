@@ -3,7 +3,7 @@
 import { useMemo } from 'react';
 import clsx from 'clsx';
 import { useDraftStore } from '@/store/draftStore';
-import { DRAFT_SEQUENCE } from '@/types/draft';
+import { getDraftSequence } from '@/types/draft';
 import { HeroCard } from '@/components/ui/HeroCard';
 
 const ALL_ROLES = ['All', 'Tank', 'Fighter', 'Assassin', 'Mage', 'Marksman', 'Support'];
@@ -32,8 +32,10 @@ export function HeroSelector() {
   const setRoleFilter  = useDraftStore((s) => s.setRoleFilter);
   const selectHero     = useDraftStore((s) => s.selectHero);
 
-  const isDone     = currentStep >= DRAFT_SEQUENCE.length;
-  const activeStep = isDone ? null : DRAFT_SEQUENCE[currentStep];
+  const gameMode   = useDraftStore((s) => s.gameMode);
+  const sequence   = getDraftSequence(gameMode);
+  const isDone     = currentStep >= sequence.length;
+  const activeStep = isDone ? null : sequence[currentStep];
 
   // Set of used hero IDs (banned or picked)
   const usedIds = useMemo(() => {

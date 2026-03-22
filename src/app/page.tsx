@@ -322,7 +322,7 @@ export default function Home() {
         </div>
 
         {/* ── Draft tool ── */}
-        <main className="flex-1 p-2 sm:p-4 overflow-auto flex flex-col pb-20 md:pb-4">
+        <main className="flex-1 p-2 sm:p-3 flex flex-col min-h-0 overflow-auto lg:overflow-hidden pb-20 md:pb-3">
           <DraftBoard />
         </main>
 
