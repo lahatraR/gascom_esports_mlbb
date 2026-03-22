@@ -13,27 +13,32 @@ import { buildWinningLineup }     from './lineupEngine';
  */
 export function calculateTeamMetrics(team: HeroData[]): TeamMetrics {
   if (team.length === 0) {
-    return { early: 0, mid: 0, late: 0, damage: 0, tankiness: 0, cc: 0, push: 0 };
+    return { earlyMid: 0, late: 0, damage: 0, tankiness: 0, cc: 0, push: 0, coordination: 0 };
   }
 
+  // Pure team average — matches the broadcast format (M7/MPL overlays use simple avg, not top-2)
   const avg = (fn: (h: HeroData) => number) =>
-    team.reduce((s, h) => s + fn(h), 0) / team.length;
+    clamp(team.reduce((s, h) => s + fn(h), 0) / team.length, 0, 10);
 
-  // For damage/cc/tankiness: take the MAX of the best 2 heroes (reflects team ceiling)
-  const top2 = (fn: (h: HeroData) => number) => {
-    const sorted = [...team].sort((a, b) => fn(b) - fn(a));
-    const top = sorted.slice(0, 2);
-    return top.reduce((s, h) => s + fn(h), 0) / top.length;
-  };
+  // Team Coordination: pairwise synergy density, scaled 0–10 (base 5 for no synergy data)
+  let synergyPairs = 0;
+  for (let i = 0; i < team.length; i++) {
+    for (let j = i + 1; j < team.length; j++) {
+      if (team[i].synergies.includes(team[j].id)) synergyPairs++;
+      if (team[j].synergies.includes(team[i].id)) synergyPairs++;
+    }
+  }
+  const maxPairs    = team.length * (team.length - 1);
+  const coordination = clamp(5 + (synergyPairs / Math.max(1, maxPairs)) * 10, 0, 10);
 
   return {
-    early:     clamp(avg((h) => h.early),     0, 10),
-    mid:       clamp(avg((h) => h.mid),       0, 10),
-    late:      clamp(avg((h) => h.late),      0, 10),
-    damage:    clamp(top2((h) => h.damage),   0, 10),
-    tankiness: clamp(top2((h) => h.tankiness),0, 10),
-    cc:        clamp(top2((h) => h.cc),       0, 10),
-    push:      clamp(avg((h) => h.push),      0, 10),
+    earlyMid:    avg((h) => (h.early + h.mid) / 2),
+    late:        avg((h) => h.late),
+    damage:      avg((h) => h.damage),
+    tankiness:   avg((h) => h.tankiness),
+    cc:          avg((h) => h.cc),
+    push:        avg((h) => h.push),
+    coordination,
   };
 }
 
@@ -61,9 +66,11 @@ export function calculateCounterIndex(
     }
   }
 
+  // Normalize to ±1 scale (matching MPL/M-Series broadcast overlay format)
+  // Each 5v5 matchup has 25 pairs × 1.5 max weight = 37.5 max raw score
   const maxPossible = blueTeam.length * redTeam.length * 1.5;
-  const raw = ((blueAdv - redAdv) / maxPossible) * 10;
-  return clamp(raw, -10, 10);
+  const raw = (blueAdv - redAdv) / maxPossible;  // ±1 range
+  return clamp(parseFloat(raw.toFixed(1)), -1, 1);
 }
 
 // ─── Lineup Rating ────────────────────────────────────────────────────────────
@@ -104,7 +111,8 @@ export function calculateWinProbability(
   const lineupDiff    = blueRating - redRating;           // -10 to +10
   const counterIndex  = calculateCounterIndex(blueTeam, redTeam);
 
-  const raw = 50 + (lineupDiff * 5) + (counterIndex * 3);
+  // counterIndex is now in ±1 range, so scale up to match win probability impact
+  const raw = 50 + (lineupDiff * 5) + (counterIndex * 30);
   return clamp(Math.round(raw), 5, 95);
 }
 

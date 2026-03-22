@@ -10,13 +10,13 @@ interface TeamComparisonPanelProps {
 }
 
 const METRIC_LABELS: { key: keyof TeamMetrics; label: string; icon: string }[] = [
-  { key: 'early',     label: 'Early Game',   icon: '🌅' },
-  { key: 'mid',       label: 'Mid Game',     icon: '⚔️' },
-  { key: 'late',      label: 'Late Game',    icon: '🌙' },
-  { key: 'damage',    label: 'Damage',       icon: '💥' },
-  { key: 'tankiness', label: 'Durability',   icon: '🛡️' },
-  { key: 'cc',        label: 'Crowd Control',icon: '🔒' },
-  { key: 'push',      label: 'Push / Siege', icon: '🏰' },
+  { key: 'earlyMid',     label: 'Early to Mid Game',  icon: '🌅' },
+  { key: 'late',         label: 'Late Game',           icon: '🌙' },
+  { key: 'damage',       label: 'Damage Potential',    icon: '💥' },
+  { key: 'tankiness',    label: 'Survivability',       icon: '🛡️' },
+  { key: 'cc',           label: 'Control Ability',     icon: '🔒' },
+  { key: 'push',         label: 'Push Ability',        icon: '🏰' },
+  { key: 'coordination', label: 'Team Coordination',   icon: '🤝' },
 ];
 
 export function TeamComparisonPanel({
@@ -25,9 +25,10 @@ export function TeamComparisonPanel({
   counterIndex,
 }: TeamComparisonPanelProps) {
   const ciColor = counterIndex > 0 ? 'text-blue-400' : counterIndex < 0 ? 'text-red-400' : 'text-slate-400';
+  // counterIndex is ±1 — display with sign, matching M7/MPL broadcast format
   const ciLabel = counterIndex > 0 ? `+${counterIndex.toFixed(1)} Blue`
                 : counterIndex < 0 ? `${counterIndex.toFixed(1)} Red`
-                : '0 Even';
+                : 'Even';
 
   return (
     <div className="flex flex-col gap-3 glass p-4">

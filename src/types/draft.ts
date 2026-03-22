@@ -224,13 +224,13 @@ export interface EnemyPrediction {
 }
 
 export interface TeamMetrics {
-  early: number;      // 0–10
-  mid: number;
-  late: number;
-  damage: number;
-  tankiness: number;
-  cc: number;
-  push: number;
+  earlyMid:    number;   // 0–10  (avg of early + mid, like M7 broadcast "Early to Mid Game Potential")
+  late:        number;   // 0–10
+  damage:      number;   // 0–10
+  tankiness:   number;   // 0–10  (Survivability)
+  cc:          number;   // 0–10  (Control Ability)
+  push:        number;   // 0–10  (Push Ability)
+  coordination: number;  // 0–10  (Team Coordination / synergy)
 }
 
 export interface DraftAnalysis {
