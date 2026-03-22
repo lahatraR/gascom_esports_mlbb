@@ -27,6 +27,22 @@ const LANE_SHORT: Record<LaneRole, string> = {
   EXP:    'EXP',
 };
 
+// ─── Lane fitness badge ────────────────────────────────────────────────────────
+
+function LaneFitBadge({ score }: { score: number }) {
+  const good   = score >= 7;
+  const mid    = score >= 3;
+  const label  = good ? 'Meta' : mid ? 'Off-meta' : 'Hors-rôle';
+  const dot    = good ? 'bg-emerald-400' : mid ? 'bg-yellow-400' : 'bg-red-400';
+  const text   = good ? 'text-emerald-400' : mid ? 'text-yellow-400' : 'text-red-400';
+  return (
+    <span className={clsx('flex items-center gap-1 text-[9px] font-bold shrink-0', text)}>
+      <span className={clsx('w-1.5 h-1.5 rounded-full', dot)} />
+      {label}
+    </span>
+  );
+}
+
 // ─── Markdown bold renderer (converts **text** to <strong>) ──────────────────
 
 function RichText({ text, className }: { text: string; className?: string }) {
@@ -92,9 +108,12 @@ function SlotRow({ slot }: { slot: WinningLineupSlot }) {
 
         <HeroAvatar hero={slot.hero} size={8} />
 
-        {/* Name + short reason */}
+        {/* Name + short reason + lane fitness */}
         <div className="flex-1 min-w-0">
-          <p className="text-white text-xs font-semibold truncate">{slot.hero.name}</p>
+          <div className="flex items-center gap-1.5">
+            <p className="text-white text-xs font-semibold truncate">{slot.hero.name}</p>
+            <LaneFitBadge score={slot.laneFitScore} />
+          </div>
           <p className="text-slate-500 text-[10px] truncate leading-tight">{slot.reason}</p>
         </div>
 
@@ -128,6 +147,22 @@ function SlotRow({ slot }: { slot: WinningLineupSlot }) {
       {slot.isLocked && (
         <div className="px-3 pb-2 text-[10px] text-slate-500 leading-snug">
           <RichText text={slot.detailedReason} className="text-slate-500" />
+        </div>
+      )}
+
+      {/* Lane warning — shown when fitness is sub-optimal */}
+      {slot.laneWarning && (
+        <div
+          className="mx-2 mb-2 px-2 py-1.5 rounded border text-[10px] leading-snug"
+          style={{
+            background:  slot.laneFitScore === 0 ? 'rgba(40,5,5,0.7)' : 'rgba(30,20,0,0.6)',
+            borderColor: slot.laneFitScore === 0 ? 'rgba(239,68,68,0.35)' : 'rgba(234,179,8,0.3)',
+          }}
+        >
+          <RichText
+            text={slot.laneWarning}
+            className={slot.laneFitScore === 0 ? 'text-red-300' : 'text-yellow-300'}
+          />
         </div>
       )}
     </div>

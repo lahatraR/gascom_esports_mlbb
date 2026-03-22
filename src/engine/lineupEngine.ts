@@ -75,14 +75,47 @@ function getHeroLaneTierScore(heroName: string, lane: LaneRole): number {
 }
 
 function getLaneScore(hero: HeroData, lane: LaneRole): number {
+  // Tier list is the most reliable signal — if a hero appears here, it's meta-validated
   const tier = getHeroLaneTierScore(hero.name, lane);
   if (tier > 0) return tier;
+
+  // Fall back to role compatibility
   const expected = LANE_PRIMARY_ROLES[lane];
   const primary  = hero.roles[0];
-  if (expected[0] === primary)                        return 4.5;
-  if (expected.includes(primary))                     return 3.0;
-  if (hero.roles.some((r) => expected.includes(r)))   return 1.5;
-  return 0;
+  if (expected[0] === primary)                      return 4.5;  // e.g. Marksman → Gold
+  if (expected.includes(primary))                   return 3.0;  // secondary match
+  if (hero.roles.some((r) => expected.includes(r))) return 1.5;  // tertiary match
+
+  // Hero's roles are completely incompatible with this lane
+  // (e.g. Atlas [Tank/Support] in Jungle, or Marksman in Roam)
+  // Return a hard negative so this assignment is avoided unless no alternative exists
+  return -8;
+}
+
+/**
+ * 0–10 lane fitness score for display purposes.
+ * Converts the raw getLaneScore (which can be negative) to a 0–10 scale.
+ */
+function getLaneFitScore(hero: HeroData, lane: LaneRole): number {
+  const raw = getLaneScore(hero, lane);
+  return clamp(raw < 0 ? 0 : (raw / 10) * 10, 0, 10);
+}
+
+/**
+ * French warning message when a hero is assigned to a lane they are not suited for.
+ * Returns null if the assignment is acceptable.
+ */
+function getLaneWarningFR(hero: HeroData, lane: LaneRole): string | null {
+  const score = getLaneScore(hero, lane);
+  if (score >= 3.0) return null;  // Acceptable assignment
+
+  if (score < 0) {
+    // Truly incompatible — strong warning
+    const expected = LANE_PRIMARY_ROLES[lane];
+    return `⚠️ **${hero.name}** n'est pas fait pour la ${LANE_FR[lane]} (rôle : ${hero.roles[0]}). Cette lane requiert un ${expected[0]}. Envisagez une autre option si possible.`;
+  }
+  // Weak match — soft warning
+  return `ℹ️ **${hero.name}** peut tenir la ${LANE_FR[lane]} mais ce n'est pas son rôle de prédilection.`;
 }
 
 // ─── Slot scoring ─────────────────────────────────────────────────────────────
@@ -94,8 +127,14 @@ function scoreHeroForSlot(
   enemyPicks: HeroData[],
   allyPicks:  HeroData[],
 ): number {
+  const rawLane = getLaneScore(hero, lane);
+
+  // Hard disqualifier: incompatible role/lane combination gets a very low score
+  // so the algorithm only picks them as an absolute last resort
+  if (rawLane < 0) return -100 + rawLane;
+
   const archFit   = heroArchetypeFit(hero, archetype) * 10;
-  const laneScore = getLaneScore(hero, lane);
+  const laneScore = rawLane;
 
   let counterRaw = 0;
   for (const e of enemyPicks) {
@@ -458,6 +497,8 @@ export function buildWinningLineup(
         reason:         buildShortReasonFR(locked, lane, archetype, enemyPicks, allyPicks, true),
         detailedReason: buildDetailedReasonFR(locked, lane, archetype, enemyPicks, allyPicks, true),
         isLocked:       true,
+        laneFitScore:   getLaneFitScore(locked, lane),
+        laneWarning:    getLaneWarningFR(locked, lane),
       });
     } else {
       const candidates = available.filter((h) => !usedIds.has(h.id));
@@ -478,6 +519,8 @@ export function buildWinningLineup(
         reason:         buildShortReasonFR(best.hero, lane, archetype, enemyPicks, allyPicks, false),
         detailedReason: buildDetailedReasonFR(best.hero, lane, archetype, enemyPicks, allyPicks, false),
         isLocked:       false,
+        laneFitScore:   getLaneFitScore(best.hero, lane),
+        laneWarning:    getLaneWarningFR(best.hero, lane),
       });
     }
   }

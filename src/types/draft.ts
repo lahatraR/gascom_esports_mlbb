@@ -185,6 +185,8 @@ export interface WinningLineupSlot {
   reason:         string;          // short summary (French)
   detailedReason: string;          // full French explanation (2-4 sentences)
   isLocked:       boolean;         // true = already picked, false = recommendation
+  laneFitScore:   number;          // 0–10: how well hero fits this lane (from tier list + roles)
+  laneWarning:    string | null;   // French warning if hero is sub-optimal for this lane
 }
 
 export interface BanThreat {
