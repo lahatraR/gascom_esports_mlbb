@@ -54,14 +54,6 @@ const WIN_CONDITIONS_FR: Record<DraftArchetype, string> = {
 
 const LANES: LaneRole[] = ['Gold', 'Roam', 'Jungle', 'Mid', 'EXP'];
 
-const LANE_PRIMARY_ROLES: Record<LaneRole, string[]> = {
-  Gold:   ['Marksman'],
-  Roam:   ['Support', 'Tank'],
-  Jungle: ['Assassin', 'Fighter'],
-  Mid:    ['Mage', 'Assassin'],
-  EXP:    ['Fighter', 'Tank'],
-};
-
 // ─── Lane tier score ──────────────────────────────────────────────────────────
 
 function getHeroLaneTierScore(heroName: string, lane: LaneRole): number {
@@ -74,48 +66,106 @@ function getHeroLaneTierScore(heroName: string, lane: LaneRole): number {
   return 0;
 }
 
+// ─── Stats-based lane viability ───────────────────────────────────────────────
+//
+// When a hero is NOT in the tier list for a lane, we use their combat stats
+// to determine if they're viable there. This handles cases like:
+//   - Fredrinn (Tank/Fighter) → S+ Jungle via tier list ✓
+//   - Atlas (Tank/Support)    → stats: low damage + low mobility → not viable in Jungle ✗
+//   - A new Fighter with high damage/mobility → viable in Jungle via stats ✓
+//
+// Each lane has a specific stat formula reflecting what that position demands.
+
+function getStatBasedLaneScore(hero: HeroData, lane: LaneRole): number {
+  const { damage, mobility, early, mid, late, tankiness, cc, push, pressure } = hero;
+
+  switch (lane) {
+    case 'Jungle': {
+      // Jungler needs: burst damage to clear camps, mobility to rotate,
+      // early pressure for invades/objectives, some sustain/tankiness.
+      // Note: Tank/Fighters like Fredrinn qualify via high damage+tankiness combo.
+      const v = damage * 0.40 + mobility * 0.25 + early * 0.20 + tankiness * 0.15;
+      return v >= 6.5 ? 4.0      // Viable jungler (good stats)
+           : v >= 5.5 ? 2.5      // Passable (situational, not ideal)
+           : v >= 4.5 ? 1.0      // Very weak for jungle
+           : -8;                 // Cannot jungle (e.g. pure Support/Mage with low damage)
+    }
+    case 'Gold': {
+      // Gold lane carry needs: late-game scaling, damage output, some self-peel.
+      const v = late * 0.40 + damage * 0.35 + mobility * 0.15 + (10 - tankiness) * 0.10;
+      return v >= 6.5 ? 4.0
+           : v >= 5.5 ? 2.5
+           : v >= 4.5 ? 1.0
+           : -8;
+    }
+    case 'EXP': {
+      // EXP lane duellist: sustained damage, tankiness to trade, mid-game dominance.
+      const v = ((early + mid) / 2) * 0.30 + damage * 0.30 + tankiness * 0.25 + cc * 0.15;
+      return v >= 6.5 ? 4.0
+           : v >= 5.5 ? 2.5
+           : v >= 4.5 ? 1.0
+           : -8;
+    }
+    case 'Mid': {
+      // Mid needs: burst damage, roaming potential, lane pressure.
+      const v = damage * 0.35 + pressure * 0.25 + (early + mid) / 2 * 0.25 + mobility * 0.15;
+      return v >= 6.5 ? 4.0
+           : v >= 5.5 ? 2.5
+           : v >= 4.5 ? 1.0
+           : -8;
+    }
+    case 'Roam': {
+      // Roam needs: tankiness, CC to protect allies, low damage dependency.
+      const v = tankiness * 0.35 + cc * 0.35 + mobility * 0.20 + (10 - damage) * 0.10;
+      return v >= 6.5 ? 4.0
+           : v >= 5.5 ? 2.5
+           : v >= 4.5 ? 1.0
+           : -8;
+    }
+    default:
+      return -8;
+  }
+}
+
 function getLaneScore(hero: HeroData, lane: LaneRole): number {
-  // Tier list is the most reliable signal — if a hero appears here, it's meta-validated
+  // Tier list is the gold standard — meta-validated by actual competitive data
   const tier = getHeroLaneTierScore(hero.name, lane);
   if (tier > 0) return tier;
 
-  // Fall back to role compatibility
-  const expected = LANE_PRIMARY_ROLES[lane];
-  const primary  = hero.roles[0];
-  if (expected[0] === primary)                      return 4.5;  // e.g. Marksman → Gold
-  if (expected.includes(primary))                   return 3.0;  // secondary match
-  if (hero.roles.some((r) => expected.includes(r))) return 1.5;  // tertiary match
-
-  // Hero's roles are completely incompatible with this lane
-  // (e.g. Atlas [Tank/Support] in Jungle, or Marksman in Roam)
-  // Return a hard negative so this assignment is avoided unless no alternative exists
-  return -8;
+  // Not in tier list → use combat stats to determine viability
+  // This handles any hero regardless of their role label
+  return getStatBasedLaneScore(hero, lane);
 }
 
 /**
- * 0–10 lane fitness score for display purposes.
- * Converts the raw getLaneScore (which can be negative) to a 0–10 scale.
+ * 0–10 lane fitness score for display (tier score or stats score, never negative).
  */
 function getLaneFitScore(hero: HeroData, lane: LaneRole): number {
   const raw = getLaneScore(hero, lane);
-  return clamp(raw < 0 ? 0 : (raw / 10) * 10, 0, 10);
+  return clamp(raw < 0 ? 0 : raw, 0, 10);
 }
 
 /**
- * French warning message when a hero is assigned to a lane they are not suited for.
- * Returns null if the assignment is acceptable.
+ * French warning if a hero's lane fitness is sub-optimal.
+ * Returns null when the assignment is fine.
  */
 function getLaneWarningFR(hero: HeroData, lane: LaneRole): string | null {
   const score = getLaneScore(hero, lane);
-  if (score >= 3.0) return null;  // Acceptable assignment
+  if (score >= 3.0) return null;  // Fine
 
   if (score < 0) {
-    // Truly incompatible — strong warning
-    const expected = LANE_PRIMARY_ROLES[lane];
-    return `⚠️ **${hero.name}** n'est pas fait pour la ${LANE_FR[lane]} (rôle : ${hero.roles[0]}). Cette lane requiert un ${expected[0]}. Envisagez une autre option si possible.`;
+    const statScore = getStatBasedLaneScore(hero, lane);
+    const reason = lane === 'Jungle'
+      ? `trop peu de dégâts ou de mobilité pour clear les camps (score jungle : ${(hero.damage * 0.40 + hero.mobility * 0.25 + hero.early * 0.20 + hero.tankiness * 0.15).toFixed(1)}/10)`
+      : lane === 'Roam'
+      ? `profil trop offensif pour jouer support/roam`
+      : lane === 'Gold'
+      ? `scaling late game insuffisant pour un carry Gold`
+      : `stats incompatibles avec ce rôle`;
+    return `⚠️ **${hero.name}** n'est pas adapté en ${LANE_FR[lane]} — ${reason}. Envisagez une autre option.`;
   }
-  // Weak match — soft warning
-  return `ℹ️ **${hero.name}** peut tenir la ${LANE_FR[lane]} mais ce n'est pas son rôle de prédilection.`;
+
+  return `ℹ️ **${hero.name}** peut tenir la ${LANE_FR[lane]} de façon situationnelle, mais ce n'est pas son rôle optimal.`;
 }
 
 // ─── Slot scoring ─────────────────────────────────────────────────────────────
