@@ -39,6 +39,11 @@ function buildFallbackPool(): HeroData[] {
       winRate:  defs.winRate  ?? 0.500,
       pickRate: defs.pickRate ?? 0.050,
       banRate:  defs.banRate  ?? 0.010,
+      // Phase win rates — no API data in offline mode, use static attributes as fallback
+      phaseEarly:   defs.early,
+      phaseMid:     defs.mid,
+      phaseLate:    defs.late,
+      synergyBoost: 5.0,  // neutral — no synergy data in offline fallback
     };
   });
 }

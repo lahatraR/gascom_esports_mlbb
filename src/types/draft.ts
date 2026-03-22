@@ -37,6 +37,16 @@ export interface HeroData {
   winRate: number;
   pickRate: number;
   banRate: number;
+
+  // Live phase win rates from Academy API time-win-rate endpoint (0–10 normalized)
+  // Derived from actual match data: win_rate per time bracket, normalized (0.42→0, 0.58→10)
+  phaseEarly: number;   // avg win rate in early game phase (0–~10min)
+  phaseMid:   number;   // avg win rate in mid game phase (~10–18min)
+  phaseLate:  number;   // avg win rate in late game phase (18+min)
+
+  // Average win rate boost when playing with synergy partners (from /teammates)
+  // 0 = no data, 5 = neutral, >5 = positive synergy → used for Team Coordination metric
+  synergyBoost: number;  // 0–10
 }
 
 // ─── Draft Structure ─────────────────────────────────────────────────────────

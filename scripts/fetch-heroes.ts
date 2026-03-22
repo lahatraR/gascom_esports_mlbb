@@ -2,17 +2,22 @@
 /**
  * Prebuild script — generates public/heroes.json for static (GitHub Pages) export.
  * Run via:  npx tsx scripts/fetch-heroes.ts
- * Automatically called by the "prebuild" npm script in CI.
  *
- * Replicates the same transformation as /api/heroes/route.ts but runs at build time,
- * embedding the data into a static file that the client can fetch on GitHub Pages.
+ * Data sources (mlbb-stats.rone.dev):
+ *  /hero-list       → base data + counter/synergy relations
+ *  /hero-rank       → win/ban/pick rates
+ *  /academy/guide/{id}/time-win-rate/1  → phase win rates (Early/Mid/Late)
+ *  /academy/guide/{id}/teammates        → synergy win rate boost (Team Coordination)
+ *
+ * Phase win rates are normalized from 0.42–0.58 → 0–10 to match the M7/MPL broadcast scale.
+ * (RORA earlyMid=3.60 corresponds to win_rate ≈ 0.478, formula: (wr-0.42)/0.16×10)
  */
 
 import fs   from 'fs';
 import path from 'path';
 import { HERO_STATS, getDefaultsForRoles } from '../src/data/heroes';
 
-// ─── Raw API shapes (mirrors src/lib/mlbbApi.ts) ─────────────────────────────
+// ─── API response shapes ──────────────────────────────────────────────────────
 
 interface RawHeroListResponse {
   data: {
@@ -43,23 +48,119 @@ interface RawHeroRankResponse {
   };
 }
 
+interface RawTimeWinRate {
+  code: number;
+  data: {
+    records: Array<{
+      data: {
+        heroid:    number;
+        real_road: number;
+        time_win_rate: Array<{
+          time_min: number;
+          time_max: number;
+          win_rate: number;
+        }>;
+        total_win_rate: number;
+      };
+    }>;
+    total: number;
+  };
+}
+
+interface RawTeammates {
+  code: number;
+  data: {
+    records: Array<{
+      data: {
+        main_heroid:         number;
+        main_hero_win_rate:  number;
+        sub_hero: Array<{
+          heroid:            number;
+          hero_win_rate:     number;
+          increase_win_rate: number;
+        }>;
+      };
+    }>;
+    total: number;
+  };
+}
+
 // ─── Fetch helpers ────────────────────────────────────────────────────────────
 
 const BASE_URL   = 'https://mlbb-stats.rone.dev/api';
-const TIMEOUT_MS = 15_000;
+const TIMEOUT_MS = 12_000;
 
-async function apiFetch<T>(path: string): Promise<T> {
+async function apiFetch<T>(endpoint: string): Promise<T | null> {
   const ctrl  = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
   try {
-    const res = await fetch(`${BASE_URL}${path}`, { signal: ctrl.signal });
+    const res = await fetch(`${BASE_URL}${endpoint}`, { signal: ctrl.signal });
     clearTimeout(timer);
-    if (!res.ok) throw new Error(`HTTP ${res.status} for ${path}`);
+    if (!res.ok) return null;
     return await res.json() as T;
-  } catch (err) {
+  } catch {
     clearTimeout(timer);
-    throw err;
+    return null;
   }
+}
+
+/** Run at most `concurrency` async tasks at a time */
+async function batchedAll<T>(
+  tasks:       (() => Promise<T>)[],
+  concurrency: number,
+): Promise<T[]> {
+  const results: T[] = [];
+  for (let i = 0; i < tasks.length; i += concurrency) {
+    const chunk = tasks.slice(i, i + concurrency).map((t) => t());
+    results.push(...await Promise.all(chunk));
+  }
+  return results;
+}
+
+// ─── Normalization ────────────────────────────────────────────────────────────
+
+/**
+ * Normalize a win rate (0.0–1.0) to the 0–10 broadcast scale.
+ * Formula matches MPL/M-Series overlay: 0.42 → 0, 0.50 → 5, 0.58 → 10.
+ * This is how RORA earlyMid=3.60 corresponds to win_rate≈0.478.
+ */
+function normalizeWR(wr: number): number {
+  return Math.max(0, Math.min(10, ((wr - 0.42) / 0.16) * 10));
+}
+
+/**
+ * Normalize a synergy boost (increase_win_rate, likely 0.0–0.08 decimal)
+ * to a 0–10 coordination score. 0% boost → 5, +5% → ~8.
+ */
+function normalizeSynergyBoost(boost: number): number {
+  // Handle both decimal (0.03) and percentage (3.0) formats
+  const dec = boost > 1 ? boost / 100 : boost;
+  return Math.max(0, Math.min(10, 5 + dec * 100));
+}
+
+// ─── Phase win-rate extraction ────────────────────────────────────────────────
+
+/**
+ * From the time_win_rate brackets, compute:
+ *  phaseEarly = avg win rate where time_max ≤ 12 min
+ *  phaseMid   = avg win rate where 12 < time_max ≤ 20 min
+ *  phaseLate  = avg win rate where time_min ≥ 18 min
+ *
+ * Returns normalized 0–10 values.
+ */
+function extractPhases(brackets: Array<{ time_min: number; time_max: number; win_rate: number }>) {
+  const early = brackets.filter((b) => b.time_max <= 12);
+  const mid   = brackets.filter((b) => b.time_max > 12 && b.time_max <= 20);
+  const late  = brackets.filter((b) => b.time_min >= 18);
+
+  const avg = (arr: typeof brackets) =>
+    arr.length > 0 ? arr.reduce((s, b) => s + b.win_rate, 0) / arr.length : null;
+
+  return {
+    phaseEarly: avg(early),
+    phaseMid:   avg(mid),
+    phaseLate:  avg(late),
+  };
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
@@ -67,14 +168,23 @@ async function apiFetch<T>(path: string): Promise<T> {
 async function main() {
   console.log('[fetch-heroes] Fetching hero data from mlbb-stats.rone.dev…');
 
+  // ── Step 1: Core endpoints (parallel) ──────────────────────────────────────
   const [rawList, rawRank] = await Promise.all([
     apiFetch<RawHeroListResponse>('/hero-list/'),
-    apiFetch<RawHeroRankResponse>('/hero-rank/').catch(() => ({ data: { records: [] } } as RawHeroRankResponse)),
+    apiFetch<RawHeroRankResponse>('/hero-rank/').catch(() => null),
   ]);
+
+  if (!rawList) {
+    console.error('[fetch-heroes] ✗ /hero-list failed — cannot continue.');
+    process.exit(0);
+  }
+
+  const records = rawList.data.records;
+  console.log(`[fetch-heroes] → ${records.length} heroes from /hero-list`);
 
   // Build rank lookup
   const rankMap = new Map(
-    rawRank.data.records.map((rec) => [
+    (rawRank?.data.records ?? []).map((rec) => [
       rec.data.main_heroid,
       {
         winRate:  rec.data.main_hero_win_rate,
@@ -84,47 +194,124 @@ async function main() {
     ])
   );
 
-  // Transform hero-list
-  const heroes = rawList.data.records.map((rec) => {
+  // ── Step 2: Per-hero Academy data (batched, 8 concurrent) ──────────────────
+  console.log('[fetch-heroes] → Fetching phase win-rates and synergy data per hero…');
+
+  const heroIds = records.map((r) => r.data.hero_id);
+
+  // time-win-rate (lane_id=1 — API returns the hero's primary lane data)
+  const timeWRTasks = heroIds.map((id) => () =>
+    apiFetch<RawTimeWinRate>(`/academy/guide/${id}/time-win-rate/1`)
+  );
+  // teammates synergy data
+  const teammateTasks = heroIds.map((id) => () =>
+    apiFetch<RawTeammates>(`/academy/guide/${id}/teammates`)
+  );
+
+  const [timeWRResults, teammateResults] = await Promise.all([
+    batchedAll(timeWRTasks,    8),
+    batchedAll(teammateTasks,  8),
+  ]);
+
+  // Index by hero_id
+  const timeWRMap    = new Map<number, { phaseEarly: number | null; phaseMid: number | null; phaseLate: number | null }>();
+  const synergyMap   = new Map<number, number>();
+
+  for (let i = 0; i < heroIds.length; i++) {
+    const id      = heroIds[i];
+    const twr     = timeWRResults[i];
+    const mates   = teammateResults[i];
+
+    // Phase win rates
+    const rec = twr?.data?.records?.[0]?.data;
+    if (rec?.time_win_rate?.length) {
+      timeWRMap.set(id, extractPhases(rec.time_win_rate));
+    }
+
+    // Synergy boost = avg increase_win_rate of top teammates (positive signal)
+    const subHeroes = mates?.data?.records?.[0]?.data?.sub_hero ?? [];
+    if (subHeroes.length > 0) {
+      const boosts   = subHeroes.map((s) => s.increase_win_rate);
+      const avgBoost = boosts.reduce((a, b) => a + b, 0) / boosts.length;
+      synergyMap.set(id, normalizeSynergyBoost(avgBoost));
+    }
+  }
+
+  console.log(`[fetch-heroes] → Phase data: ${timeWRMap.size}/${heroIds.length} heroes`);
+  console.log(`[fetch-heroes] → Synergy data: ${synergyMap.size}/${heroIds.length} heroes`);
+
+  // ── Step 3: Build hero objects ──────────────────────────────────────────────
+  const heroes = records.map((rec) => {
     const d      = rec.data;
     const id     = d.hero_id;
     const stats  = HERO_STATS[id];
     const roles  = stats?.roles ?? ['Fighter'];
     const defs   = stats ?? { roles, ...getDefaultsForRoles(roles) };
     const rank   = rankMap.get(id);
+    const phases = timeWRMap.get(id);
+
+    // Phase win rates: prefer API data, fall back to static estimates
+    const phaseEarly = phases?.phaseEarly != null
+      ? parseFloat(normalizeWR(phases.phaseEarly).toFixed(2))
+      : defs.early;
+    const phaseMid = phases?.phaseMid != null
+      ? parseFloat(normalizeWR(phases.phaseMid).toFixed(2))
+      : defs.mid;
+    const phaseLate = phases?.phaseLate != null
+      ? parseFloat(normalizeWR(phases.phaseLate).toFixed(2))
+      : defs.late;
+
+    // Synergy boost: API data or neutral 5.0
+    const synergyBoost = synergyMap.get(id) ?? 5.0;
 
     return {
       id,
       name:  d.hero.data.name,
       image: d.hero.data.head,
       roles,
-      early:       defs.early,
-      mid:         defs.mid,
-      late:        defs.late,
-      damage:      defs.damage,
-      tankiness:   defs.tankiness,
-      cc:          defs.cc,
-      mobility:    defs.mobility,
-      push:        defs.push,
-      pressure:    defs.pressure,
+
+      // Static combat attributes (no API equivalent — role-based tuning)
+      early:     defs.early,
+      mid:       defs.mid,
+      late:      defs.late,
+      damage:    defs.damage,
+      tankiness: defs.tankiness,
+      cc:        defs.cc,
+      mobility:  defs.mobility,
+      push:      defs.push,
+      pressure:  defs.pressure,
+
+      // API-derived phase win rates (replaces hardcoded early/mid/late for metric display)
+      phaseEarly,
+      phaseMid,
+      phaseLate,
+
+      // API-derived synergy boost
+      synergyBoost,
+
+      // Counter/synergy relationships
       counters:    (d.relation.weak.target_hero_id   ?? []).filter((x: number) => x > 0),
       counteredBy: (d.relation.strong.target_hero_id ?? []).filter((x: number) => x > 0),
       synergies:   (d.relation.assist.target_hero_id ?? []).filter((x: number) => x > 0),
+
+      // Meta rates
       winRate:  rank?.winRate  ?? (defs as { winRate?: number }).winRate  ?? 0.500,
       pickRate: rank?.pickRate ?? (defs as { pickRate?: number }).pickRate ?? 0.050,
       banRate:  rank?.banRate  ?? (defs as { banRate?: number }).banRate  ?? 0.010,
     };
   });
 
-  // Write output (ensure public/ exists — Git doesn't track empty dirs)
+  const withPhases   = heroes.filter((h) => timeWRMap.has(h.id)).length;
+  const withSynergy  = heroes.filter((h) => synergyMap.has(h.id)).length;
+
   const outPath = path.join(process.cwd(), 'public', 'heroes.json');
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
   fs.writeFileSync(outPath, JSON.stringify(heroes));
-  console.log(`[fetch-heroes] ✓ Wrote ${heroes.length} heroes to public/heroes.json`);
+  console.log(`[fetch-heroes] ✓ Wrote ${heroes.length} heroes (${withPhases} with phase data, ${withSynergy} with synergy data)`);
 }
 
 main().catch((err) => {
   console.error('[fetch-heroes] ✗ Failed:', err.message);
-  console.error('[fetch-heroes]   The app will use offline fallback data on GitHub Pages.');
-  process.exit(0); // Don't block the build — store has offline fallback
+  console.error('[fetch-heroes]   The app will use offline fallback data.');
+  process.exit(0);
 });

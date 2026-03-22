@@ -20,20 +20,41 @@ export function calculateTeamMetrics(team: HeroData[]): TeamMetrics {
   const avg = (fn: (h: HeroData) => number) =>
     clamp(team.reduce((s, h) => s + fn(h), 0) / team.length, 0, 10);
 
-  // Team Coordination: pairwise synergy density, scaled 0–10 (base 5 for no synergy data)
-  let synergyPairs = 0;
-  for (let i = 0; i < team.length; i++) {
-    for (let j = i + 1; j < team.length; j++) {
-      if (team[i].synergies.includes(team[j].id)) synergyPairs++;
-      if (team[j].synergies.includes(team[i].id)) synergyPairs++;
+  // Team Coordination: prefer API-sourced synergyBoost per hero (avg of team members)
+  // synergyBoost is pre-computed from /academy/guide/{id}/teammates increase_win_rate (0–10)
+  // Falls back to pairwise synergy density if synergyBoost is neutral (5.0)
+  const synergyBoostAvg = avg((h) => h.synergyBoost ?? 5);
+  const hasSynergyData  = team.some((h) => (h.synergyBoost ?? 5) !== 5);
+
+  let coordination: number;
+  if (hasSynergyData) {
+    // Use real API synergy data
+    coordination = clamp(synergyBoostAvg, 0, 10);
+  } else {
+    // Fallback: pairwise synergy density from relations
+    let synergyPairs = 0;
+    for (let i = 0; i < team.length; i++) {
+      for (let j = i + 1; j < team.length; j++) {
+        if (team[i].synergies.includes(team[j].id)) synergyPairs++;
+        if (team[j].synergies.includes(team[i].id)) synergyPairs++;
+      }
     }
+    const maxPairs = team.length * (team.length - 1);
+    coordination = clamp(5 + (synergyPairs / Math.max(1, maxPairs)) * 10, 0, 10);
   }
-  const maxPairs    = team.length * (team.length - 1);
-  const coordination = clamp(5 + (synergyPairs / Math.max(1, maxPairs)) * 10, 0, 10);
+
+  // Use API-derived phase win rates when available (phaseEarly/Mid/Late),
+  // fall back to static early/mid/late attributes if phase data is missing.
+  const earlyMidVal = avg((h) =>
+    (h.phaseEarly != null && h.phaseMid != null)
+      ? (h.phaseEarly + h.phaseMid) / 2
+      : (h.early + h.mid) / 2
+  );
+  const lateVal = avg((h) => (h.phaseLate != null ? h.phaseLate : h.late));
 
   return {
-    earlyMid:    avg((h) => (h.early + h.mid) / 2),
-    late:        avg((h) => h.late),
+    earlyMid:    clamp(earlyMidVal, 0, 10),
+    late:        clamp(lateVal, 0, 10),
     damage:      avg((h) => h.damage),
     tankiness:   avg((h) => h.tankiness),
     cc:          avg((h) => h.cc),
