@@ -15,6 +15,8 @@ import { EnemyPredictionPanel } from '@/components/analysis/EnemyPredictionPanel
 import { ArchetypePanel }             from '@/components/analysis/ArchetypePanel';
 import { CounterCompositionPanel }   from '@/components/analysis/CounterCompositionPanel';
 import { WinningLineupPanel }        from '@/components/analysis/WinningLineupPanel';
+import { BanIntelligencePanel }      from '@/components/analysis/BanIntelligencePanel';
+import { CompositionHolesPanel }     from '@/components/analysis/CompositionHolesPanel';
 import type { DraftAnalysis } from '@/types/draft';
 
 type MobileTab = 'draft' | 'blue' | 'red' | 'analysis';
@@ -39,10 +41,21 @@ function AnalysisPanels({
 }) {
   return (
     <div className="flex flex-col gap-3">
-      {/* Winning lineup — most prominent, at the top */}
+      {/* Composition holes — top priority alert */}
+      <CompositionHolesPanel
+        holes={analysis?.compositionHoles ?? []}
+        allyTeam={allyTeam}
+      />
+      {/* Winning lineup — most prominent */}
       <WinningLineupPanel
         lineup={analysis?.winningLineup ?? null}
         allyTeam={allyTeam}
+      />
+      {/* Ban intelligence + archetype probability */}
+      <BanIntelligencePanel
+        banAnalysis={analysis?.banAnalysis ?? null}
+        archetypeProbability={analysis?.archetypeProbability ?? null}
+        enemyTeam={enemyTeam}
       />
       <ArchetypePanel
         blueArchetype={analysis?.blueArchetype ?? null}
@@ -137,10 +150,18 @@ export function DraftBoard() {
 
       {/* Desktop analysis bar */}
       <div className="hidden md:flex flex-col gap-3">
+        {/* Composition holes — alert strip */}
+        <CompositionHolesPanel holes={analysis?.compositionHoles ?? []} allyTeam={currentTeam} />
         {/* Winning lineup — full width, most prominent */}
         <WinningLineupPanel
           lineup={analysis?.winningLineup ?? null}
           allyTeam={currentTeam}
+        />
+        {/* Ban intelligence + probability */}
+        <BanIntelligencePanel
+          banAnalysis={analysis?.banAnalysis ?? null}
+          archetypeProbability={analysis?.archetypeProbability ?? null}
+          enemyTeam={enemyTeam}
         />
         <ArchetypePanel blueArchetype={analysis?.blueArchetype ?? null} redArchetype={analysis?.redArchetype ?? null} />
         <div className="grid grid-cols-3 gap-3">

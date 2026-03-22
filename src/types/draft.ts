@@ -266,4 +266,36 @@ export interface DraftAnalysis {
   redArchetype:  ArchetypeResult | null;
   enemyCompAnalysis: EnemyCompAnalysis | null;
   winningLineup:     WinningLineup | null;
+  // Draft intelligence
+  banAnalysis:       BanAnalysis | null;
+  archetypeProbability: ArchetypeProbability | null;
+  compositionHoles:  CompositionHole[];
+}
+
+// ─── Draft intelligence types ─────────────────────────────────────────────────
+
+export interface BanAnalysis {
+  bannedThreat:       DraftArchetype;       // what archetype was banned
+  bannedThreatLabel:  string;               // human-readable label
+  inferredStrategies: DraftArchetype[];     // what they're likely playing (ARCHETYPE_LOSES_TO)
+  insight:            string;               // French explanation
+  confidence:         number;               // 0–100
+  banCount:           number;               // number of enemy bans analysed
+}
+
+export interface ArchetypeProbability {
+  distribution: Record<DraftArchetype, number>;  // %  sum ≈ 100
+  sorted:       DraftArchetype[];                 // desc by probability
+  dominantArchetype: DraftArchetype | null;       // if one leads clearly (>40%)
+  signalCount:  number;                           // picks + bans contributing
+}
+
+export type HoleSeverity = 'critical' | 'warning';
+
+export interface CompositionHole {
+  id:        string;
+  severity:  HoleSeverity;
+  message:   string;     // French
+  roleToFill: LaneRole;
+  condition: string;     // short English key for dedup
 }

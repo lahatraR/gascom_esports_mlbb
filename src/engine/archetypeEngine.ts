@@ -79,6 +79,10 @@ export const ARCHETYPE_LOSES_TO: Record<DraftArchetype, DraftArchetype[]> = {
 
 // ─── Hero archetype scoring ────────────────────────────────────────────────────
 
+export function heroArchetypeScores(hero: HeroData): Record<DraftArchetype, number> {
+  return heroScores(hero);
+}
+
 function heroScores(hero: HeroData): Record<DraftArchetype, number> {
   const { early, damage, tankiness, cc, mobility, push, pressure, roles, late, mid } = hero;
   const primaryRole = roles[0] ?? '';

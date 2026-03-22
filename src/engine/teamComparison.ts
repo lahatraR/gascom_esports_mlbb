@@ -4,6 +4,7 @@ import { predictEnemyPicks } from './predictionEngine';
 import { detectTeamArchetype } from './archetypeEngine';
 import { buildEnemyCompAnalysis } from './compositionEngine';
 import { buildWinningLineup }     from './lineupEngine';
+import { analyzeBanPattern, buildArchetypeProbability, detectCompositionHoles } from './intelligenceEngine';
 
 // ─── Team metric calculation ─────────────────────────────────────────────────
 
@@ -199,6 +200,16 @@ export function runDraftAnalysis(
     pickedIds,
   );
 
+  // ── Draft intelligence ────────────────────────────────────────────────────
+  const enemyBansForIntel  = currentTeam === 'blue' ? redBans  : blueBans;
+  const allyBansForIntel   = currentTeam === 'blue' ? blueBans : redBans;
+  const allyPicksForIntel  = currentTeam === 'blue' ? blueTeam : redTeam;
+  const enemyPicksForIntel = currentTeam === 'blue' ? redTeam  : blueTeam;
+
+  const banAnalysis = analyzeBanPattern(enemyBansForIntel, allyBansForIntel);
+  const archetypeProbability = buildArchetypeProbability(enemyPicksForIntel, enemyBansForIntel);
+  const compositionHoles = detectCompositionHoles(allyPicksForIntel);
+
   return {
     blueMetrics,
     redMetrics,
@@ -212,6 +223,9 @@ export function runDraftAnalysis(
     redArchetype,
     enemyCompAnalysis,
     winningLineup,
+    banAnalysis,
+    archetypeProbability,
+    compositionHoles,
   };
 }
 
