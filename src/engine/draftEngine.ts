@@ -1,5 +1,6 @@
 import type { HeroData, DraftSuggestion, ScoreBreakdown, GameMode } from '@/types/draft';
-import { getHeroTierScore } from '@/data/tierList';
+import { getHeroTierScore, getHeroLanes } from '@/data/tierList';
+import type { LaneKey } from '@/data/tierList';
 import { playstyleCounterScore, buildPlaystyleHint, getPlaystyles, PLAYSTYLE_LABEL } from '@/data/heroArchetypes';
 
 // ─── Weight configuration per game mode ─────────────────────────────────────
@@ -127,6 +128,49 @@ export function calculatePressureScore(hero: HeroData, alliedTeam: HeroData[]): 
   return clamp(baseScore - penalty, 0, 10);
 }
 
+// ─── Lane fit multiplier ──────────────────────────────────────────────────────
+//
+// Multiplied into the meta score component so heroes whose lane is already
+// covered by the team are penalised and heroes that fill a missing lane get a
+// small bonus.
+//
+// Examples:
+//  - Team has EXP/Gold/Jungle/Roam → Mid is missing.
+//    Sora (EXP) → 0.35 multiplier  → meta drops from 8 to 2.8
+//    Zhuxin (Mid S+) → 1.25 multiplier → meta boosted to max
+//
+// A hero that appears in multiple lanes (Yi Sun-Shin: Gold + Jungle) is
+// considered a lane-fit if ANY of their lanes matches a missing lane.
+
+function calculateLaneFitScore(hero: HeroData, alliedTeam: HeroData[]): number {
+  if (alliedTeam.length === 0) return 1.0;
+
+  const ALL_LANES: LaneKey[] = ['EXP', 'Gold', 'Jungle', 'Mid', 'Roam'];
+
+  // Collect lanes already covered by allies
+  const coveredLanes = new Set<LaneKey>();
+  for (const ally of alliedTeam) {
+    for (const lane of getHeroLanes(ally.name, ally.roles)) {
+      coveredLanes.add(lane);
+    }
+  }
+
+  const missingLanes = ALL_LANES.filter((l) => !coveredLanes.has(l));
+  if (missingLanes.length === 0) return 1.0; // All 5 lanes covered
+
+  // Does this hero fit at least one of the missing lanes?
+  const heroLanes  = getHeroLanes(hero.name, hero.roles);
+  const fillsMissing = heroLanes.some((l) => missingLanes.includes(l));
+
+  if (fillsMissing) return 1.25; // Bonus: fills a needed lane
+
+  // Hero's lane(s) already taken — penalise based on how late in the draft we are
+  const pickedCount = alliedTeam.length;
+  if (pickedCount >= 3) return 0.35; // 4th/5th pick: strong penalty for wrong lane
+  if (pickedCount >= 2) return 0.55; // 3rd pick: moderate penalty
+  return 0.80;                        // 1st/2nd pick: mild penalty (draft is still open)
+}
+
 // ─── Final hero score ────────────────────────────────────────────────────────
 
 export function scoreHero(
@@ -143,7 +187,7 @@ export function scoreHero(
   const w = WEIGHTS[gameMode];
   const counter  = calculateCounterScore(hero, enemyTeam);
   const synergy  = calculateSynergyScore(hero, alliedTeam);
-  const meta     = calculateMetaScore(hero);
+  const meta     = clamp(calculateMetaScore(hero) * calculateLaneFitScore(hero, alliedTeam), 0, 10);
   const phase    = calculatePhaseScore(hero, alliedTeam, gameMode);
   const pressure = calculatePressureScore(hero, alliedTeam);
 

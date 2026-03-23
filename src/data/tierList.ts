@@ -92,6 +92,32 @@ const ROLE_TO_LANE: Record<string, LaneKey> = {
   Support:   'Roam',
 };
 
+// ─── Hero lane(s) detection ───────────────────────────────────────────────────
+// Returns every lane where the hero explicitly appears in the tier lists.
+// Falls back to the role→lane mapping when the hero isn't listed anywhere.
+// A hero can appear in multiple lanes (e.g. Yi Sun-Shin: Gold + Jungle).
+
+export function getHeroLanes(heroName: string, roles: string[]): LaneKey[] {
+  const ALL_LANES: LaneKey[] = ['EXP', 'Gold', 'Jungle', 'Mid', 'Roam'];
+  const nameLower = heroName.toLowerCase();
+  const found: LaneKey[] = [];
+
+  for (const lane of ALL_LANES) {
+    const tiers = LANE_TIERS[lane];
+    const inLane = (Object.values(tiers) as string[][]).some(
+      (heroes) => heroes?.some((n) => n.toLowerCase() === nameLower)
+    );
+    if (inLane) found.push(lane);
+  }
+
+  if (found.length > 0) return found;
+
+  // Fallback: derive from role mapping
+  const primaryRole = roles[0] ?? '';
+  const lane = ROLE_TO_LANE[primaryRole];
+  return lane ? [lane] : [];
+}
+
 // ─── Lookup: get tier meta score for a hero by name + roles ──────────────────
 
 export function getHeroTierScore(heroName: string, roles: string[]): number {
