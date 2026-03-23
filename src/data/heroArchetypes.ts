@@ -311,6 +311,23 @@ const HERO_PLAYSTYLES_RAW: [string, PlaystyleArchetype[]][] = [
   ['mathilda',        ['enchanter', 'initiator']],
   ['rafaela',         ['enchanter']],
   ['floryn',          ['enchanter']],
+  // ── Heroes added after archetype confirmation ────────────────────────────
+  // Tanks / Supports
+  ['kalea',           ['avant_garde', 'initiator']],           // Tank/Support — on-demand CC, protects backline
+  ['chip',            ['enchanter', 'initiator']],             // Support — utility + CC setup
+  ['edith',           ['stone_wall', 'crit_marksman']],        // Tank/Marksman — unique hybrid (tank form + AA form)
+  ['marcel',          ['enchanter', 'initiator']],             // Support — CC + utility
+  // Fighters
+  ['cici',            ['mastodon', 'speed_specialist']],       // Fighter — balanced tanky + agile
+  ['lukas',           ['mastodon', 'berserker']],              // Fighter — high dmg frontliner, sustain
+  ['yin',             ['stunner', 'prey_hunter']],             // Fighter — 1v1 isolation trap, catch-fighter
+  // Assassins
+  ['nolan',           ['speed_specialist', 'sniper']],         // Assassin — extreme mobility, burst burst
+  ['zetian',          ['sniper', 'prey_hunter']],              // Assassin/Mage — magic burst, cleanup
+  // Mages
+  ['novaria',         ['dps_mage', 'control_mage']],           // Mage — bouncing orbs = DPS + zone control
+  ['valentina',       ['explosive_mage', 'control_mage']],     // Mage — copies ults = burst + control
+  ['obsidia',         ['skill_marksman', 'prey_hunter']],      // Marksman — Finisher/Damage, Gold Lane
 ];
 
 // ─── Lookup map (normalized name → archetypes) ────────────────────────────────
