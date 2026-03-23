@@ -47,11 +47,11 @@ export const ARCHETYPE_CLASSES: Record<DraftArchetype, {
 };
 
 export const ARCHETYPE_DESCRIPTION: Record<DraftArchetype, string> = {
-  poke:    'Consistent chip damage & range control. Low CD skills. High risk — bad positioning gets punished hard.',
-  engage:  'Forces fights on your terms. Needs initiator + long CC + AoE + finisher.',
-  protect: 'Late-game wall comp. Build two defensive layers around 2+ scaling carries.',
-  split:   'Breaks the enemy gameplan by splitting resources and forcing losing trades.',
-  catch:   'Eliminate isolated targets. Single-target CC + burst + hard-to-catch heroes.',
+  poke:    'Harcèle l\'ennemi à distance avant le combat. Efficace si bien positionné — une mauvaise position se punit immédiatement.',
+  engage:  'Déclenche les fights sur votre terrain. Requiert un initiateur + CC long + dégâts de zone + finisher.',
+  protect: 'Protège un ou deux carries pour la fin de partie. On construit un mur défensif autour d\'eux.',
+  split:   'Casse la formation ennemie en forçant des réponses sur plusieurs lanes simultanément.',
+  catch:   'Isole et élimine des cibles séparées du groupe. CC mono-cible + burst + héros difficiles à attraper.',
 };
 
 // ─── Counter / beats matrix ────────────────────────────────────────────────────
@@ -186,24 +186,24 @@ export function getMatchupTip(
     return {
       type: 'advantage',
       icon: '✅',
-      message: `${ARCHETYPE_LABELS[ours]} structurally counters ${ARCHETYPE_LABELS[enemy]}.`,
+      message: `Votre style ${ARCHETYPE_LABELS[ours]} contre structurellement le ${ARCHETYPE_LABELS[enemy]} adverse.`,
     };
   }
   if (theyCounter) {
     const pivotTo = ARCHETYPE_LOSES_TO[ours].find(
       (a) => ARCHETYPE_BEATS[a].includes(enemy)
     ) ?? null;
-    const pivotHint = pivotTo ? ` Pivot toward ${ARCHETYPE_SHORT[pivotTo]} to flip the matchup.` : '';
+    const pivotHint = pivotTo ? ` Pivotez vers un style ${ARCHETYPE_SHORT[pivotTo]} pour renverser le matchup.` : '';
     return {
       type: 'disadvantage',
       icon: '⚠️',
-      message: `Their ${ARCHETYPE_LABELS[enemy]} counters your ${ARCHETYPE_LABELS[ours]}.${pivotHint}`,
+      message: `Leur ${ARCHETYPE_LABELS[enemy]} contre votre style ${ARCHETYPE_LABELS[ours]}.${pivotHint}`,
     };
   }
   return {
     type: 'neutral',
     icon: '🔄',
-    message: 'Neutral matchup — execution and individual picks will decide.',
+    message: 'Matchup neutre — l\'exécution et les picks individuels feront la différence.',
   };
 }
 

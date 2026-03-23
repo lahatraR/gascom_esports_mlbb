@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import clsx from 'clsx';
 import type { ArchetypeResult, DraftArchetype } from '@/types/draft';
 import {
@@ -12,6 +13,34 @@ import {
   ARCHETYPE_CLASSES,
   getMatchupTip,
 } from '@/engine/archetypeEngine';
+
+// ─── Glossaire des 5 styles de draft ──────────────────────────────────────────
+
+const ARCHETYPE_ORDER: DraftArchetype[] = ['poke', 'engage', 'protect', 'split', 'catch'];
+
+function ArchetypeGlossary() {
+  return (
+    <div className="rounded-lg border border-slate-700/40 overflow-hidden">
+      {ARCHETYPE_ORDER.map((a, i) => {
+        const cls = ARCHETYPE_CLASSES[a];
+        return (
+          <div
+            key={a}
+            className={clsx(
+              'flex items-start gap-2.5 px-3 py-2 text-[10px]',
+              i !== 0 && 'border-t border-slate-800/60',
+            )}
+          >
+            <span className={clsx('shrink-0 font-bold px-1.5 py-0.5 rounded border text-[9px] mt-0.5', cls.badge)}>
+              {ARCHETYPE_ICON[a]} {ARCHETYPE_SHORT[a]}
+            </span>
+            <p className="text-slate-400 leading-relaxed">{ARCHETYPE_DESCRIPTION[a]}</p>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 // ─── Single team archetype card ───────────────────────────────────────────────
 
@@ -150,6 +179,8 @@ interface ArchetypePanelProps {
 }
 
 export function ArchetypePanel({ blueArchetype, redArchetype }: ArchetypePanelProps) {
+  const [showGlossary, setShowGlossary] = useState(false);
+
   return (
     <div className="glass p-3 flex flex-col gap-3">
       {/* Title */}
@@ -157,10 +188,17 @@ export function ArchetypePanel({ blueArchetype, redArchetype }: ArchetypePanelPr
         <p className="text-xs font-bold text-slate-300 uppercase tracking-wider">
           Styles de Draft des équipes
         </p>
-        <p className="text-[10px] text-slate-600">
-          Poke · Engage · Protect · Split · Catch
-        </p>
+        <button
+          onClick={() => setShowGlossary((v) => !v)}
+          className="text-[10px] text-slate-500 hover:text-slate-300 transition-colors flex items-center gap-1 border border-slate-700/40 rounded px-1.5 py-0.5"
+          title="Qu'est-ce que ces styles de draft ?"
+        >
+          {showGlossary ? '✕' : '?'} <span>Légende</span>
+        </button>
       </div>
+
+      {/* Glossary */}
+      {showGlossary && <ArchetypeGlossary />}
 
       {/* Two team cards side by side */}
       <div className="grid grid-cols-2 gap-3">

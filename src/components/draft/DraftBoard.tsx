@@ -26,10 +26,10 @@ type AnalysisTab = 'picks' | 'intel' | 'matchup' | 'strat';
 type MobileTab   = 'draft' | 'blue' | 'red' | 'analysis';
 
 const ANALYSIS_TABS: { id: AnalysisTab; label: string; icon: string; desc: string }[] = [
-  { id: 'picks',   icon: '⚔️',  label: 'Picks',   desc: 'Suggestions IA + meilleur lineup'        },
-  { id: 'intel',   icon: '🔍',  label: 'Intel',   desc: 'Bans ennemis + prédictions de picks'     },
-  { id: 'matchup', icon: '📊',  label: 'Matchup', desc: 'Probabilité de victoire + forces équipes' },
-  { id: 'strat',   icon: '📋',  label: 'Strat',   desc: 'Compositions prêtes + livret de bans'    },
+  { id: 'picks',   icon: '⚔️',  label: 'Picks',    desc: 'Suggestions IA + meilleur lineup'            },
+  { id: 'intel',   icon: '🔍',  label: 'Espion',  desc: 'Que prépare l\'ennemi ? Bans + picks prévus' },
+  { id: 'matchup', icon: '📊',  label: 'Bilan',   desc: 'Probabilité de victoire + forces des équipes' },
+  { id: 'strat',   icon: '📋',  label: 'Strat',   desc: 'Compositions prêtes + livret de bans'         },
 ];
 
 const MOBILE_TABS: { id: MobileTab; icon: string; label: string }[] = [

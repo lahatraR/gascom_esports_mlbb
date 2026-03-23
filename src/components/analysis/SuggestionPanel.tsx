@@ -108,7 +108,7 @@ export function SuggestionPanel({ suggestions, currentTeam, isPickPhase }: Sugge
                       })()}
                     </div>
                     <span className={clsx('font-black text-sm tabular-nums flex-shrink-0', scoreColor)}>
-                      {s.score}
+                      {s.score}<span className="text-[10px] font-normal text-slate-600">/100</span>
                     </span>
                   </div>
                   <p className="text-[10px] text-slate-500 truncate">{s.reason}</p>
