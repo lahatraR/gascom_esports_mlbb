@@ -27,11 +27,20 @@ const LANE_FR: Record<LaneRole, string> = {
 };
 
 const LANE_ROLE_FR: Record<LaneRole, string> = {
-  Gold:   'carry principal — source de dégâts en late game',
-  Roam:   'support/initiateur — vision, peel et protection pour l\'équipe',
-  Jungle: 'jungler — objectifs, buff et pression globale sur la map',
-  Mid:    'rotation et burst — frappe les carries ennemis rapidement',
-  EXP:    'dueliste — pression et avantage XP en solo lane',
+  Gold:   'carry principal (Marksman) — domine sa lane, farm sécurisé, dégâts élevés et scaling late game',
+  Roam:   'initiateur/support — vision, engage principal, CC ou peel selon si Tank ou Support',
+  Jungle: 'jungler — objectifs (Lord/Turtle/buffs), ganks et pression globale sur la map',
+  Mid:    'mage — clear rapide de lane, rotations et ralentissement de la backline ennemie',
+  EXP:    'dueliste (Fighter) — pression XP, engageur secondaire, CC sur la backline adverse',
+};
+
+// Description courte du rôle de chaque lane (affichée dans les raisons)
+const LANE_OBJECTIVE_FR: Record<LaneRole, string> = {
+  Gold:   'Farmez votre lane, évitez les morts et montez en puissance pour le late game',
+  Roam:   'Posez de la vision, aidez le clear de lane, puis engagez ou peelez selon le tempo',
+  Jungle: 'Sécurisez Lord/Turtle/buffs, gankez aux bons moments et maintenez la pression globale',
+  Mid:    'Clearez vite, rotatez pour aider les autres lanes et posez du poke à distance',
+  EXP:    'Gagnez votre duel de lane, montez en XP et soyez prêt à engager ou suivre le team fight',
 };
 
 const ARCHETYPE_FR: Record<DraftArchetype, string> = {
@@ -62,6 +71,32 @@ const LANE_PRIMARY_ROLES: Record<LaneRole, string[]> = {
   EXP:    ['Fighter', 'Tank'],
 };
 
+// ─── Profil de stats par rôle ─────────────────────────────────────────────────
+//
+// Basé sur les responsabilités réelles de chaque poste :
+//
+// Gold/Marksman  : domine sa lane, farm sécurisé, dégâts élevés, scaling late game
+// Roam/Tank-Supp : vision, engage principal, CC/peel, tankiness (tank) ou utilitaire (support)
+// Jungle         : contrôle des objectifs (Lord/Turtle/buffs), pression globale, gank
+//                  → tanky jungler : engage + CC ; assassin : burst + mobilité
+// Mid/Mage       : clear rapide, rotation, poke, ralentissement de la backline adverse
+// EXP/Fighter    : dueliste, engageur secondaire, CC backline, early game fort
+
+type HeroStat = 'damage' | 'cc' | 'tankiness' | 'mobility' | 'push' | 'late' | 'early' | 'pressure';
+
+const LANE_STAT_WEIGHTS: Record<LaneRole, [HeroStat, number][]> = {
+  // Marksman : dégâts élevés + scaling late + farm/push de lane (évite les morts early)
+  Gold:   [['damage', 3], ['late', 3], ['push', 1], ['early', 1]],
+  // Tank/Support : CC en priorité (engage ou peel), tankiness, soutien précoce
+  Roam:   [['cc', 3], ['tankiness', 3], ['early', 2], ['pressure', 1]],
+  // Jungler : pression globale sur la map, objectifs, mobilité — tanky ou burst selon le type
+  Jungle: [['pressure', 3], ['mobility', 2], ['damage', 2], ['cc', 2], ['early', 1]],
+  // Mage : clear rapide (push), dégâts, mobilité pour les rotations
+  Mid:    [['damage', 3], ['push', 3], ['mobility', 2], ['cc', 1]],
+  // Fighter/EXP : early game fort, duel, engage secondaire, CC sur la backline
+  EXP:    [['early', 3], ['cc', 2], ['damage', 2], ['tankiness', 2], ['mobility', 1]],
+};
+
 // ─── Lane tier score ──────────────────────────────────────────────────────────
 
 function getHeroLaneTierScore(heroName: string, lane: LaneRole): number {
@@ -83,6 +118,19 @@ function getLaneScore(hero: HeroData, lane: LaneRole): number {
   if (expected.includes(primary))                     return 3.0;
   if (hero.roles.some((r) => expected.includes(r)))   return 1.5;
   return 0;
+}
+
+// ─── Stat score par lane ──────────────────────────────────────────────────────
+
+/**
+ * Score 0–10 basé sur le profil de stats du héros vs les exigences du rôle.
+ * Récompense un Marksman avec beaucoup de damage/late, un Tank avec cc/tankiness, etc.
+ */
+function getLaneStatScore(hero: HeroData, lane: LaneRole): number {
+  const weights = LANE_STAT_WEIGHTS[lane];
+  const totalWeight = weights.reduce((s, [, w]) => s + w, 0);
+  const weightedSum = weights.reduce((s, [stat, w]) => s + (hero[stat] ?? 0) * w, 0);
+  return weightedSum / totalWeight; // résultat 0–10
 }
 
 /**
@@ -129,13 +177,14 @@ function scoreHeroForSlot(
     if (hero.synergies.includes(a.id)) synergyRaw += 2;
     if (a.synergies.includes(hero.id)) synergyRaw += 1;
   }
-  const synergyScore = clamp(synergyRaw + 3, 0, 10);
-  const metaScore    = calculateMetaScore(hero);
+  const synergyScore   = clamp(synergyRaw + 3, 0, 10);
+  const metaScore      = calculateMetaScore(hero);
+  const laneStatScore  = getLaneStatScore(hero, lane);  // stats vs rôle du poste
 
   // Multiplicateur de poste : un héros hors-rôle ne peut pas compenser par l'archétype seul
   const laneFitMult = getLaneFitMultiplier(hero, lane);
 
-  const rawScore = archFit * 3 + laneScore * 3 + counterScore * 2 + synergyScore + metaScore;
+  const rawScore = archFit * 3 + laneScore * 3 + laneStatScore * 2 + counterScore * 2 + synergyScore + metaScore;
   return rawScore * laneFitMult;
 }
 
@@ -204,10 +253,11 @@ function buildDetailedReasonFR(
 ): string {
   const sentences: string[] = [];
 
-  // 1. Role
+  // 1. Rôle + objectif de lane
   sentences.push(
     `**${hero.name}** occupe la ${LANE_FR[lane]} en tant que ${LANE_ROLE_FR[lane]}.`
   );
+  sentences.push(`🎯 Objectif : ${LANE_OBJECTIVE_FR[lane]}.`);
 
   if (isLocked) {
     sentences.push(`Ce héros est déjà verrouillé dans votre draft.`);
@@ -246,12 +296,21 @@ function buildDetailedReasonFR(
     );
   }
 
-  // 4. Strengths
+  // 4. Strengths + adéquation stats/rôle
   const strengths = getHeroStrengthsFR(hero);
   if (strengths.length >= 2) {
     sentences.push(`Forces principales : ${strengths.slice(0, 3).join(', ')}.`);
   } else if (strengths.length === 1) {
     sentences.push(`Point fort : ${strengths[0]}.`);
+  }
+  // Adéquation stats vs profil du rôle
+  const laneStatScore = getLaneStatScore(hero, lane);
+  if (laneStatScore >= 7.5) {
+    sentences.push(`📊 Profil de stats excellent pour ce poste (${laneStatScore.toFixed(1)}/10).`);
+  } else if (laneStatScore >= 5.5) {
+    sentences.push(`📊 Profil de stats correct pour ce poste (${laneStatScore.toFixed(1)}/10).`);
+  } else if (laneStatScore < 4.0) {
+    sentences.push(`📊 Profil de stats en dessous de l'idéal pour ce poste (${laneStatScore.toFixed(1)}/10) — à considérer seulement si d'autres facteurs le justifient.`);
   }
 
   // 5. Synergy

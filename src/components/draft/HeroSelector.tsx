@@ -67,7 +67,7 @@ function InlineSuggestionBar({
     >
       {/* Header row */}
       <div className="flex items-center gap-2">
-        <span className="text-[9px] font-black tracking-[0.18em] text-slate-500 shrink-0">💡 IA RECOMMANDE</span>
+        <span className="text-[9px] font-bold tracking-wide text-slate-400 shrink-0">Meilleurs picks</span>
         <div className="flex-1 h-px" style={{ background: `linear-gradient(to right, ${teamBorder}, transparent)` }} />
         <span className="text-[8px] text-slate-600 shrink-0">cliquer pour picker</span>
       </div>
