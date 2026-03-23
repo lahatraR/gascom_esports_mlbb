@@ -4,9 +4,141 @@ import { useMemo } from 'react';
 import clsx from 'clsx';
 import { useDraftStore } from '@/store/draftStore';
 import { DRAFT_SEQUENCE } from '@/types/draft';
+import type { DraftSuggestion } from '@/types/draft';
 import { HeroCard } from '@/components/ui/HeroCard';
 
 const ALL_ROLES = ['All', 'Tank', 'Fighter', 'Assassin', 'Mage', 'Marksman', 'Support'];
+
+// ─── Lane mapping for suggestion display ──────────────────────────────────────
+const ROLE_TO_LANE: Record<string, { icon: string; label: string }> = {
+  Marksman: { icon: '💰', label: 'Gold'   },
+  Support:  { icon: '🛡', label: 'Roam'  },
+  Tank:     { icon: '🛡', label: 'Roam'  },
+  Mage:     { icon: '🔮', label: 'Mid'   },
+  Assassin: { icon: '🌿', label: 'Jungle' },
+  Fighter:  { icon: '⚡', label: 'EXP'   },
+};
+function mainLane(roles: string[]) {
+  for (const r of ['Marksman', 'Support', 'Tank', 'Mage', 'Assassin', 'Fighter']) {
+    if (roles.includes(r)) return ROLE_TO_LANE[r] ?? { icon: '⚔️', label: '—' };
+  }
+  return { icon: '⚔️', label: '—' };
+}
+
+// ─── Inline suggestion bar — top 3 portrait cards ────────────────────────────
+function InlineSuggestionBar({
+  suggestions,
+  team,
+  onPick,
+}: {
+  suggestions: DraftSuggestion[];
+  team: 'blue' | 'red';
+  onPick: (hero: import('@/types/draft').HeroData) => void;
+}) {
+  const top3 = suggestions.slice(0, 3);
+  if (top3.length === 0) return null;
+
+  const isBlue = team === 'blue';
+  const teamBorder = isBlue ? 'rgba(59,130,246,0.45)' : 'rgba(239,68,68,0.45)';
+  const teamGlow   = isBlue ? 'rgba(59,130,246,0.14)' : 'rgba(239,68,68,0.14)';
+  const teamFill   = isBlue ? 'rgba(59,130,246,0.55)' : 'rgba(239,68,68,0.55)';
+  const RANK = ['🥇', '🥈', '🥉'];
+
+  return (
+    <div
+      className="rounded-xl border p-2.5 flex flex-col gap-2"
+      style={{ background: 'rgba(5,5,10,0.92)', borderColor: teamBorder, boxShadow: `0 0 18px ${teamGlow}` }}
+    >
+      {/* Header row */}
+      <div className="flex items-center gap-2">
+        <span className="text-[9px] font-black tracking-[0.18em] text-slate-500 shrink-0">💡 IA RECOMMANDE</span>
+        <div className="flex-1 h-px" style={{ background: `linear-gradient(to right, ${teamBorder}, transparent)` }} />
+        <span className="text-[8px] text-slate-600 shrink-0">cliquer pour picker</span>
+      </div>
+
+      {/* Portrait cards */}
+      <div className="grid grid-cols-3 gap-2">
+        {top3.map((s, i) => {
+          const lane       = mainLane(s.hero.roles);
+          const scoreColor = s.score >= 80 ? '#4ade80' : s.score >= 65 ? '#facc15' : '#f87171';
+          const scoreGlow  = s.score >= 80 ? 'rgba(74,222,128,0.22)' : s.score >= 65 ? 'rgba(250,204,21,0.18)' : 'rgba(248,113,113,0.18)';
+
+          return (
+            <button
+              key={s.hero.id}
+              onClick={() => onPick(s.hero)}
+              className="relative flex flex-col rounded-xl overflow-hidden border transition-all duration-200 group"
+              style={{
+                background:  'rgba(8,8,14,0.95)',
+                borderColor: `${scoreColor}44`,
+                boxShadow:   `0 0 10px ${scoreGlow}`,
+              }}
+            >
+              {/* Portrait */}
+              <div className="relative w-full" style={{ height: 68 }}>
+                {s.hero.image ? (
+                  <img
+                    src={s.hero.image}
+                    alt={s.hero.name}
+                    className="absolute inset-0 w-full h-full object-cover object-top"
+                  />
+                ) : (
+                  <div
+                    className="absolute inset-0 flex items-center justify-center text-2xl font-black"
+                    style={{ background: 'rgba(20,20,32,0.9)', color: scoreColor }}
+                  >
+                    {s.hero.name.charAt(0)}
+                  </div>
+                )}
+                {/* Rank badge */}
+                <span className="absolute top-0.5 left-0.5 text-[11px] leading-none drop-shadow">{RANK[i]}</span>
+                {/* Score badge */}
+                <span
+                  className="absolute top-0.5 right-0.5 text-[9px] font-black px-1 py-0.5 rounded-full"
+                  style={{ background: 'rgba(0,0,0,0.80)', color: scoreColor }}
+                >
+                  {s.score}
+                </span>
+                {/* Bottom gradient */}
+                <div
+                  className="absolute bottom-0 left-0 right-0 h-8"
+                  style={{ background: `linear-gradient(to top, rgba(8,8,14,0.95), transparent)` }}
+                />
+              </div>
+
+              {/* Name + lane */}
+              <div className="px-1.5 pb-1.5 pt-0.5 flex flex-col items-center gap-0.5">
+                <span className="text-[10px] font-bold text-white leading-none truncate w-full text-center">
+                  {s.hero.name}
+                </span>
+                <div className="flex items-center gap-0.5">
+                  <span className="text-[9px]">{lane.icon}</span>
+                  <span className="text-[8px] text-slate-500">{lane.label}</span>
+                </div>
+              </div>
+
+              {/* PICK hover overlay */}
+              <div
+                className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-150 rounded-xl"
+                style={{ background: teamFill.replace('0.55', '0.50'), backdropFilter: 'blur(3px)' }}
+              >
+                <span className="text-white font-black text-sm tracking-[0.2em]">PICK</span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Reason for #1 pick */}
+      {top3[0]?.reason && (
+        <p className="text-[9px] text-slate-600 leading-snug truncate">
+          <span className="text-slate-500 font-semibold">#{1} {top3[0].hero.name}:</span>{' '}
+          {top3[0].reason}
+        </p>
+      )}
+    </div>
+  );
+}
 const ROLE_PRIORITY = ['Tank', 'Marksman', 'Support', 'Mage', 'Fighter', 'Assassin'];
 
 const ROLE_ICON: Record<string, string> = {
@@ -43,14 +175,16 @@ export function HeroSelector() {
   const redBans     = useDraftStore((s) => s.redBans);
   const bluePicks   = useDraftStore((s) => s.bluePicks);
   const redPicks    = useDraftStore((s) => s.redPicks);
+  const analysis    = useDraftStore((s) => s.analysis);
   const setSearch     = useDraftStore((s) => s.setSearch);
   const setRoleFilter = useDraftStore((s) => s.setRoleFilter);
   const selectHero    = useDraftStore((s) => s.selectHero);
 
-  const isDone     = currentStep >= DRAFT_SEQUENCE.length;
-  const activeStep = isDone ? null : DRAFT_SEQUENCE[currentStep];
-  const isBan      = activeStep?.action === 'ban';
-  const isBlue     = activeStep?.team === 'blue';
+  const isDone      = currentStep >= DRAFT_SEQUENCE.length;
+  const activeStep  = isDone ? null : DRAFT_SEQUENCE[currentStep];
+  const isBan       = activeStep?.action === 'ban';
+  const isPickPhase = activeStep?.action === 'pick';
+  const isBlue      = activeStep?.team === 'blue';
 
   const usedIds = useMemo(() => {
     const ids = new Set<number>();
@@ -110,6 +244,15 @@ export function HeroSelector() {
         <div className="flex items-center justify-center py-2 rounded-lg border border-yellow-500/30 bg-yellow-950/30 text-yellow-300 font-bold tracking-widest text-sm">
           ✓ DRAFT COMPLETE
         </div>
+      )}
+
+      {/* ── Inline AI suggestion bar — visible during pick phase without scrolling ── */}
+      {isPickPhase && activeStep && (analysis?.suggestions ?? []).length > 0 && (
+        <InlineSuggestionBar
+          suggestions={analysis!.suggestions}
+          team={activeStep.team}
+          onPick={(hero) => selectHero(hero)}
+        />
       )}
 
       {/* ── Search ── */}

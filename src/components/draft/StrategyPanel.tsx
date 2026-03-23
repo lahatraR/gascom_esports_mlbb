@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useDraftStore } from '@/store/draftStore';
 import { DRAFT_TEMPLATES } from '@/data/draftTemplates';
+import type { HeroData } from '@/types/draft';
 import type { DraftTemplate } from '@/data/draftTemplates';
 
 // ─── Visual config per archetype ─────────────────────────────────────────────
@@ -99,6 +100,33 @@ function HeroBadge({
 
 // ─── Template card ────────────────────────────────────────────────────────────
 
+function HeroPortrait({ name, heroMap, size = 32 }: {
+  name:    string;
+  heroMap: Map<string, HeroData>;
+  size?:   number;
+}) {
+  const key  = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const hero = heroMap.get(key);
+  return (
+    <div
+      className="rounded overflow-hidden shrink-0 border border-slate-700/40"
+      style={{ width: size, height: size * 1.15 }}
+    >
+      {hero?.image ? (
+        <img
+          src={hero.image}
+          alt={name}
+          className="w-full h-full object-cover object-top"
+        />
+      ) : (
+        <div className="w-full h-full flex items-center justify-center text-[9px] font-bold text-slate-400 bg-slate-800/70">
+          {name.charAt(0)}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TemplateCard({
   template,
   isRecommended,
@@ -106,6 +134,7 @@ function TemplateCard({
   onToggle,
   bannedNames,
   pickedNames,
+  heroMap,
 }: {
   template:      DraftTemplate;
   isRecommended: boolean;
@@ -113,6 +142,7 @@ function TemplateCard({
   onToggle:      () => void;
   bannedNames:   Set<string>;
   pickedNames:   Set<string>;
+  heroMap:       Map<string, HeroData>;
 }) {
   const s = ARCHETYPE_STYLE[template.archetype];
 
@@ -206,6 +236,7 @@ function TemplateCard({
                     {/* Hero + details */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
+                        <HeroPortrait name={opt.primary} heroMap={heroMap} size={28} />
                         <HeroBadge name={opt.primary} status={status} />
                         <span className="text-[9px] italic" style={{ color: 'rgba(120,130,150,0.80)' }}>
                           {opt.role}
@@ -350,6 +381,16 @@ export function StrategyPanel() {
   const bluePicks = useDraftStore((s) => s.bluePicks);
   const redPicks  = useDraftStore((s) => s.redPicks);
   const analysis  = useDraftStore((s) => s.analysis);
+  const heroPool  = useDraftStore((s) => s.heroPool);
+
+  // Build name → HeroData lookup (normalized: lowercase, alphanum only)
+  const heroMap = useMemo(() => {
+    const m = new Map<string, HeroData>();
+    for (const h of heroPool) {
+      m.set(h.name.toLowerCase().replace(/[^a-z0-9]/g, ''), h);
+    }
+    return m;
+  }, [heroPool]);
 
   const bannedNames = new Set(
     [...blueBans, ...redBans].filter(Boolean).map((h) => h!.name)
@@ -413,6 +454,7 @@ export function StrategyPanel() {
           onToggle={() => toggle(template.id)}
           bannedNames={bannedNames}
           pickedNames={pickedNames}
+          heroMap={heroMap}
         />
       ))}
     </div>
