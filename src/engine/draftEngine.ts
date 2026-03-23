@@ -129,26 +129,55 @@ export function calculatePressureScore(hero: HeroData, alliedTeam: HeroData[]): 
   return clamp(baseScore - penalty, 0, 10);
 }
 
+// ─── Required roles per lane (team composition rule) ─────────────────────────
+//
+// A well-balanced MLBB team MUST have:
+//   Gold   → Marksman (carries the late-game DPS)
+//   Roam   → Tank or Support (vision, engage, peel)
+//   Jungle → Assassin, Fighter, or Tank (objectives + ganks)
+//   EXP    → Fighter or Assassin (duel + side-lane pressure)
+//   Mid    → Mage or Assassin (burst + rotation)
+//
+// Heroes placed in a lane whose role doesn't match receive a heavy penalty.
+// This prevents e.g. Valentina (Mage) from being suggested as Gold carry
+// when the team still has no Marksman.
+
+const LANE_REQUIRED_ROLES: Record<LaneKey, string[]> = {
+  Gold:   ['Marksman'],
+  Roam:   ['Tank', 'Support'],
+  Jungle: ['Assassin', 'Fighter', 'Tank'],
+  EXP:    ['Fighter', 'Assassin'],
+  Mid:    ['Mage', 'Assassin'],
+};
+
+// Required roles across the full team composition
+const TEAM_COMPOSITION_REQUIRED: string[][] = [
+  ['Marksman'],          // must have 1 Marksman (Gold)
+  ['Tank', 'Support'],   // must have 1 Tank or Support (Roam)
+  ['Assassin', 'Fighter', 'Tank'], // Jungler
+  ['Fighter', 'Assassin'],         // EXP
+  ['Mage', 'Assassin'],            // Mid
+];
+
 // ─── Lane fit multiplier ──────────────────────────────────────────────────────
 //
-// Multiplied into the meta score component so heroes whose lane is already
-// covered by the team are penalised and heroes that fill a missing lane get a
-// small bonus.
+// Combines two signals:
+//  1. Lane coverage — is the hero's lane already taken?
+//  2. Role composition — does the hero fill a REQUIRED role that's still missing?
 //
 // Examples:
 //  - Team has EXP/Gold/Jungle/Roam → Mid is missing.
-//    Sora (EXP) → 0.35 multiplier  → meta drops from 8 to 2.8
-//    Zhuxin (Mid S+) → 1.25 multiplier → meta boosted to max
-//
-// A hero that appears in multiple lanes (Yi Sun-Shin: Gold + Jungle) is
-// considered a lane-fit if ANY of their lanes matches a missing lane.
+//    Sora (EXP Fighter) → 0.35 multiplier  → meta drops from 8 to 2.8
+//    Zhuxin (Mid Mage S+) → 1.35 multiplier → meta boosted
+//  - Team has no Marksman → Valentina (Mage) in Gold → 0.20 penalty
+//    because Marksman role is still missing and she doesn't fill it
 
 function calculateLaneFitScore(hero: HeroData, alliedTeam: HeroData[]): number {
   if (alliedTeam.length === 0) return 1.0;
 
   const ALL_LANES: LaneKey[] = ['EXP', 'Gold', 'Jungle', 'Mid', 'Roam'];
 
-  // Collect lanes already covered by allies
+  // ── Collect what the team already covers ─────────────────────────────────
   const coveredLanes = new Set<LaneKey>();
   for (const ally of alliedTeam) {
     for (const lane of getHeroLanes(ally.name, ally.roles)) {
@@ -156,20 +185,56 @@ function calculateLaneFitScore(hero: HeroData, alliedTeam: HeroData[]): number {
     }
   }
 
+  const coveredRoles = new Set<string>();
+  for (const ally of alliedTeam) {
+    for (const r of ally.roles) coveredRoles.add(r);
+  }
+
   const missingLanes = ALL_LANES.filter((l) => !coveredLanes.has(l));
-  if (missingLanes.length === 0) return 1.0; // All 5 lanes covered
 
-  // Does this hero fit at least one of the missing lanes?
-  const heroLanes  = getHeroLanes(hero.name, hero.roles);
-  const fillsMissing = heroLanes.some((l) => missingLanes.includes(l));
+  // ── Which required role slots are still unfilled? ──────────────────────
+  const missingSlots = TEAM_COMPOSITION_REQUIRED.filter(
+    (group) => !group.some((r) => coveredRoles.has(r))
+  );
 
-  if (fillsMissing) return 1.25; // Bonus: fills a needed lane
+  // Does this hero fill any required missing slot?
+  const heroFillsRequiredSlot = missingSlots.some(
+    (group) => group.some((r) => hero.roles.includes(r))
+  );
 
-  // Hero's lane(s) already taken — penalise based on how late in the draft we are
+  // Does this hero fill a missing lane?
+  const heroLanes     = getHeroLanes(hero.name, hero.roles);
+  const fillsMissingLane = heroLanes.some((l) => missingLanes.includes(l));
+
+  // Check role-lane match: does hero's role fit the lane their tier puts them in?
+  const heroFitsAnyLane = heroLanes.some((lane) => {
+    const required = LANE_REQUIRED_ROLES[lane] ?? [];
+    return required.length === 0 || hero.roles.some((r) => required.includes(r));
+  });
+
   const pickedCount = alliedTeam.length;
-  if (pickedCount >= 3) return 0.35; // 4th/5th pick: strong penalty for wrong lane
+
+  // ── Big bonus: fills both a missing lane AND a required role slot ──────
+  if (fillsMissingLane && heroFillsRequiredSlot) return 1.35;
+
+  // ── Moderate bonus: fills a required role slot (even if lane covered) ──
+  if (heroFillsRequiredSlot) return 1.10;
+
+  // ── Lane fills missing but role doesn't match composition need ─────────
+  if (fillsMissingLane && !heroFillsRequiredSlot) return 0.90;
+
+  // ── Hero's lane covered, but role-lane mismatch (e.g. Mage in Gold) ────
+  if (!heroFitsAnyLane) {
+    // Hard penalty: role doesn't belong in any lane this hero appears in
+    if (pickedCount >= 3) return 0.20;
+    if (pickedCount >= 2) return 0.35;
+    return 0.55;
+  }
+
+  // ── Hero's lane covered, role fits but redundant ───────────────────────
+  if (pickedCount >= 3) return 0.35; // 4th/5th pick: strong penalty
   if (pickedCount >= 2) return 0.55; // 3rd pick: moderate penalty
-  return 0.80;                        // 1st/2nd pick: mild penalty (draft is still open)
+  return 0.80;                        // 1st/2nd pick: mild penalty
 }
 
 // ─── Enemy draft archetype detection ─────────────────────────────────────────

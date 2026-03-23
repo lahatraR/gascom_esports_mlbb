@@ -22,8 +22,8 @@ export const cache = new TTLCache();
 
 // ─── Cached wrappers ──────────────────────────────────────────────────────────
 
-import type { ParsedHeroEntry, ParsedHeroRank } from './mlbbApi';
-import { fetchHeroList, fetchHeroRank } from './mlbbApi';
+import type { ParsedHeroEntry, ParsedHeroRank, ParsedHeroPosition } from './mlbbApi';
+import { fetchHeroList, fetchHeroRank, fetchHeroPositions } from './mlbbApi';
 
 export async function getCachedHeroList(): Promise<ParsedHeroEntry[]> {
   const key    = 'hero-list-v2';
@@ -41,5 +41,13 @@ export async function getCachedHeroRank(): Promise<ParsedHeroRank[]> {
   const data = await fetchHeroRank();
   cache.set(key, data, 10 * 60_000);
   return data;
-  
+}
+
+export async function getCachedHeroPositions(): Promise<ParsedHeroPosition[]> {
+  const key    = 'hero-positions-v1';
+  const cached = cache.get<ParsedHeroPosition[]>(key);
+  if (cached) return cached;
+  const data = await fetchHeroPositions();
+  cache.set(key, data, 30 * 60_000); // 30min — positions don't change often
+  return data;
 }

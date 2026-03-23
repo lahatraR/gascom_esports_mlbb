@@ -135,8 +135,48 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
     try {
       const res = await fetch(`${basePath}/heroes.json`);
       if (res.ok) {
-        const pool: HeroData[] = await res.json();
+        let pool: HeroData[] = await res.json();
         if (Array.isArray(pool) && pool.length > 0) {
+          // Enrich with official positions from the hero-position API
+          try {
+            const posRes = await fetch('https://mlbb-stats.rone.dev/api/hero-position');
+            if (posRes.ok) {
+              const posJson = await posRes.json();
+              const posMap = new Map<number, { lanes: string[]; roles: string[] }>();
+              for (const rec of posJson?.data?.records ?? []) {
+                const d    = rec.data;
+                const hero = d?.hero?.data;
+                if (!hero || !d.hero_id) continue;
+                const LANE_MAP: Record<string, string> = {
+                  'Exp Lane': 'EXP', 'Gold Lane': 'Gold', 'Mid Lane': 'Mid',
+                  'Jungle': 'Jungle', 'Roam': 'Roam',
+                };
+                const ROLE_NORM: Record<string, string> = {
+                  fighter: 'Fighter', assassin: 'Assassin', marksman: 'Marksman',
+                  mage: 'Mage', tank: 'Tank', support: 'Support',
+                };
+                const lanes = (hero.roadsort ?? [])
+                  .filter((r: unknown) => r && typeof r === 'object' && (r as Record<string, unknown>).data)
+                  .map((r: unknown) => LANE_MAP[((r as Record<string, Record<string, string>>).data).road_sort_title])
+                  .filter(Boolean);
+                const roles = (hero.sortid ?? [])
+                  .filter((r: unknown) => r && typeof r === 'object' && (r as Record<string, unknown>).data)
+                  .map((r: unknown) => {
+                    const t = ((r as Record<string, Record<string, string>>).data).sort_title ?? '';
+                    return ROLE_NORM[t.toLowerCase()] ?? t;
+                  })
+                  .filter(Boolean);
+                posMap.set(d.hero_id, { lanes, roles });
+              }
+              // Merge: update roles for heroes that have API position data
+              pool = pool.map((h) => {
+                const pos = posMap.get(h.id);
+                if (!pos || pos.roles.length === 0) return h;
+                return { ...h, roles: pos.roles };
+              });
+            }
+          } catch { /* ignore — use heroes.json roles as-is */ }
+
           set({ heroPool: pool, isLoadingPool: false });
           return;
         }

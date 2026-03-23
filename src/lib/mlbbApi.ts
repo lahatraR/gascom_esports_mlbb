@@ -1,3 +1,5 @@
+import type { LaneKey } from '@/data/tierList';
+
 // ─── Raw API response shapes (actual mlbb-stats.rone.dev format) ─────────────
 
 interface RawHeroListResponse {
@@ -91,6 +93,68 @@ export async function fetchHeroList(): Promise<ParsedHeroEntry[]> {
       counteredBy: (d.relation.strong.target_hero_id ?? []).filter((id: number) => id > 0),
       synergies:   (d.relation.assist.target_hero_id ?? []).filter((id: number) => id > 0),
     };
+  });
+}
+
+// ─── Hero position types ──────────────────────────────────────────────────────
+
+export interface ParsedHeroPosition {
+  id:    number;
+  name:  string;
+  lanes: LaneKey[];
+  roles: string[];
+}
+
+// raw shape for hero-position endpoint
+interface RawHeroPositionResponse {
+  code: number;
+  data: {
+    records: Array<{
+      data: {
+        hero_id: number;
+        hero: {
+          data: {
+            name: string;
+            roadsort: Array<{ data?: { road_sort_title: string } } | string>;
+            sortid:   Array<{ data?: { sort_title: string }   } | string>;
+          };
+        };
+      };
+      id: number;
+    }>;
+  };
+}
+
+const API_LANE_MAP: Record<string, LaneKey> = {
+  'Exp Lane':  'EXP',
+  'Gold Lane': 'Gold',
+  'Mid Lane':  'Mid',
+  'Jungle':    'Jungle',
+  'Roam':      'Roam',
+};
+
+const ROLE_NORMALIZE: Record<string, string> = {
+  fighter:  'Fighter',
+  assassin: 'Assassin',
+  marksman: 'Marksman',
+  mage:     'Mage',
+  tank:     'Tank',
+  support:  'Support',
+};
+
+export async function fetchHeroPositions(): Promise<ParsedHeroPosition[]> {
+  const raw = await apiFetch<RawHeroPositionResponse>('/hero-position');
+  return raw.data.records.map((rec) => {
+    const d = rec.data;
+    const hero = d.hero.data;
+    const lanes = (hero.roadsort ?? [])
+      .filter((r): r is { data: { road_sort_title: string } } => !!r && typeof r === 'object' && !!r.data)
+      .map((r) => API_LANE_MAP[r.data.road_sort_title])
+      .filter((l): l is LaneKey => !!l);
+    const roles = (hero.sortid ?? [])
+      .filter((r): r is { data: { sort_title: string } } => !!r && typeof r === 'object' && !!r.data)
+      .map((r) => ROLE_NORMALIZE[r.data.sort_title.toLowerCase()] ?? r.data.sort_title);
+    return { id: d.hero_id, name: hero.name, lanes, roles };
   });
 }
 
