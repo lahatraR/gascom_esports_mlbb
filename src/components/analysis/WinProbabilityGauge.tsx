@@ -18,21 +18,21 @@ export function WinProbabilityGauge({ probability, blueRating, redRating }: WinP
   }, [probability]);
 
   const redPct   = 100 - probability;
-  const advantage = probability >= 55 ? 'BLUE ADVANTAGE'
-                  : probability <= 45 ? 'RED ADVANTAGE'
-                  : 'EVEN';
+  const advantage = probability >= 55 ? 'AVANTAGE BLEU'
+                  : probability <= 45 ? 'AVANTAGE ROUGE'
+                  : 'MATCH ÉQUILIBRÉ';
 
   return (
     <div className="flex flex-col gap-3 glass p-4">
       <h3 className="text-xs font-bold tracking-widest uppercase text-slate-400 text-center">
-        Win Probability
+        Probabilité de Victoire
       </h3>
 
       {/* Win % labels */}
       <div className="flex justify-between items-baseline">
         <div className="text-left">
           <div className="text-2xl font-black text-blue-400 tabular-nums">{probability}%</div>
-          <div className="text-[10px] text-blue-300/70 font-bold">BLUE SIDE</div>
+          <div className="text-[10px] text-blue-300/70 font-bold">ÉQUIPE BLEUE</div>
         </div>
         <div className="text-center">
           <div
@@ -48,7 +48,7 @@ export function WinProbabilityGauge({ probability, blueRating, redRating }: WinP
         </div>
         <div className="text-right">
           <div className="text-2xl font-black text-red-400 tabular-nums">{redPct}%</div>
-          <div className="text-[10px] text-red-300/70 font-bold">RED SIDE</div>
+          <div className="text-[10px] text-red-300/70 font-bold">ÉQUIPE ROUGE</div>
         </div>
       </div>
 
@@ -76,8 +76,8 @@ export function WinProbabilityGauge({ probability, blueRating, redRating }: WinP
       {/* Ratings */}
       {blueRating !== undefined && redRating !== undefined && (
         <div className="flex justify-between text-xs text-slate-500">
-          <span>Lineup: <span className="text-blue-400 font-bold">{blueRating.toFixed(1)}</span></span>
-          <span>Lineup: <span className="text-red-400 font-bold">{redRating.toFixed(1)}</span></span>
+          <span>Note : <span className="text-blue-400 font-bold">{blueRating.toFixed(1)}</span></span>
+          <span>Note : <span className="text-red-400 font-bold">{redRating.toFixed(1)}</span></span>
         </div>
       )}
     </div>

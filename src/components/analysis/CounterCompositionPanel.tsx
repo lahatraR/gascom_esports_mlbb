@@ -119,7 +119,7 @@ export function CounterCompositionPanel({ analysis, enemyTeam }: Props) {
     return (
       <div className="glass p-4 flex items-center justify-center min-h-20">
         <p className="text-slate-600 text-xs text-center">
-          Counter composition appears after the enemy picks at least 2 heroes
+          La contre-composition s&apos;affiche dès 2 picks ennemis
         </p>
       </div>
     );
@@ -146,12 +146,12 @@ export function CounterCompositionPanel({ analysis, enemyTeam }: Props) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-              Enemy draft detected
+              Style de jeu ennemi identifié
             </span>
             <span className={clsx('text-[10px] px-1.5 py-0.5 rounded border font-bold', ac.badge)}>
               {icon} {label}
             </span>
-            <span className="text-[10px] text-slate-500">{confidence}% confidence</span>
+            <span className="text-[10px] text-slate-500">{confidence}% de certitude</span>
           </div>
           <p className="text-[10px] text-slate-400 mt-0.5 leading-snug truncate">{reasoning}</p>
         </div>
@@ -163,7 +163,7 @@ export function CounterCompositionPanel({ analysis, enemyTeam }: Props) {
         {/* Tab selector (if multiple counter archetypes) */}
         {counterComps.length > 1 && (
           <div className="flex gap-1">
-            <span className="text-[10px] text-slate-500 self-center mr-1">Counter with:</span>
+            <span className="text-[10px] text-slate-500 self-center mr-1">Contrez avec :</span>
             {counterComps.map((comp, i) => {
               const cac  = ARCHETYPE_CLASSES[comp.archetype];
               const icon = ARCHETYPE_ICON[comp.archetype];
@@ -191,10 +191,10 @@ export function CounterCompositionPanel({ analysis, enemyTeam }: Props) {
           <>
             <div className="flex items-center gap-2">
               <span className={clsx('text-xs px-2 py-1 rounded border font-bold', ARCHETYPE_CLASSES[activeComp.archetype].badge)}>
-                {ARCHETYPE_ICON[activeComp.archetype]} {ARCHETYPE_LABELS[activeComp.archetype]} composition
+                {ARCHETYPE_ICON[activeComp.archetype]} Composition {ARCHETYPE_LABELS[activeComp.archetype]}
               </span>
               <div className="flex-1 h-px" style={{ background: 'rgba(50,50,70,0.5)' }} />
-              <span className="text-[10px] text-slate-500">strength {activeComp.strength}%</span>
+              <span className="text-[10px] text-slate-500">efficacité {activeComp.strength}%</span>
             </div>
 
             <CompCard comp={activeComp} />

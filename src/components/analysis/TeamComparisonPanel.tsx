@@ -10,13 +10,13 @@ interface TeamComparisonPanelProps {
 }
 
 const METRIC_LABELS: { key: keyof TeamMetrics; label: string; icon: string }[] = [
-  { key: 'earlyMid',     label: 'Early to Mid Game',  icon: '🌅' },
-  { key: 'late',         label: 'Late Game',           icon: '🌙' },
-  { key: 'damage',       label: 'Damage Potential',    icon: '💥' },
-  { key: 'tankiness',    label: 'Survivability',       icon: '🛡️' },
-  { key: 'cc',           label: 'Control Ability',     icon: '🔒' },
-  { key: 'push',         label: 'Push Ability',        icon: '🏰' },
-  { key: 'coordination', label: 'Team Coordination',   icon: '🤝' },
+  { key: 'earlyMid',     label: 'Début de partie',        icon: '🌅' },
+  { key: 'late',         label: 'Fin de partie',          icon: '🌙' },
+  { key: 'damage',       label: 'Potentiel offensif',     icon: '💥' },
+  { key: 'tankiness',    label: 'Résistance',             icon: '🛡️' },
+  { key: 'cc',           label: 'Contrôle de zone (CC)',  icon: '🔒' },
+  { key: 'push',         label: 'Pression sur les tours', icon: '🏰' },
+  { key: 'coordination', label: 'Coordination d\'équipe', icon: '🤝' },
 ];
 
 export function TeamComparisonPanel({
@@ -34,18 +34,18 @@ export function TeamComparisonPanel({
     <div className="flex flex-col gap-3 glass p-4">
       <div className="flex items-center justify-between">
         <h3 className="text-xs font-bold tracking-widest uppercase text-slate-400">
-          Team Comparison
+          Forces des équipes
         </h3>
         <div className="flex items-center gap-1.5">
-          <span className="text-[10px] text-slate-500">Counter Index:</span>
+          <span className="text-[10px] text-slate-500">Avantage de contre :</span>
           <span className={`text-xs font-bold ${ciColor}`}>{ciLabel}</span>
         </div>
       </div>
 
       {/* Legend */}
       <div className="flex justify-between text-[10px] font-bold">
-        <span className="text-blue-400">← BLUE</span>
-        <span className="text-red-400">RED →</span>
+        <span className="text-blue-400">← Bleue</span>
+        <span className="text-red-400">Rouge →</span>
       </div>
 
       {/* Metric bars */}

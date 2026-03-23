@@ -63,7 +63,7 @@ export function BanIntelligencePanel({ banAnalysis, archetypeProbability, enemyT
     return (
       <div className="glass p-3 flex items-center justify-center min-h-12">
         <p className="text-slate-600 text-[10px] text-center">
-          L'analyse des bans apparaît dès que l'ennemi commence à baner
+          L&apos;analyse apparaît dès que l&apos;ennemi commence à baner
         </p>
       </div>
     );
@@ -82,14 +82,14 @@ export function BanIntelligencePanel({ banAnalysis, archetypeProbability, enemyT
         style={{ background: enemyColor, borderColor: enemyBorder }}
       >
         <span className="text-[10px] font-black uppercase tracking-wider text-slate-300">
-          🔍 Intelligence de Draft
+          🔍 Que prépare l&apos;ennemi ?
         </span>
         <span className={clsx('text-[9px] font-bold px-1.5 py-0.5 rounded border', enemyTextCls,
           enemyTeam === 'blue'
             ? 'bg-blue-900/20 border-blue-600/30'
             : 'bg-red-900/20 border-red-600/30'
         )}>
-          {enemyLabel} TEAM
+          Équipe {enemyTeam === 'blue' ? 'Bleue' : 'Rouge'}
         </span>
       </div>
 
@@ -99,7 +99,7 @@ export function BanIntelligencePanel({ banAnalysis, archetypeProbability, enemyT
         {banAnalysis && (
           <div>
             <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-              📵 Analyse des bans adverses
+              📵 Pourquoi ils bannent ces héros
             </p>
             <div
               className="rounded-lg p-2.5 border"
@@ -124,7 +124,7 @@ export function BanIntelligencePanel({ banAnalysis, archetypeProbability, enemyT
 
               {/* Inferred strategies */}
               <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-[9px] text-slate-500">Stratégie probable :</span>
+                <span className="text-[9px] text-slate-500">Leur objectif :</span>
                 {banAnalysis.inferredStrategies.map((a) => (
                   <span
                     key={a}
@@ -134,7 +134,7 @@ export function BanIntelligencePanel({ banAnalysis, archetypeProbability, enemyT
                   </span>
                 ))}
                 <span className="text-[9px] text-slate-600 ml-auto">
-                  Confiance {banAnalysis.confidence}%
+                  Certitude {banAnalysis.confidence}%
                 </span>
               </div>
             </div>
@@ -146,16 +146,16 @@ export function BanIntelligencePanel({ banAnalysis, archetypeProbability, enemyT
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">
-                📊 Distribution de probabilité
+                📊 Composition ennemie probable
               </p>
               <span className="text-[9px] text-slate-600">
-                {archetypeProbability.signalCount} signal{archetypeProbability.signalCount > 1 ? 's' : ''}
+                {archetypeProbability.signalCount} indice{archetypeProbability.signalCount > 1 ? 's' : ''}
               </span>
             </div>
 
             {archetypeProbability.dominantArchetype && (
               <div className="flex items-center gap-1.5 mb-2">
-                <span className="text-[9px] text-slate-400">Archétype dominant :</span>
+                <span className="text-[9px] text-slate-400">Leur style de jeu :</span>
                 <span className={clsx(
                   'text-[9px] font-bold px-1.5 py-0.5 rounded border',
                   ARCHETYPE_CLASSES[archetypeProbability.dominantArchetype].badge,

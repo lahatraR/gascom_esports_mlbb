@@ -26,17 +26,17 @@ type AnalysisTab = 'picks' | 'intel' | 'matchup' | 'strat';
 type MobileTab   = 'draft' | 'blue' | 'red' | 'analysis';
 
 const ANALYSIS_TABS: { id: AnalysisTab; label: string; icon: string; desc: string }[] = [
-  { id: 'picks',   icon: '⚔️',  label: 'Picks',   desc: 'AI suggestions + optimal lineup'    },
-  { id: 'intel',   icon: '🔍',  label: 'Intel',   desc: 'Enemy bans + pick predictions'      },
-  { id: 'matchup', icon: '📊',  label: 'Matchup', desc: 'Win probability + team comparison'  },
-  { id: 'strat',   icon: '📋',  label: 'Strat',   desc: 'Compositions prêtes + livret de bans' },
+  { id: 'picks',   icon: '⚔️',  label: 'Picks',   desc: 'Suggestions IA + meilleur lineup'        },
+  { id: 'intel',   icon: '🔍',  label: 'Intel',   desc: 'Bans ennemis + prédictions de picks'     },
+  { id: 'matchup', icon: '📊',  label: 'Matchup', desc: 'Probabilité de victoire + forces équipes' },
+  { id: 'strat',   icon: '📋',  label: 'Strat',   desc: 'Compositions prêtes + livret de bans'    },
 ];
 
 const MOBILE_TABS: { id: MobileTab; icon: string; label: string }[] = [
-  { id: 'blue',     icon: '🔵', label: 'Blue'     },
+  { id: 'blue',     icon: '🔵', label: 'Bleue'    },
   { id: 'draft',    icon: '⚔️', label: 'Draft'    },
-  { id: 'red',      icon: '🔴', label: 'Red'      },
-  { id: 'analysis', icon: '📊', label: 'Analysis' },
+  { id: 'red',      icon: '🔴', label: 'Rouge'    },
+  { id: 'analysis', icon: '📊', label: 'Analyse'  },
 ];
 
 // ─── Mini team strip (Fix #4) — compact snapshot above analysis ──────────────
@@ -110,7 +110,7 @@ function MiniTeamStrip({
             }}
           />
         </div>
-        <div className="text-center text-[8px] text-slate-600 mt-0.5">Win Probability</div>
+        <div className="text-center text-[8px] text-slate-600 mt-0.5">Proba. de victoire</div>
       </div>
 
       {/* Red side */}
@@ -147,7 +147,7 @@ function AnalysisContent({
       )}
       {!isPickPhase && (
         <div className="glass p-4 text-center text-slate-500 text-xs">
-          AI suggestions appear during pick phases
+          Les suggestions IA apparaissent en phase de pick
         </div>
       )}
     </div>
@@ -174,7 +174,7 @@ function AnalysisContent({
       {analysis ? (
         <TeamComparisonPanel blueMetrics={analysis.blueMetrics} redMetrics={analysis.redMetrics} counterIndex={analysis.counterIndex} />
       ) : (
-        <div className="glass p-4 text-center text-slate-500 text-xs">Team comparison appears as heroes are picked</div>
+        <div className="glass p-4 text-center text-slate-500 text-xs">La comparaison d&apos;équipes s&apos;affiche au fil des picks</div>
       )}
     </div>
   );

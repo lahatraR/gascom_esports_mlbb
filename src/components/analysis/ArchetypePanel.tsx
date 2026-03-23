@@ -33,7 +33,7 @@ function ArchetypeCard({
         <p className={clsx('text-[10px] font-bold uppercase tracking-widest', teamText)}>
           {team === 'blue' ? 'Blue' : 'Red'} Team
         </p>
-        <p className="text-slate-600 text-xs italic">Pick 2+ heroes to detect archetype</p>
+        <p className="text-slate-600 text-xs italic">Pickez 2 héros pour analyser votre style</p>
       </div>
     );
   }
@@ -50,7 +50,7 @@ function ArchetypeCard({
           {team === 'blue' ? 'Blue' : 'Red'} Team
         </p>
         <span className={clsx('text-[9px] font-medium', confidence >= 70 ? 'text-emerald-400' : confidence >= 45 ? 'text-yellow-400' : 'text-slate-500')}>
-          {confidence}% confidence
+          {confidence}% de certitude
         </span>
       </div>
 
@@ -63,7 +63,7 @@ function ArchetypeCard({
           </p>
           {secondary && (
             <p className="text-[10px] text-slate-500">
-              + {ARCHETYPE_SHORT[secondary]} lean
+              + tendance {ARCHETYPE_SHORT[secondary]}
             </p>
           )}
         </div>
@@ -77,7 +77,7 @@ function ArchetypeCard({
       {/* Beats / loses to */}
       <div className="flex gap-3 text-[10px]">
         <div>
-          <p className="text-slate-600 mb-0.5">Beats</p>
+          <p className="text-slate-600 mb-0.5">Écrase</p>
           <div className="flex gap-1 flex-wrap">
             {ARCHETYPE_BEATS[primary].map((a) => (
               <span key={a} className={clsx('px-1.5 py-0.5 rounded border text-[9px] font-medium', ARCHETYPE_CLASSES[a].badge)}>
@@ -87,7 +87,7 @@ function ArchetypeCard({
           </div>
         </div>
         <div>
-          <p className="text-slate-600 mb-0.5">Loses to</p>
+          <p className="text-slate-600 mb-0.5">Perd face à</p>
           <div className="flex gap-1 flex-wrap">
             {ARCHETYPE_LOSES_TO[primary].map((a) => (
               <span key={a} className={clsx('px-1.5 py-0.5 rounded border text-[9px] font-medium', ARCHETYPE_CLASSES[a].badge)}>
@@ -155,7 +155,7 @@ export function ArchetypePanel({ blueArchetype, redArchetype }: ArchetypePanelPr
       {/* Title */}
       <div className="flex items-center justify-between">
         <p className="text-xs font-bold text-slate-300 uppercase tracking-wider">
-          Draft Archetypes
+          Styles de Draft des équipes
         </p>
         <p className="text-[10px] text-slate-600">
           Poke · Engage · Protect · Split · Catch

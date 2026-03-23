@@ -17,7 +17,7 @@ export function EnemyPredictionPanel({ predictions, enemyTeam }: EnemyPrediction
     return (
       <div className="glass p-4 flex items-center justify-center">
         <p className="text-slate-500 text-xs text-center">
-          Enemy predictions will appear<br />after picks begin
+          Les prédictions de picks ennemis<br />apparaissent dès que les picks commencent
         </p>
       </div>
     );
@@ -26,10 +26,11 @@ export function EnemyPredictionPanel({ predictions, enemyTeam }: EnemyPrediction
   return (
     <div className="flex flex-col gap-3 glass p-4">
       <h3 className="text-xs font-bold tracking-widest uppercase text-slate-400">
-        Enemy Predictions —{' '}
+        Ce que l&apos;équipe{' '}
         <span className={isRed ? 'text-red-400' : 'text-blue-400'}>
-          {enemyTeam.toUpperCase()} LIKELY PICKS
-        </span>
+          {isRed ? 'Rouge' : 'Bleue'}
+        </span>{' '}
+        va probablement picker
       </h3>
 
       <div className="flex flex-col gap-2">
