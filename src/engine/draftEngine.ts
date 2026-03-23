@@ -1,5 +1,6 @@
 import type { HeroData, DraftSuggestion, ScoreBreakdown, GameMode } from '@/types/draft';
 import { getHeroTierScore } from '@/data/tierList';
+import { playstyleCounterScore, buildPlaystyleHint, getPlaystyles, PLAYSTYLE_LABEL } from '@/data/heroArchetypes';
 
 // ─── Weight configuration per game mode ─────────────────────────────────────
 
@@ -15,22 +16,31 @@ const WEIGHTS: Record<GameMode, {
 
 /**
  * Counter Score (0–10):
- * +2 for each enemy hero this hero counters
- * −2 for each enemy hero that counters this hero
- * Normalized to 0–10 range.
+ * Blends two signals:
+ *  1. API relation data (+2 for each enemy countered, -2/-1.5 for countered)  — 70%
+ *  2. Playstyle archetype counter matrix (glorious_launcher beats prey_hunter, etc.) — 30%
+ *
+ * The archetype signal adds richness when the API counter arrays are sparse.
  */
 export function calculateCounterScore(hero: HeroData, enemyTeam: HeroData[]): number {
   if (enemyTeam.length === 0) return 5;
+
+  // ── Signal 1: API relation arrays ─────────────────────────────────────────
   let raw = 0;
   for (const enemy of enemyTeam) {
-    if (hero.counters.includes(enemy.id)) raw += 2;
-    if (hero.counteredBy.includes(enemy.id)) raw -= 2;
-    if (enemy.counters.includes(hero.id)) raw -= 1.5;
-    if (enemy.counteredBy.includes(hero.id)) raw += 1.5;
+    if (hero.counters.includes(enemy.id))      raw += 2;
+    if (hero.counteredBy.includes(enemy.id))   raw -= 2;
+    if (enemy.counters.includes(hero.id))      raw -= 1.5;
+    if (enemy.counteredBy.includes(hero.id))   raw += 1.5;
   }
-  // raw range: -3.5*5 to +3.5*5 → clamp & normalize to 0-10
-  const maxRaw = enemyTeam.length * 3.5;
-  return clamp(((raw + maxRaw) / (maxRaw * 2)) * 10, 0, 10);
+  const maxRaw  = enemyTeam.length * 3.5;
+  const apiScore = clamp(((raw + maxRaw) / (maxRaw * 2)) * 10, 0, 10);
+
+  // ── Signal 2: Playstyle archetype counter score ────────────────────────────
+  const archScore = playstyleCounterScore(hero.name, enemyTeam.map((e) => e.name));
+
+  // Blend: API is primary (70%), archetypes add signal (30%)
+  return clamp(apiScore * 0.70 + archScore * 0.30, 0, 10);
 }
 
 /**
@@ -216,10 +226,25 @@ function buildReason(
 ): string {
   const parts: string[] = [];
 
+  // API counter matches
   if (bd.counter >= 7) {
     const countered = enemies.filter((e) => hero.counters.includes(e.id));
     if (countered.length > 0)
       parts.push(`counters ${countered.map((e) => e.name).join(', ')}`);
+    else {
+      // Fallback: playstyle archetype advantage hint
+      const hint = buildPlaystyleHint(hero.name, enemies.map((e) => e.name));
+      if (hint && !hint.startsWith('⚠')) parts.push(hint);
+    }
+  }
+
+  // Archetype identity badge (if hero has notable playstyle)
+  const playstyles = getPlaystyles(hero.name);
+  if (playstyles.length > 0 && parts.length < 2) {
+    const primary = playstyles[0];
+    if (['glorious_launcher','prey_hunter','speed_specialist','enchanter','control_mage'].includes(primary)) {
+      parts.push(PLAYSTYLE_LABEL[primary]);
+    }
   }
 
   if (bd.synergy >= 7 && allied.length > 0) {

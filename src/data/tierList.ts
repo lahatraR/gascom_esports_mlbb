@@ -125,6 +125,7 @@ export type DraftArchetypeTag = 'poke' | 'engage' | 'protect' | 'split' | 'catch
 
 export const HERO_ARCHETYPE_TAGS: Record<string, DraftArchetypeTag[]> = {
   // ── Poke (consistent damage, long range, short cooldowns) ─────────────────
+  // DPS/Control Mages + Crit/Skill Marksmen
   Yve:       ['poke'],
   Zhuxin:    ['poke'],
   Kimmy:     ['poke'],
@@ -134,6 +135,7 @@ export const HERO_ARCHETYPE_TAGS: Record<string, DraftArchetypeTag[]> = {
   Pharsa:    ['poke'],
   Lunox:     ['poke'],
   Chang_e:   ['poke'],
+  "Chang'e": ['poke'],
   Lesley:    ['poke'],
   Layla:     ['poke'],
   Moskov:    ['poke'],
@@ -145,8 +147,14 @@ export const HERO_ARCHETYPE_TAGS: Record<string, DraftArchetypeTag[]> = {
   Cecilion:  ['poke'],
   Lylia:     ['poke'],
   Miya:      ['poke'],
+  Valir:     ['poke'],
+  Zhask:     ['poke'],
+  Bruno:     ['poke'],
+  Irithel:   ['poke'],
+  Melissa:   ['poke', 'protect'],
 
   // ── Engage (teamfight initiation, AoE CC, force fights) ──────────────────
+  // Glorious Launchers + Mastodon fighters
   Atlas:     ['engage'],
   Khufra:    ['engage'],
   Tigreal:   ['engage'],
@@ -165,10 +173,17 @@ export const HERO_ARCHETYPE_TAGS: Record<string, DraftArchetypeTag[]> = {
   Thamuz:    ['engage'],
   Fredrinn:  ['engage'],
   Yu_Zhong:  ['engage'],
+  'Yu Zhong': ['engage'],
   Arlott:    ['engage'],
   Martis:    ['engage'],
+  Ruby:      ['engage', 'catch'],
+  Paquito:   ['engage', 'catch'],
+  Badang:    ['engage'],
+  Silvanna:  ['engage', 'catch'],
+  Guinevere: ['engage', 'catch'],
 
   // ── Protect (scaling carries + 2 defensive layers) ────────────────────────
+  // Enchanters + Avant-gardes + scaling damage dealers
   Angela:    ['protect'],
   Estes:     ['protect'],
   Floryn:    ['protect'],
@@ -181,10 +196,12 @@ export const HERO_ARCHETYPE_TAGS: Record<string, DraftArchetypeTag[]> = {
   Esmeralda: ['protect'],
   Claude:    ['protect'],
   Brody:     ['protect'],
-  Melissa:   ['protect'],
   Wanwan:    ['protect'],
+  Diggie:    ['protect'],
+  Natan:     ['protect', 'poke'],
 
   // ── Split (map pressure, agile heroes, objective control) ─────────────────
+  // Speed Specialists + Berserkers + Skill Marksmen with global presence
   Ling:      ['split'],
   Fanny:     ['split'],
   Hayabusa:  ['split'],
@@ -193,17 +210,19 @@ export const HERO_ARCHETYPE_TAGS: Record<string, DraftArchetypeTag[]> = {
   Leomord:   ['split'],
   Benedetta: ['split'],
   Zilong:    ['split'],
-  Khaleed:   ['split'],
+  Khaleed:   ['split', 'engage'],
   Sora:      ['split', 'engage'],
   Roger:     ['split'],
   Argus:     ['split'],
-  Joy:       ['split'],
+  Joy:       ['split', 'catch'],
+  Masha:     ['split'],
+  Lancelot:  ['split', 'catch'],
 
   // ── Catch (single-target CC, burst, hard to escape) ──────────────────────
+  // Prey Hunters + Snipers + Initiators with lockdown
   Kaja:      ['catch'],
   Suyou:     ['catch'],
   Gusion:    ['catch'],
-  Lancelot:  ['catch'],
   Aamon:     ['catch'],
   Selena:    ['catch'],
   Karina:    ['catch'],
@@ -212,11 +231,12 @@ export const HERO_ARCHETYPE_TAGS: Record<string, DraftArchetypeTag[]> = {
   Natalia:   ['catch'],
   Helcurt:   ['catch'],
   Hanzo:     ['catch'],
-  Guinevere: ['catch', 'engage'],
   Kagura:    ['catch'],
   Luo_Yi:    ['catch', 'engage'],
+  'Luo Yi':  ['catch', 'engage'],
   Gloo:      ['catch'],
   Nana:      ['catch'],
+  Saber:     ['catch'],
 };
 
 /** Get archetype tags for a hero by name */

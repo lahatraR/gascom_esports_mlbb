@@ -1,4 +1,5 @@
 import type { HeroData, DraftArchetype, ArchetypeResult } from '@/types/draft';
+import { getPlaystyles, PLAYSTYLE_TO_COMP_BONUS } from '@/data/heroArchetypes';
 
 // ─── Metadata ─────────────────────────────────────────────────────────────────
 
@@ -113,12 +114,26 @@ function heroScores(hero: HeroData): Record<DraftArchetype, number> {
   let catchScore = damage * 0.30 + cc * 0.30 + mobility * 0.25 + (10 - tankiness) * 0.15;
   if (primaryRole === 'Assassin') catchScore += 1.5;
 
+  // ── Playstyle archetype bonuses ───────────────────────────────────────────
+  // Apply PLAYSTYLE_TO_COMP_BONUS so that, e.g., Glorious Launchers are always
+  // detected as Engage comps and Enchanters always register as Protect comps.
+  const playstyles = getPlaystyles(hero.name);
+  for (const ps of playstyles) {
+    const bonuses = PLAYSTYLE_TO_COMP_BONUS[ps];
+    if (!bonuses) continue;
+    if (bonuses.poke)    poke       += bonuses.poke;
+    if (bonuses.engage)  engage     += bonuses.engage;
+    if (bonuses.protect) protect    += bonuses.protect;
+    if (bonuses.split)   split      += bonuses.split;
+    if (bonuses.catch)   catchScore += bonuses.catch;
+  }
+
   return {
-    poke:    clamp(poke,       0, 12),
-    engage:  clamp(engage,     0, 12),
-    protect: clamp(protect,    0, 12),
-    split:   clamp(split,      0, 12),
-    catch:   clamp(catchScore, 0, 12),
+    poke:    clamp(poke,       0, 14),
+    engage:  clamp(engage,     0, 14),
+    protect: clamp(protect,    0, 14),
+    split:   clamp(split,      0, 14),
+    catch:   clamp(catchScore, 0, 14),
   };
 }
 
