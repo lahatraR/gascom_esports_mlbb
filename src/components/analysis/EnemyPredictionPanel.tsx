@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import clsx from 'clsx';
-import type { EnemyPrediction, DraftTeam } from '@/types/draft';
+import type { EnemyPrediction, DraftTeam, HeroData } from '@/types/draft';
+import { useDraftStore } from '@/store/draftStore';
 
 interface EnemyPredictionPanelProps {
   predictions: EnemyPrediction[];
@@ -12,6 +13,9 @@ interface EnemyPredictionPanelProps {
 export function EnemyPredictionPanel({ predictions, enemyTeam }: EnemyPredictionPanelProps) {
   const [expanded, setExpanded] = useState<number | null>(null);
   const isRed = enemyTeam === 'red';
+
+  const { bluePicks, redPicks } = useDraftStore((s) => ({ bluePicks: s.bluePicks, redPicks: s.redPicks }));
+  const confirmedPicks = (isRed ? redPicks : bluePicks).filter((h): h is HeroData => h !== null);
 
   if (predictions.length === 0) {
     return (
@@ -25,13 +29,33 @@ export function EnemyPredictionPanel({ predictions, enemyTeam }: EnemyPrediction
 
   return (
     <div className="flex flex-col gap-3 glass p-4">
-      <h3 className="text-xs font-bold tracking-widest uppercase text-slate-400">
-        Ce que l&apos;équipe{' '}
-        <span className={isRed ? 'text-red-400' : 'text-blue-400'}>
-          {isRed ? 'Rouge' : 'Bleue'}
-        </span>{' '}
-        va probablement picker
-      </h3>
+      <div className="flex items-start justify-between gap-2">
+        <h3 className="text-xs font-bold tracking-widest uppercase text-slate-400">
+          Ce que l&apos;équipe{' '}
+          <span className={isRed ? 'text-red-400' : 'text-blue-400'}>
+            {isRed ? 'Rouge' : 'Bleue'}
+          </span>{' '}
+          va probablement picker
+        </h3>
+        {confirmedPicks.length > 0 && (
+          <div className="flex flex-col items-end gap-1 shrink-0">
+            <p className="text-[8px] text-slate-600 uppercase tracking-wide">Déjà pickés</p>
+            <div className="flex gap-1">
+              {confirmedPicks.map((h) => (
+                <div key={h.id} className={clsx('w-8 h-8 rounded overflow-hidden border', isRed ? 'border-red-600/40' : 'border-blue-600/40')}>
+                  {h.image ? (
+                    <img src={h.image} alt={h.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full bg-slate-800 flex items-center justify-center text-[10px] font-bold text-slate-400">
+                      {h.name.charAt(0)}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
 
       <div className="flex flex-col gap-2">
         {predictions.map((pred, i) => {

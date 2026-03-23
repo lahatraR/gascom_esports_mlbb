@@ -1,12 +1,35 @@
 'use client';
 
 import clsx from 'clsx';
-import type { BanAnalysis, ArchetypeProbability, DraftArchetype } from '@/types/draft';
+import type { BanAnalysis, ArchetypeProbability, DraftArchetype, HeroData } from '@/types/draft';
 import {
   ARCHETYPE_LABELS,
   ARCHETYPE_ICON,
   ARCHETYPE_CLASSES,
 } from '@/engine/archetypeEngine';
+import { useDraftStore } from '@/store/draftStore';
+
+// ─── Mini portrait d'un héros banni ───────────────────────────────────────────
+
+function BannedHeroChip({ hero }: { hero: HeroData }) {
+  return (
+    <div className="flex flex-col items-center gap-0.5 shrink-0">
+      <div className="w-9 h-9 rounded-lg overflow-hidden border border-red-700/50 relative">
+        {hero.image ? (
+          <img src={hero.image} alt={hero.name} className="w-full h-full object-cover grayscale opacity-70" />
+        ) : (
+          <div className="w-full h-full bg-slate-800 flex items-center justify-center text-slate-400 text-xs font-bold">
+            {hero.name.charAt(0)}
+          </div>
+        )}
+        <div className="absolute inset-0 flex items-center justify-center">
+          <span className="text-red-400 text-base leading-none drop-shadow">🚫</span>
+        </div>
+      </div>
+      <span className="text-[8px] text-slate-500 truncate max-w-[36px] text-center leading-tight">{hero.name}</span>
+    </div>
+  );
+}
 
 // ─── Probability bar row ───────────────────────────────────────────────────────
 
@@ -57,6 +80,9 @@ interface Props {
 }
 
 export function BanIntelligencePanel({ banAnalysis, archetypeProbability, enemyTeam }: Props) {
+  const { blueBans, redBans } = useDraftStore((s) => ({ blueBans: s.blueBans, redBans: s.redBans }));
+  const enemyBans = (enemyTeam === 'blue' ? blueBans : redBans).filter((h): h is HeroData => h !== null);
+
   const hasData = banAnalysis || archetypeProbability;
 
   if (!hasData) {
@@ -98,9 +124,16 @@ export function BanIntelligencePanel({ banAnalysis, archetypeProbability, enemyT
         {/* Ban Analysis block */}
         {banAnalysis && (
           <div>
-            <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-              📵 Pourquoi ils bannent ces héros
-            </p>
+            <div className="flex items-center justify-between mb-1.5">
+              <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">
+                📵 Pourquoi ils bannent ces héros
+              </p>
+              {enemyBans.length > 0 && (
+                <div className="flex gap-1.5">
+                  {enemyBans.map((h) => <BannedHeroChip key={h.id} hero={h} />)}
+                </div>
+              )}
+            </div>
             <div
               className="rounded-lg p-2.5 border"
               style={{ background: 'rgba(10,5,20,0.7)', borderColor: 'rgba(168,85,247,0.25)' }}
