@@ -18,16 +18,18 @@ import { CounterCompositionPanel }  from '@/components/analysis/CounterCompositi
 import { WinningLineupPanel }       from '@/components/analysis/WinningLineupPanel';
 import { BanIntelligencePanel }     from '@/components/analysis/BanIntelligencePanel';
 import { CompositionHolesPanel }    from '@/components/analysis/CompositionHolesPanel';
+import { StrategyPanel }           from './StrategyPanel';
 
 // ─── Analysis tab types ───────────────────────────────────────────────────────
 
-type AnalysisTab = 'picks' | 'intel' | 'matchup';
+type AnalysisTab = 'picks' | 'intel' | 'matchup' | 'strat';
 type MobileTab   = 'draft' | 'blue' | 'red' | 'analysis';
 
 const ANALYSIS_TABS: { id: AnalysisTab; label: string; icon: string; desc: string }[] = [
   { id: 'picks',   icon: '⚔️',  label: 'Picks',   desc: 'AI suggestions + optimal lineup'    },
   { id: 'intel',   icon: '🔍',  label: 'Intel',   desc: 'Enemy bans + pick predictions'      },
   { id: 'matchup', icon: '📊',  label: 'Matchup', desc: 'Win probability + team comparison'  },
+  { id: 'strat',   icon: '📋',  label: 'Strat',   desc: 'Compositions prêtes + livret de bans' },
 ];
 
 const MOBILE_TABS: { id: MobileTab; icon: string; label: string }[] = [
@@ -162,6 +164,8 @@ function AnalysisContent({
       <CounterCompositionPanel analysis={analysis?.enemyCompAnalysis ?? null} enemyTeam={enemyTeam} />
     </div>
   );
+
+  if (tab === 'strat') return <StrategyPanel />;
 
   return (
     <div className="flex flex-col gap-3">
