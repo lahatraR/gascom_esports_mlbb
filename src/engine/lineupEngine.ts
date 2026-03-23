@@ -85,6 +85,26 @@ function getLaneScore(hero: HeroData, lane: LaneRole): number {
   return 0;
 }
 
+/**
+ * Multiplicateur appliqué au score total d'un héros selon son adéquation au poste.
+ * Un héros hors-rôle ne peut pas être sauvé par un bon fit d'archétype seul.
+ *
+ * - Listé dans le tier list pour cette lane → 1.0 (autorisé explicitement)
+ * - Rôle principal correspond parfaitement → 1.0
+ * - Rôle secondaire acceptable → 0.70
+ * - Un rôle parmi plusieurs correspond → 0.45
+ * - Aucun rôle compatible → 0.20  (dernier recours uniquement)
+ */
+function getLaneFitMultiplier(hero: HeroData, lane: LaneRole): number {
+  if (getHeroLaneTierScore(hero.name, lane) > 0) return 1.0;
+  const expected = LANE_PRIMARY_ROLES[lane];
+  const primary  = hero.roles[0];
+  if (expected[0] === primary)                      return 1.0;
+  if (expected.includes(primary))                   return 0.70;
+  if (hero.roles.some((r) => expected.includes(r))) return 0.45;
+  return 0.20;
+}
+
 // ─── Slot scoring ─────────────────────────────────────────────────────────────
 
 function scoreHeroForSlot(
@@ -112,7 +132,11 @@ function scoreHeroForSlot(
   const synergyScore = clamp(synergyRaw + 3, 0, 10);
   const metaScore    = calculateMetaScore(hero);
 
-  return archFit * 3 + laneScore * 3 + counterScore * 2 + synergyScore + metaScore;
+  // Multiplicateur de poste : un héros hors-rôle ne peut pas compenser par l'archétype seul
+  const laneFitMult = getLaneFitMultiplier(hero, lane);
+
+  const rawScore = archFit * 3 + laneScore * 3 + counterScore * 2 + synergyScore + metaScore;
+  return rawScore * laneFitMult;
 }
 
 // ─── French text generators ───────────────────────────────────────────────────
@@ -159,6 +183,12 @@ function buildShortReasonFR(
     (a) => hero.synergies.includes(a.id) || a.synergies.includes(hero.id)
   );
   if (synergies.length > 0) parts.push(`Synergie avec ${synergies[0].name}`);
+
+  // Avertissement hors-rôle
+  const laneFitMult = getLaneFitMultiplier(hero, lane);
+  if (laneFitMult < 0.5) {
+    parts.push(`⚠️ Hors rôle (${hero.roles[0]} en ${LANE_FR[lane]})`);
+  }
 
   if (parts.length === 0) parts.push(`Meilleur disponible en ${LANE_FR[lane]}`);
   return parts.join(' · ');
@@ -238,7 +268,16 @@ function buildDetailedReasonFR(
     );
   }
 
-  // 6. Meta status
+  // 6. Avertissement hors-rôle
+  const laneFitMult = getLaneFitMultiplier(hero, lane);
+  if (laneFitMult < 0.5 && !isLocked) {
+    const expectedRole = LANE_PRIMARY_ROLES[lane][0];
+    sentences.push(
+      `⚠️ **${hero.name}** est un(e) **${hero.roles[0]}**, pas ${expectedRole} — la ${LANE_FR[lane]} est normalement tenue par un(e) ${expectedRole}. Ce pick n'est suggéré que faute de mieux disponible, ou si l'ennemi impose ce choix.`
+    );
+  }
+
+  // 7. Meta status
   if (hero.banRate > 0.20) {
     sentences.push(
       `Ce héros est actuellement très présent en compétition (${Math.round(hero.banRate * 100)}% de ban rate) — priorité haute.`
