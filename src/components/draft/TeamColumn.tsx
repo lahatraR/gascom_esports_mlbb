@@ -1,8 +1,7 @@
 'use client';
 
 import clsx from 'clsx';
-import type { HeroData } from '@/types/draft';
-import { DRAFT_SEQUENCE } from '@/types/draft';
+import type { HeroData, DraftStep } from '@/types/draft';
 import { HeroCard, EmptySlot } from '@/components/ui/HeroCard';
 
 interface TeamColumnProps {
@@ -10,12 +9,13 @@ interface TeamColumnProps {
   bans:  (HeroData | null)[];
   picks: (HeroData | null)[];
   currentStep: number;
+  sequence: DraftStep[];
   rating?: number;
 }
 
-export function TeamColumn({ team, bans, picks, currentStep, rating }: TeamColumnProps) {
-  const isDone = currentStep >= DRAFT_SEQUENCE.length;
-  const activeStep = isDone ? null : DRAFT_SEQUENCE[currentStep];
+export function TeamColumn({ team, bans, picks, currentStep, sequence, rating }: TeamColumnProps) {
+  const isDone = currentStep >= sequence.length;
+  const activeStep = isDone ? null : sequence[currentStep];
 
   const isActiveBan  = activeStep?.team === team && activeStep?.action === 'ban';
   const isActivePick = activeStep?.team === team && activeStep?.action === 'pick';
@@ -40,7 +40,7 @@ export function TeamColumn({ team, bans, picks, currentStep, rating }: TeamColum
       {/* Header */}
       <div className="flex items-center justify-between">
         <h2 className={clsx('font-black text-base sm:text-lg tracking-widest uppercase', headerColor)}>
-          {isBlue ? '🔵 BLUE' : '🔴 RED'}
+          {isBlue ? '🔵 Bleue' : '🔴 Rouge'}
         </h2>
         {rating !== undefined && (
           <div className={clsx(
@@ -55,9 +55,8 @@ export function TeamColumn({ team, bans, picks, currentStep, rating }: TeamColum
       {/* ── BANS ── */}
       <div>
         <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">
-          — BANS —
+          — Bans —
         </p>
-        {/* Mobile: horizontal scroll row / Desktop: wrap */}
         <div className="flex gap-1.5 overflow-x-auto pb-1 sm:flex-wrap sm:justify-center sm:overflow-visible">
           {bans.map((hero, i) => {
             const isSlotActive = i === activeBanSlot;
@@ -86,7 +85,7 @@ export function TeamColumn({ team, bans, picks, currentStep, rating }: TeamColum
       {/* ── PICKS ── */}
       <div>
         <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">
-          — PICKS —
+          — Picks —
         </p>
         <div className="flex flex-col gap-1.5">
           {picks.map((hero, i) => {
@@ -114,7 +113,7 @@ export function TeamColumn({ team, bans, picks, currentStep, rating }: TeamColum
                   team={team}
                   variant="pick"
                   size="sm"
-                  label={isSlotActive ? 'Picking…' : `Pick ${i + 1}`}
+                  label={isSlotActive ? 'En cours…' : `Pick ${i + 1}`}
                 />
               </div>
             );

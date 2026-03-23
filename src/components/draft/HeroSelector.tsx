@@ -278,19 +278,19 @@ export function HeroSelector() {
             : 'bg-red-950/70  border-red-500/50  text-red-100'
         )}>
           <span className="text-lg">{isBan ? '🚫' : '⚔️'}</span>
-          <span>{isBlue ? 'BLUE' : 'RED'} TEAM</span>
+          <span>Équipe {isBlue ? 'Bleue' : 'Rouge'}</span>
           <span className={clsx(
             'px-2 py-0.5 rounded text-xs font-black tracking-widest',
             isBan ? 'bg-red-500/25 text-red-300' : 'bg-green-500/25 text-green-300'
           )}>
-            {isBan ? 'BAN' : 'PICK'}
+            {isBan ? 'Ban' : 'Pick'}
           </span>
         </div>
       )}
 
       {isDone && (
         <div className="flex items-center justify-center py-2 rounded-lg border border-yellow-500/30 bg-yellow-950/30 text-yellow-300 font-bold tracking-widest text-sm">
-          ✓ DRAFT COMPLETE
+          ✓ DRAFT TERMINÉ
         </div>
       )}
 
@@ -312,7 +312,7 @@ export function HeroSelector() {
       <div className="relative">
         <input
           type="text"
-          placeholder="Search hero…"
+          placeholder="Rechercher un héros..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="w-full bg-black/40 border rounded-lg px-3 py-1.5 pl-8 text-sm text-slate-200 placeholder-slate-600 focus:outline-none transition-colors"

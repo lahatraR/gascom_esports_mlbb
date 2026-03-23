@@ -216,7 +216,7 @@ export function DraftBoard() {
       <div className="hidden md:flex gap-3 flex-1 min-h-0">
 
         <div className="w-44 lg:w-48 flex-shrink-0">
-          <TeamColumn team="blue" bans={blueBans} picks={bluePicks} currentStep={currentStep} rating={analysis?.blueRating} />
+          <TeamColumn team="blue" bans={blueBans} picks={bluePicks} currentStep={currentStep} sequence={sequence} rating={analysis?.blueRating} />
         </div>
 
         <div className="flex-1 flex flex-col gap-3 min-w-0 min-h-0">
@@ -226,7 +226,7 @@ export function DraftBoard() {
         </div>
 
         <div className="w-44 lg:w-48 flex-shrink-0">
-          <TeamColumn team="red" bans={redBans} picks={redPicks} currentStep={currentStep} rating={analysis?.redRating} />
+          <TeamColumn team="red" bans={redBans} picks={redPicks} currentStep={currentStep} sequence={sequence} rating={analysis?.redRating} />
         </div>
       </div>
 
@@ -296,11 +296,11 @@ export function DraftBoard() {
         )}
 
         {mobileTab === 'blue' && (
-          <TeamColumn team="blue" bans={blueBans} picks={bluePicks} currentStep={currentStep} rating={analysis?.blueRating} />
+          <TeamColumn team="blue" bans={blueBans} picks={bluePicks} currentStep={currentStep} sequence={sequence} rating={analysis?.blueRating} />
         )}
 
         {mobileTab === 'red' && (
-          <TeamColumn team="red" bans={redBans} picks={redPicks} currentStep={currentStep} rating={analysis?.redRating} />
+          <TeamColumn team="red" bans={redBans} picks={redPicks} currentStep={currentStep} sequence={sequence} rating={analysis?.redRating} />
         )}
 
         {mobileTab === 'analysis' && (

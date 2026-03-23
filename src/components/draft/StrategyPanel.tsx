@@ -3,8 +3,14 @@
 import { useState, useMemo } from 'react';
 import { useDraftStore } from '@/store/draftStore';
 import { DRAFT_TEMPLATES } from '@/data/draftTemplates';
-import type { HeroData } from '@/types/draft';
+import { getDraftSequence } from '@/types/draft';
+import type { HeroData, DraftAnalysis } from '@/types/draft';
 import type { DraftTemplate } from '@/data/draftTemplates';
+import {
+  ARCHETYPE_LABELS,
+  ARCHETYPE_ICON,
+  ARCHETYPE_CLASSES,
+} from '@/engine/archetypeEngine';
 
 // ─── Visual config per archetype ─────────────────────────────────────────────
 
@@ -29,6 +35,9 @@ const LANE_ICON:  Record<string, string> = {
 };
 const LANE_LABEL: Record<string, string> = {
   exp: 'EXP', jungle: 'Jungle', mid: 'Mid', gold: 'Gold', roam: 'Roam',
+};
+const LANE_ROLE_ICON: Record<string, string> = {
+  Gold: '💰', Roam: '🛡', Jungle: '🌿', Mid: '🔮', EXP: '⚡',
 };
 const LANES = ['exp', 'jungle', 'mid', 'gold', 'roam'] as const;
 
@@ -225,15 +234,12 @@ function TemplateCard({
                 const status = heroStatus(opt.primary);
                 return (
                   <div key={lane} className="flex gap-2 items-start">
-                    {/* Lane label */}
                     <div className="shrink-0 flex flex-col items-center gap-0.5 pt-0.5" style={{ minWidth: 36 }}>
                       <span className="text-sm leading-none">{LANE_ICON[lane]}</span>
                       <span className="text-[8px] tracking-wide" style={{ color: 'rgba(100,120,160,0.80)' }}>
                         {LANE_LABEL[lane]}
                       </span>
                     </div>
-
-                    {/* Hero + details */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <HeroPortrait name={opt.primary} heroMap={heroMap} size={28} />
@@ -242,8 +248,6 @@ function TemplateCard({
                           {opt.role}
                         </span>
                       </div>
-
-                      {/* Backups */}
                       {opt.backup.length > 0 && (
                         <div className="flex items-center gap-1 mt-0.5 flex-wrap">
                           <span className="text-[9px] text-slate-600">backup:</span>
@@ -252,8 +256,6 @@ function TemplateCard({
                           ))}
                         </div>
                       )}
-
-                      {/* Why */}
                       <p className="text-[10px] mt-0.5 leading-snug" style={{ color: 'rgba(100,110,130,0.90)' }}>
                         {opt.why}
                       </p>
@@ -268,17 +270,13 @@ function TemplateCard({
           <Section title="Bans Prioritaires">
             <div className="flex flex-col gap-2">
               {template.bans.map((ban, i) => {
-                const ps  = PRIORITY_STYLE[ban.priority];
-                const bs  = heroStatus(ban.heroName);
+                const ps = PRIORITY_STYLE[ban.priority];
+                const bs = heroStatus(ban.heroName);
                 return (
                   <div key={i} className="flex items-start gap-2">
                     <span
                       className="shrink-0 text-[8px] font-bold px-1.5 py-0.5 rounded-full tracking-wide whitespace-nowrap"
-                      style={{
-                        background: `${ps.color}22`,
-                        color:      ps.color,
-                        border:     `1px solid ${ps.color}40`,
-                      }}
+                      style={{ background: `${ps.color}22`, color: ps.color, border: `1px solid ${ps.color}40` }}
                     >
                       {ps.label}
                     </span>
@@ -286,10 +284,7 @@ function TemplateCard({
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span
                           className="font-semibold text-[11px]"
-                          style={{
-                            color:          bs === 'banned' ? '#64748b' : '#e2e8f0',
-                            textDecoration: bs === 'banned' ? 'line-through' : 'none',
-                          }}
+                          style={{ color: bs === 'banned' ? '#64748b' : '#e2e8f0', textDecoration: bs === 'banned' ? 'line-through' : 'none' }}
                         >
                           {ban.heroName}
                         </span>
@@ -309,9 +304,7 @@ function TemplateCard({
 
           {/* ── Win condition ── */}
           <Section title="Condition de Victoire">
-            <p className="text-[11px] text-slate-300 leading-relaxed">
-              {template.winCondition}
-            </p>
+            <p className="text-[11px] text-slate-300 leading-relaxed">{template.winCondition}</p>
           </Section>
 
           {/* ── Phase breakdown ── */}
@@ -328,38 +321,27 @@ function TemplateCard({
                     style={{ background: 'rgba(12,12,20,0.75)' }}
                     title={note}
                   >
-                    <span className="text-[9px] text-slate-500 tracking-widest uppercase">
-                      {phase === 'early' ? 'Early' : phase === 'mid' ? 'Mid' : 'Late'}
+                    <span className="text-[9px] text-slate-500 uppercase tracking-widest">
+                      {phase === 'early' ? 'Début' : phase === 'mid' ? 'Milieu' : 'Fin'}
                     </span>
                     <PhaseDots rating={rating} />
-                    <span className="text-[11px] font-bold" style={{ color: col }}>
-                      {rating}/5
+                    <span className="text-[8px] text-center leading-tight" style={{ color: col }}>
+                      {note}
                     </span>
                   </div>
                 );
               })}
             </div>
-            {/* Phase notes carousel — show current expanded phase note on hover impossible in static, show all small */}
-            <div className="flex flex-col gap-1 mt-1">
-              {(['early', 'mid', 'late'] as const).map((phase) => (
-                <p key={phase} className="text-[9px] leading-snug" style={{ color: 'rgba(80,90,110,0.90)' }}>
-                  <span className="font-bold" style={{ color: 'rgba(120,130,160,0.90)' }}>
-                    {phase === 'early' ? 'Early' : phase === 'mid' ? 'Mid' : 'Late'}:{' '}
-                  </span>
-                  {template.phaseNotes[phase]}
-                </p>
-              ))}
-            </div>
           </Section>
 
-          {/* ── Execution tips ── */}
+          {/* ── Tips ── */}
           {template.tips.length > 0 && (
             <Section title="Conseils d'Exécution">
-              <ul className="flex flex-col gap-1.5">
+              <ul className="space-y-1">
                 {template.tips.map((tip, i) => (
-                  <li key={i} className="flex items-start gap-1.5">
-                    <span className="shrink-0 text-[10px] mt-0.5" style={{ color: s.text }}>▸</span>
-                    <span className="text-[10px] text-slate-400 leading-snug">{tip}</span>
+                  <li key={i} className="flex items-start gap-1.5 text-[11px] text-slate-400">
+                    <span className="text-slate-600 mt-0.5 shrink-0">•</span>
+                    {tip}
                   </li>
                 ))}
               </ul>
@@ -371,19 +353,242 @@ function TemplateCard({
   );
 }
 
-// ─── Main export ─────────────────────────────────────────────────────────────
+// ─── Live Strategy Panel ──────────────────────────────────────────────────────
+
+function LiveStrategy({
+  analysis,
+  allyTeam,
+  heroMap,
+}: {
+  analysis:  DraftAnalysis | null;
+  allyTeam:  'blue' | 'red';
+  heroMap:   Map<string, HeroData>;
+}) {
+  const enemyTeam = allyTeam === 'blue' ? 'red' : 'blue';
+  const enemyArchetype = allyTeam === 'blue' ? analysis?.redArchetype : analysis?.blueArchetype;
+  const allyArchetype  = allyTeam === 'blue' ? analysis?.blueArchetype : analysis?.redArchetype;
+  const lineup         = analysis?.winningLineup ?? null;
+  const banThreats     = lineup?.banThreats ?? [];
+  const remainingSlots = lineup?.slots.filter((s) => !s.isLocked) ?? [];
+  const lockedSlots    = lineup?.slots.filter((s) => s.isLocked) ?? [];
+  const allSlots       = lineup?.slots ?? [];
+
+  if (!analysis && !lineup) {
+    return (
+      <div
+        className="rounded-xl border p-4 flex flex-col items-center justify-center gap-2 min-h-28"
+        style={{ background: 'rgba(5,5,12,0.85)', borderColor: 'rgba(60,60,80,0.35)' }}
+      >
+        <span className="text-2xl">🎯</span>
+        <p className="text-slate-500 text-xs text-center leading-relaxed">
+          Lancez le draft pour voir la stratégie en temps réel.<br />
+          <span className="text-slate-600">L&apos;analyse s&apos;adapte à chaque ban et pick.</span>
+        </p>
+      </div>
+    );
+  }
+
+  const enemyColor  = enemyTeam === 'red' ? 'rgba(239,68,68,0.15)'  : 'rgba(59,130,246,0.15)';
+  const enemyBorder = enemyTeam === 'red' ? 'rgba(239,68,68,0.35)'  : 'rgba(59,130,246,0.35)';
+  const allyColor   = allyTeam  === 'blue' ? 'rgba(59,130,246,0.10)' : 'rgba(239,68,68,0.10)';
+  const allyBorder  = allyTeam  === 'blue' ? 'rgba(59,130,246,0.30)' : 'rgba(239,68,68,0.30)';
+
+  return (
+    <div className="flex flex-col gap-3">
+
+      {/* ── Enemy threat header ── */}
+      {enemyArchetype && (
+        <div
+          className="rounded-xl border px-3 py-2.5 flex items-center gap-2.5"
+          style={{ background: enemyColor, borderColor: enemyBorder }}
+        >
+          <span className="text-xl shrink-0">{ARCHETYPE_ICON[enemyArchetype.primary]}</span>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                Ennemi construit :
+              </span>
+              <span className={`text-[10px] font-black px-1.5 py-0.5 rounded border ${ARCHETYPE_CLASSES[enemyArchetype.primary].badge}`}>
+                {ARCHETYPE_ICON[enemyArchetype.primary]} {ARCHETYPE_LABELS[enemyArchetype.primary]}
+              </span>
+              <span className="text-[9px] text-slate-500">{enemyArchetype.confidence}% de certitude</span>
+            </div>
+            {allyArchetype && (
+              <p className="text-[10px] text-slate-400 mt-0.5">
+                Votre contre optimal :{' '}
+                <span className={`font-bold ${ARCHETYPE_CLASSES[allyArchetype.primary].text}`}>
+                  {ARCHETYPE_ICON[allyArchetype.primary]} {ARCHETYPE_LABELS[allyArchetype.primary]}
+                </span>
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Bans prioritaires ── */}
+      {banThreats.length > 0 && (
+        <div
+          className="rounded-xl border overflow-hidden"
+          style={{ background: 'rgba(8,8,14,0.92)', borderColor: 'rgba(60,40,40,0.55)' }}
+        >
+          <div className="px-3 py-2 border-b flex items-center gap-2" style={{ borderColor: 'rgba(239,68,68,0.2)', background: 'rgba(239,68,68,0.06)' }}>
+            <span className="text-[10px] font-black uppercase tracking-wider text-red-400">🚫 Bans à anticiper</span>
+            <span className="text-[9px] text-slate-600">héros que l&apos;ennemi ciblera probablement</span>
+          </div>
+          <div className="p-3 flex flex-col gap-2">
+            {banThreats.map((threat) => {
+              const key   = threat.hero.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+              const hero  = heroMap.get(key);
+              return (
+                <div key={threat.hero.id} className="flex items-start gap-2.5">
+                  {/* Portrait */}
+                  <div className="w-9 h-9 rounded-lg overflow-hidden shrink-0 border border-red-700/40">
+                    {hero?.image ? (
+                      <img src={hero.image} alt={threat.hero.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full bg-slate-800 flex items-center justify-center text-[10px] font-bold text-slate-400">
+                        {threat.hero.name.charAt(0)}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-white text-xs font-bold">{threat.hero.name}</span>
+                      <span
+                        className="text-[8px] font-black px-1.5 py-0.5 rounded border"
+                        style={{
+                          color:      threat.priority === 'high' ? '#f87171' : '#fb923c',
+                          background: threat.priority === 'high' ? 'rgba(239,68,68,0.15)' : 'rgba(234,88,12,0.12)',
+                          borderColor:threat.priority === 'high' ? 'rgba(239,68,68,0.4)' : 'rgba(234,88,12,0.35)',
+                        }}
+                      >
+                        {threat.priority === 'high' ? '🎯 Prioritaire' : '⚠️ À surveiller'}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 leading-snug mt-0.5">
+                      {/* Show reason as plain text, strip markdown */}
+                      {threat.banReason.replace(/\*\*/g, '')}
+                    </p>
+                    {threat.backupPick && (
+                      <p className="text-[10px] text-emerald-400/70 mt-0.5">
+                        → Alternative : <span className="font-semibold text-emerald-300">{threat.backupPick.name}</span>
+                      </p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Composition à construire ── */}
+      {allSlots.length > 0 && (
+        <div
+          className="rounded-xl border overflow-hidden"
+          style={{ background: allyColor, borderColor: allyBorder }}
+        >
+          <div className="px-3 py-2 border-b flex items-center justify-between" style={{ borderColor: allyBorder }}>
+            <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: allyTeam === 'blue' ? '#93c5fd' : '#fca5a5' }}>
+              ⚔️ Composition à construire
+            </span>
+            {lineup && (
+              <span className="text-[9px] text-slate-500">
+                {lockedSlots.length} verrouillé{lockedSlots.length > 1 ? 's' : ''} · {remainingSlots.length} à picker
+              </span>
+            )}
+          </div>
+          <div className="p-3 flex flex-col gap-2">
+            {allSlots.map((slot) => {
+              const key  = slot.hero.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+              const hero = heroMap.get(key);
+              const laneIcon = LANE_ROLE_ICON[slot.laneRole] ?? '•';
+              return (
+                <div
+                  key={`${slot.laneRole}-${slot.hero.id}`}
+                  className="flex items-center gap-2 rounded-lg px-2 py-1.5 border"
+                  style={{
+                    background:  slot.isLocked ? 'rgba(5,30,15,0.7)' : 'rgba(8,8,16,0.6)',
+                    borderColor: slot.isLocked ? 'rgba(74,222,128,0.35)' : 'rgba(60,60,80,0.30)',
+                    borderStyle: slot.isLocked ? 'solid' : 'dashed',
+                  }}
+                >
+                  {/* Lane badge */}
+                  <span className="text-[9px] font-bold text-slate-500 w-7 text-center shrink-0">{laneIcon} {slot.laneRole}</span>
+
+                  {/* Portrait */}
+                  <div className="w-8 h-8 rounded overflow-hidden shrink-0 border border-slate-700/40">
+                    {hero?.image ? (
+                      <img src={hero.image} alt={slot.hero.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full bg-slate-800 flex items-center justify-center text-[10px] font-bold text-slate-400">
+                        {slot.hero.name.charAt(0)}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Name + reason */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white text-xs font-semibold truncate">{slot.hero.name}</p>
+                    <p className="text-slate-500 text-[10px] truncate leading-tight">
+                      {slot.reason.replace(/⚠️\s*/g, '').replace(/Pilier\s+/g, '')}
+                    </p>
+                  </div>
+
+                  {/* Lock status */}
+                  {slot.isLocked ? (
+                    <span className="text-[9px] font-bold text-emerald-400 border border-emerald-600/40 bg-emerald-900/30 px-1.5 py-0.5 rounded shrink-0">
+                      ✓ Pris
+                    </span>
+                  ) : (
+                    <span className="text-[9px] font-bold text-yellow-400 border border-yellow-600/30 bg-yellow-900/10 px-1.5 py-0.5 rounded shrink-0">
+                      → À picker
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Win condition */}
+          {lineup?.winCondition && (
+            <div className="px-3 pb-3">
+              <div
+                className="flex items-start gap-1.5 rounded-lg p-2"
+                style={{ background: 'rgba(20,40,20,0.4)', border: '1px solid rgba(34,197,94,0.2)' }}
+              >
+                <span className="text-emerald-400 text-sm shrink-0 mt-0.5">✓</span>
+                <p className="text-[11px] text-emerald-300/80 leading-snug">{lineup.winCondition}</p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Fallback when no lineup yet */}
+      {allSlots.length === 0 && (
+        <div className="rounded-xl border px-3 py-2.5 text-center" style={{ background: 'rgba(5,5,12,0.85)', borderColor: 'rgba(60,60,80,0.35)' }}>
+          <p className="text-slate-600 text-xs">La composition optimale s&apos;affiche dès que des héros sont chargés</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Main StrategyPanel ────────────────────────────────────────────────────────
 
 export function StrategyPanel() {
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const { bluePicks, redPicks, blueBans, redBans, heroPool, analysis, currentStep, gameMode } = useDraftStore();
+  const [expandedId,    setExpandedId]    = useState<string | null>(null);
+  const [showTemplates, setShowTemplates] = useState(false);
 
-  const blueBans  = useDraftStore((s) => s.blueBans);
-  const redBans   = useDraftStore((s) => s.redBans);
-  const bluePicks = useDraftStore((s) => s.bluePicks);
-  const redPicks  = useDraftStore((s) => s.redPicks);
-  const analysis  = useDraftStore((s) => s.analysis);
-  const heroPool  = useDraftStore((s) => s.heroPool);
+  // Determine ally team from current step
+  const sequence  = getDraftSequence(gameMode);
+  const isDone    = currentStep >= sequence.length;
+  const step      = isDone ? null : sequence[currentStep];
+  const allyTeam: 'blue' | 'red' = step?.team ?? 'blue';
 
-  // Build name → HeroData lookup (normalized: lowercase, alphanum only)
+  // Build hero lookup map
   const heroMap = useMemo(() => {
     const m = new Map<string, HeroData>();
     for (const h of heroPool) {
@@ -392,71 +597,88 @@ export function StrategyPanel() {
     return m;
   }, [heroPool]);
 
-  const bannedNames = new Set(
-    [...blueBans, ...redBans].filter(Boolean).map((h) => h!.name)
-  );
-  const pickedNames = new Set(
-    [...bluePicks, ...redPicks].filter(Boolean).map((h) => h!.name)
-  );
+  // Build banned/picked name sets for template status
+  const bannedNames = useMemo(() => {
+    const s = new Set<string>();
+    [...blueBans, ...redBans].forEach((h) => { if (h) s.add(h.name); });
+    return s;
+  }, [blueBans, redBans]);
 
-  const currentArchetype = analysis?.blueArchetype?.primary ?? null;
+  const pickedNames = useMemo(() => {
+    const s = new Set<string>();
+    [...bluePicks, ...redPicks].forEach((h) => { if (h) s.add(h.name); });
+    return s;
+  }, [bluePicks, redPicks]);
 
-  function toggle(id: string) {
-    setExpandedId((prev) => (prev === id ? null : id));
-  }
+  // Recommended template: one that counters enemy archetype or best fits ally picks
+  const enemyArchetype = allyTeam === 'blue' ? analysis?.redArchetype : analysis?.blueArchetype;
+  const recommendedArchetype = analysis?.winningLineup?.archetype ?? enemyArchetype?.primary ?? null;
+
+  const sortedTemplates = useMemo(() => {
+    if (!recommendedArchetype) return DRAFT_TEMPLATES;
+    return [...DRAFT_TEMPLATES].sort((a, b) =>
+      a.archetype === recommendedArchetype ? -1 : b.archetype === recommendedArchetype ? 1 : 0
+    );
+  }, [recommendedArchetype]);
 
   return (
     <div className="flex flex-col gap-3">
 
-      {/* ── Panel header ── */}
+      {/* ── LIVE STRATEGY (top — always visible) ── */}
       <div
-        className="rounded-xl border px-3 py-2.5"
-        style={{ background: 'rgba(8,8,14,0.92)', borderColor: 'rgba(38,38,58,0.60)' }}
+        className="rounded-xl border overflow-hidden"
+        style={{ background: 'rgba(5,5,12,0.92)', borderColor: 'rgba(124,26,15,0.45)' }}
       >
-        <h3 className="text-white font-bold text-sm tracking-wide">
-          📋 Livret Stratégique
-        </h3>
-        <p className="text-[10px] text-slate-500 mt-0.5">
-          5 compositions prêtes avec bans, picks, analyses de phases et conseils d&apos;exécution.
-        </p>
-        {currentArchetype && (
-          <div
-            className="mt-2 flex items-center gap-1.5 text-[10px] font-medium"
-            style={{ color: ARCHETYPE_STYLE[currentArchetype]?.text ?? '#94a3b8' }}
-          >
-            <span>{ARCHETYPE_STYLE[currentArchetype]?.icon}</span>
-            <span>
-              Votre draft tend vers{' '}
-              <strong>
-                {currentArchetype === 'engage'  ? 'l\'Engage'
-                : currentArchetype === 'poke'    ? 'le Poke'
-                : currentArchetype === 'protect' ? 'le Protect'
-                : currentArchetype === 'split'   ? 'le Split Push'
-                :                                  'le Catch'
-                }
-              </strong>{' '}
-              — stratégie correspondante mise en avant.
-            </span>
+        <div
+          className="px-3 py-2 border-b flex items-center gap-2"
+          style={{ background: 'rgba(124,26,15,0.12)', borderColor: 'rgba(124,26,15,0.35)' }}
+        >
+          <span className="text-[10px] font-black uppercase tracking-wider text-slate-200">
+            🧠 Stratégie en temps réel
+          </span>
+          <span className="text-[9px] text-slate-600">
+            · se met à jour à chaque pick / ban
+          </span>
+        </div>
+        <div className="p-3">
+          <LiveStrategy analysis={analysis} allyTeam={allyTeam} heroMap={heroMap} />
+        </div>
+      </div>
+
+      {/* ── TEMPLATES DE RÉFÉRENCE (collapsible) ── */}
+      <div>
+        <button
+          onClick={() => setShowTemplates((v) => !v)}
+          className="w-full flex items-center gap-2 px-3 py-2 rounded-xl border transition-all"
+          style={{
+            background:  showTemplates ? 'rgba(20,20,35,0.85)' : 'rgba(10,10,18,0.75)',
+            borderColor: 'rgba(60,60,80,0.40)',
+          }}
+        >
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+            📋 Templates de référence
+          </span>
+          <div className="flex-1 h-px" style={{ background: 'rgba(60,60,80,0.35)' }} />
+          <span className="text-[9px] text-slate-600">{showTemplates ? '▲ masquer' : '▼ afficher'}</span>
+        </button>
+
+        {showTemplates && (
+          <div className="mt-2 flex flex-col gap-2">
+            {sortedTemplates.map((template, i) => (
+              <TemplateCard
+                key={template.archetype}
+                template={template}
+                isRecommended={i === 0 && !!recommendedArchetype}
+                isExpanded={expandedId === template.archetype}
+                onToggle={() => setExpandedId(expandedId === template.archetype ? null : template.archetype)}
+                bannedNames={bannedNames}
+                pickedNames={pickedNames}
+                heroMap={heroMap}
+              />
+            ))}
           </div>
         )}
       </div>
-
-      {/* ── Template cards — recommended first ── */}
-      {[
-        ...DRAFT_TEMPLATES.filter((t) => t.archetype === currentArchetype),
-        ...DRAFT_TEMPLATES.filter((t) => t.archetype !== currentArchetype),
-      ].map((template) => (
-        <TemplateCard
-          key={template.id}
-          template={template}
-          isRecommended={template.archetype === currentArchetype}
-          isExpanded={expandedId === template.id}
-          onToggle={() => toggle(template.id)}
-          bannedNames={bannedNames}
-          pickedNames={pickedNames}
-          heroMap={heroMap}
-        />
-      ))}
     </div>
   );
 }
