@@ -109,68 +109,76 @@ function InlineSuggestionBar({
         {top3.map((s, i) => {
           const lane       = mainLane(s.hero.roles);
           const scoreColor = s.score >= 80 ? '#4ade80' : s.score >= 65 ? '#facc15' : '#f87171';
-          const scoreGlow  = s.score >= 80 ? 'rgba(74,222,128,0.22)' : s.score >= 65 ? 'rgba(250,204,21,0.18)' : 'rgba(248,113,113,0.18)';
+          const scoreBg    = s.score >= 80 ? 'rgba(74,222,128,0.18)' : s.score >= 65 ? 'rgba(250,204,21,0.18)' : 'rgba(248,113,113,0.18)';
+          const borderClr  = s.score >= 80 ? 'rgba(74,222,128,0.50)' : s.score >= 65 ? 'rgba(250,204,21,0.45)' : 'rgba(248,113,113,0.45)';
 
           return (
             <button
               key={s.hero.id}
               onClick={() => onPick(s.hero)}
-              className="relative flex flex-col rounded-xl overflow-hidden border transition-all duration-200 group"
+              className="relative flex flex-col rounded-xl overflow-hidden border transition-all duration-200 group hover:scale-[1.03]"
               style={{
-                background:  'rgba(8,8,14,0.95)',
-                borderColor: `${scoreColor}44`,
-                boxShadow:   `0 0 10px ${scoreGlow}`,
+                background:  'rgba(8,8,14,0.97)',
+                borderColor: borderClr,
+                boxShadow:   `0 0 14px ${scoreBg}`,
               }}
             >
-              {/* Portrait */}
-              <div className="relative w-full" style={{ height: 68 }}>
+              {/* Portrait — taller, face-centered */}
+              <div className="relative w-full" style={{ height: 95 }}>
                 {s.hero.image ? (
                   <img
                     src={s.hero.image}
                     alt={s.hero.name}
-                    className="absolute inset-0 w-full h-full object-cover object-top"
+                    className="absolute inset-0 w-full h-full object-cover"
+                    style={{ objectPosition: 'center 15%' }}
                   />
                 ) : (
                   <div
-                    className="absolute inset-0 flex items-center justify-center text-2xl font-black"
+                    className="absolute inset-0 flex items-center justify-center text-3xl font-black"
                     style={{ background: 'rgba(20,20,32,0.9)', color: scoreColor }}
                   >
                     {s.hero.name.charAt(0)}
                   </div>
                 )}
-                {/* Rank badge */}
-                <span className="absolute top-0.5 left-0.5 text-[11px] leading-none drop-shadow">{RANK[i]}</span>
-                {/* Score badge */}
+                {/* Rank medal top-left */}
                 <span
-                  className="absolute top-0.5 right-0.5 text-[9px] font-black px-1 py-0.5 rounded-full"
-                  style={{ background: 'rgba(0,0,0,0.80)', color: scoreColor }}
+                  className="absolute top-1 left-1 text-sm leading-none drop-shadow-lg"
+                  style={{ textShadow: '0 1px 4px rgba(0,0,0,0.9)' }}
+                >
+                  {RANK[i]}
+                </span>
+                {/* Score badge top-right */}
+                <span
+                  className="absolute top-1 right-1 text-[10px] font-black px-1.5 py-0.5 rounded-full"
+                  style={{ background: 'rgba(0,0,0,0.85)', color: scoreColor, border: `1px solid ${scoreColor}55` }}
                 >
                   {s.score}
                 </span>
-                {/* Bottom gradient */}
+                {/* Strong bottom gradient for name readability */}
                 <div
-                  className="absolute bottom-0 left-0 right-0 h-8"
-                  style={{ background: `linear-gradient(to top, rgba(8,8,14,0.95), transparent)` }}
+                  className="absolute bottom-0 left-0 right-0"
+                  style={{ height: 40, background: 'linear-gradient(to top, rgba(8,8,14,1) 30%, rgba(8,8,14,0.6) 70%, transparent)' }}
                 />
+                {/* Name inside portrait at bottom */}
+                <div className="absolute bottom-1 left-0 right-0 px-1.5 flex flex-col items-center gap-0.5">
+                  <span className="text-[11px] font-black text-white leading-none truncate w-full text-center drop-shadow">
+                    {s.hero.name}
+                  </span>
+                </div>
               </div>
 
-              {/* Name + lane */}
-              <div className="px-1.5 pb-1.5 pt-0.5 flex flex-col items-center gap-0.5">
-                <span className="text-[10px] font-bold text-white leading-none truncate w-full text-center">
-                  {s.hero.name}
-                </span>
-                <div className="flex items-center gap-0.5">
-                  <span className="text-[9px]">{lane.icon}</span>
-                  <span className="text-[8px] text-slate-500">{lane.label}</span>
-                </div>
+              {/* Lane badge below portrait */}
+              <div className="flex items-center justify-center gap-0.5 py-1">
+                <span className="text-[9px]">{lane.icon}</span>
+                <span className="text-[9px] font-semibold" style={{ color: scoreColor }}>{lane.label}</span>
               </div>
 
               {/* PICK hover overlay */}
               <div
                 className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-150 rounded-xl"
-                style={{ background: teamFill.replace('0.55', '0.50'), backdropFilter: 'blur(3px)' }}
+                style={{ background: `${teamFill.replace('0.55', '0.60')}`, backdropFilter: 'blur(2px)' }}
               >
-                <span className="text-white font-black text-sm tracking-[0.2em]">PICK</span>
+                <span className="text-white font-black text-base tracking-[0.25em] drop-shadow-lg">PICK</span>
               </div>
             </button>
           );
@@ -225,9 +233,10 @@ export function HeroSelector() {
   const redPicks    = useDraftStore((s) => s.redPicks);
   const analysis    = useDraftStore((s) => s.analysis);
   const gameMode    = useDraftStore((s) => s.gameMode);
-  const setSearch     = useDraftStore((s) => s.setSearch);
-  const setRoleFilter = useDraftStore((s) => s.setRoleFilter);
-  const selectHero    = useDraftStore((s) => s.selectHero);
+  const setSearch       = useDraftStore((s) => s.setSearch);
+  const setRoleFilter   = useDraftStore((s) => s.setRoleFilter);
+  const selectHero      = useDraftStore((s) => s.selectHero);
+  const undoLastAction  = useDraftStore((s) => s.undoLastAction);
 
   const sequence    = getDraftSequence(gameMode);
   const isDone      = currentStep >= sequence.length;
@@ -271,22 +280,34 @@ export function HeroSelector() {
       className="flex flex-col gap-2.5 rounded-xl border p-3 h-full transition-all duration-300"
       style={{ background: 'rgba(8,8,12,0.85)', ...containerStyle }}
     >
-      {/* ── Fix #1 : Prominent action banner ── */}
+      {/* ── Action banner + undo button ── */}
       {!isDone && activeStep && (
-        <div className={clsx(
-          'flex items-center justify-center gap-2 py-2 rounded-lg font-black tracking-widest text-sm border',
-          isBlue
-            ? 'bg-blue-950/70 border-blue-500/50 text-blue-100'
-            : 'bg-red-950/70  border-red-500/50  text-red-100'
-        )}>
-          <span className="text-lg">{isBan ? '🚫' : '⚔️'}</span>
-          <span>Équipe {isBlue ? 'Bleue' : 'Rouge'}</span>
-          <span className={clsx(
-            'px-2 py-0.5 rounded text-xs font-black tracking-widest',
-            isBan ? 'bg-red-500/25 text-red-300' : 'bg-green-500/25 text-green-300'
+        <div className="flex items-center gap-2">
+          <div className={clsx(
+            'flex-1 flex items-center justify-center gap-2 py-2 rounded-lg font-black tracking-widest text-sm border',
+            isBlue
+              ? 'bg-blue-950/70 border-blue-500/50 text-blue-100'
+              : 'bg-red-950/70  border-red-500/50  text-red-100'
           )}>
-            {isBan ? 'Ban' : 'Pick'}
-          </span>
+            <span className="text-lg">{isBan ? '🚫' : '⚔️'}</span>
+            <span>Équipe {isBlue ? 'Bleue' : 'Rouge'}</span>
+            <span className={clsx(
+              'px-2 py-0.5 rounded text-xs font-black tracking-widest',
+              isBan ? 'bg-red-500/25 text-red-300' : 'bg-green-500/25 text-green-300'
+            )}>
+              {isBan ? 'Ban' : 'Pick'}
+            </span>
+          </div>
+          {currentStep > 0 && (
+            <button
+              onClick={undoLastAction}
+              title="Annuler le dernier ban/pick"
+              className="flex items-center gap-1 px-2.5 py-2 rounded-lg border text-[11px] font-bold text-slate-400 hover:text-white hover:border-slate-500 transition-all shrink-0"
+              style={{ background: 'rgba(15,15,20,0.8)', borderColor: 'rgba(80,80,100,0.35)' }}
+            >
+              ↩ Annuler
+            </button>
+          )}
         </div>
       )}
 

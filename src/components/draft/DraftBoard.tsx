@@ -15,9 +15,7 @@ import { TeamComparisonPanel }      from '@/components/analysis/TeamComparisonPa
 import { EnemyPredictionPanel }     from '@/components/analysis/EnemyPredictionPanel';
 import { ArchetypePanel }           from '@/components/analysis/ArchetypePanel';
 import { CounterCompositionPanel }  from '@/components/analysis/CounterCompositionPanel';
-import { WinningLineupPanel }       from '@/components/analysis/WinningLineupPanel';
 import { BanIntelligencePanel }     from '@/components/analysis/BanIntelligencePanel';
-import { CompositionHolesPanel }    from '@/components/analysis/CompositionHolesPanel';
 import { StrategyPanel }           from './StrategyPanel';
 
 // ─── Analysis tab types ───────────────────────────────────────────────────────
@@ -140,14 +138,12 @@ function AnalysisContent({
 }) {
   if (tab === 'picks') return (
     <div className="flex flex-col gap-3">
-      <CompositionHolesPanel holes={analysis?.compositionHoles ?? []} allyTeam={allyTeam} />
-      <WinningLineupPanel lineup={analysis?.winningLineup ?? null} allyTeam={allyTeam} />
       {isPickPhase && analysis && (
         <SuggestionPanel suggestions={analysis.suggestions} currentTeam={allyTeam} isPickPhase={isPickPhase} />
       )}
       {!isPickPhase && (
         <div className="glass p-4 text-center text-slate-500 text-xs">
-          Les suggestions IA apparaissent en phase de pick
+          Les suggestions apparaissent en phase de pick
         </div>
       )}
     </div>
