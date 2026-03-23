@@ -327,6 +327,7 @@ const HERO_PLAYSTYLES_RAW: [string, PlaystyleArchetype[]][] = [
   // Mages
   ['novaria',         ['dps_mage', 'control_mage']],           // Mage — bouncing orbs = DPS + zone control
   ['valentina',       ['explosive_mage', 'control_mage']],     // Mage — copies ults = burst + control
+  //Marksman
   ['obsidia',         ['skill_marksman', 'prey_hunter']],      // Marksman — Finisher/Damage, Gold Lane
 ];
 
