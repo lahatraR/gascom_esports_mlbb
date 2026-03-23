@@ -1,12 +1,13 @@
 import type { HeroData, DraftArchetype } from '@/types/draft';
 import { heroArchetypeScores, ARCHETYPE_BEATS, ARCHETYPE_LABELS } from './archetypeEngine';
+import { getHeroTierScore } from '@/data/tierList';
 
 export interface GeneratedDraftSlot {
   lane: 'EXP' | 'Jungle' | 'Mid' | 'Gold' | 'Roam';
   hero: HeroData;
   archetypeFit: number;  // 0-100
-  role: string;          // e.g. "Fighter", "Mage"
-  why: string;           // explanation
+  role: string;
+  why: string;
 }
 
 export interface GeneratedBan {
@@ -16,23 +17,33 @@ export interface GeneratedBan {
 }
 
 export interface GeneratedDraft {
-  rank: number;           // 1-10
+  rank: number;
   slots: GeneratedDraftSlot[];
   bans: GeneratedBan[];
-  teamScore: number;      // 0-100 overall team score
+  teamScore: number;  // 0-100
   winCondition: string;
   archetype: DraftArchetype;
 }
 
-const LANE_IDEAL_ROLES: Record<string, string[]> = {
-  EXP:    ['Fighter', 'Tank'],
-  Jungle: ['Assassin', 'Fighter', 'Tank'],
-  Mid:    ['Mage', 'Assassin'],
-  Gold:   ['Marksman', 'Mage'],
+// ─── Strict role requirements per lane ───────────────────────────────────────
+// A hero MUST match at least one of these roles to be a candidate for that lane.
+// This enforces the team composition norm:
+//   Gold   → Marksman (the DPS carry)
+//   Roam   → Tank or Support (vision + engage + peel)
+//   Jungle → Assassin, Fighter, or Tank (objectives + ganks)
+//   EXP    → Fighter or Assassin (duel + side pressure)
+//   Mid    → Mage or Assassin (burst + rotation)
+
+const LANE_STRICT_ROLES: Record<string, string[]> = {
+  Gold:   ['Marksman'],
   Roam:   ['Tank', 'Support'],
+  Jungle: ['Assassin', 'Fighter', 'Tank'],
+  EXP:    ['Fighter', 'Assassin'],
+  Mid:    ['Mage', 'Assassin'],
 };
 
-const LANE_ARCHETYPE_WEIGHTS: Record<DraftArchetype, Record<string, number>> = {
+// Per-archetype lane importance weights (for score boosting — not filtering)
+const LANE_ARCH_WEIGHT: Record<DraftArchetype, Record<string, number>> = {
   engage:  { EXP: 1.2, Jungle: 1.3, Mid: 0.9, Gold: 1.0, Roam: 1.5 },
   poke:    { EXP: 0.9, Jungle: 0.8, Mid: 1.5, Gold: 1.4, Roam: 1.0 },
   protect: { EXP: 0.8, Jungle: 1.0, Mid: 1.2, Gold: 1.5, Roam: 1.5 },
@@ -40,36 +51,41 @@ const LANE_ARCHETYPE_WEIGHTS: Record<DraftArchetype, Record<string, number>> = {
   catch:   { EXP: 1.2, Jungle: 1.4, Mid: 1.2, Gold: 1.0, Roam: 1.1 },
 };
 
-function laneRoleScore(hero: HeroData, lane: string): number {
-  const ideal = LANE_IDEAL_ROLES[lane] ?? [];
-  return hero.roles.some((r) => ideal.includes(r)) ? 1.0 : 0.45;
-}
+function clamp(v: number, min: number, max: number) { return Math.max(min, Math.min(max, v)); }
 
-function scoreHeroForLaneArch(hero: HeroData, lane: string, archetype: DraftArchetype): number {
+// Score a hero for a specific lane + archetype.
+// Hero MUST already be pre-filtered by role — this function only handles ordering.
+function scoreHeroForSlot(hero: HeroData, lane: string, archetype: DraftArchetype): number {
   const archScores = heroArchetypeScores(hero);
-  const archFit    = (archScores[archetype] ?? 0) / 10;           // 0-1
-  const laneMult   = LANE_ARCHETYPE_WEIGHTS[archetype][lane] ?? 1.0;
-  const roleFit    = laneRoleScore(hero, lane);
-  const metaScore  = (hero.winRate ?? 50) / 100;
-  return ((archFit * 3 + metaScore * 1.5 + roleFit * 1.5) * laneMult);
+  const rawArch    = archScores[archetype] ?? 0;           // 0–10 scale from archetypeEngine
+  const archFit    = clamp(rawArch / 10, 0, 1);            // normalise to 0–1
+  const tierScore  = getHeroTierScore(hero.name, hero.roles) / 10; // 0–1
+  const winScore   = clamp(((hero.winRate ?? 0.50) - 0.45) / 0.15, 0, 1);
+  const laneWeight = LANE_ARCH_WEIGHT[archetype][lane] ?? 1.0;
+
+  // Weighted blend: archetype fit 50%, tier list 30%, win rate 20%
+  const base = archFit * 0.50 + tierScore * 0.30 + winScore * 0.20;
+  return clamp(base * laneWeight, 0, 1);
 }
 
 function buildWhy(hero: HeroData, lane: string, archetype: DraftArchetype): string {
   const archScores = heroArchetypeScores(hero);
-  const fit = Math.round((archScores[archetype] ?? 0) * 10);
-  const topRole = hero.roles[0] ?? 'Héros';
-  const laneLabel = ({ EXP: 'EXP Lane', Jungle: 'Jungle', Mid: 'Mid Lane', Gold: 'Gold Lane', Roam: 'Roam' } as Record<string, string>)[lane] ?? lane;
-  return `${topRole} ${laneLabel} — score ${ARCHETYPE_LABELS[archetype]} : ${fit}/100 · WR ${hero.winRate?.toFixed(1) ?? '?'}%`;
+  const fit        = clamp(Math.round((archScores[archetype] ?? 0) * 10), 0, 100);
+  const role       = hero.roles[0] ?? 'Héros';
+  const laneLabel  = ({ EXP: 'EXP Lane', Jungle: 'Jungle', Mid: 'Mid Lane', Gold: 'Gold Lane', Roam: 'Roam' } as Record<string, string>)[lane] ?? lane;
+  return `${role} ${laneLabel} — score ${ARCHETYPE_LABELS[archetype]} : ${fit}/100 · WR ${((hero.winRate ?? 0) * 100).toFixed(1)}%`;
 }
 
 function buildWinCondition(archetype: DraftArchetype, slots: GeneratedDraftSlot[]): string {
-  const names = slots.map((s) => s.hero.name).join(', ');
+  const gold = slots.find((s) => s.lane === 'Gold')?.hero.name ?? 'le carry';
+  const roam = slots.find((s) => s.lane === 'Roam')?.hero.name ?? 'le tank';
+  const jgl  = slots.find((s) => s.lane === 'Jungle')?.hero.name ?? 'le jungler';
   const conditions: Record<DraftArchetype, string> = {
-    engage:  `Déclenchez le fight avec le Roam/Jungle — ${names} doit converger en moins de 2 secondes. Objectif : Lord dès le fight gagnant.`,
-    poke:    `Harcelez depuis une distance sûre avant chaque objectif. ${names} doit forcer les soins ennemis avant d'engager.`,
-    protect: `Protégez le Gold Lane carry en toute circonstance. Rotation Roam + Jungle autour du carry en late game.`,
-    split:   `Forcez des réponses sur deux lanes simultanément. Le jungler alterne pression et conteste objectif.`,
-    catch:   `Isolez les cibles déplacées. Utilisez les CC mono-cible pour éliminer un carry ennemi avant chaque fight.`,
+    engage:  `Initiez les fights avec ${roam} + ${jgl} — convergence en 2 secondes. Protégez ${gold} pendant le teamfight. Objectif : Lord après chaque fight gagné.`,
+    poke:    `Harcelez avec ${jgl} et le Mid avant chaque objectif. Forcez les soins ennemis, puis engagez quand ils sont à mi-vie.`,
+    protect: `Protégez ${gold} à tout prix. ${roam} + ${jgl} tournent autour du carry. Ne cherchez pas le fight — attendez le late.`,
+    split:   `${jgl} conteste les objectifs pendant que l'EXP crée de la pression side. Forcez 2 réponses ennemies simultanées.`,
+    catch:   `Isolez les cibles séparées avec ${jgl} et le Mid. CC mono-cible → burst → teamfight 5v4. Jamais de fight en plein milieu.`,
   };
   return conditions[archetype];
 }
@@ -81,91 +97,93 @@ export function generateArchetypeDrafts(
 ): GeneratedDraft[] {
   const lanes = ['EXP', 'Jungle', 'Mid', 'Gold', 'Roam'] as const;
 
-  // Score all heroes per lane
-  const laneTopHeroes: Record<string, HeroData[]> = {};
+  // ── Build candidate pool per lane (STRICT role filter) ──────────────────
+  const candidates: Record<string, HeroData[]> = {};
   for (const lane of lanes) {
-    laneTopHeroes[lane] = [...heroPool]
+    const required = LANE_STRICT_ROLES[lane] ?? [];
+    candidates[lane] = heroPool
       .filter((h) => !excludedIds.has(String(h.id)))
-      .sort((a, b) => scoreHeroForLaneArch(b, lane, archetype) - scoreHeroForLaneArch(a, lane, archetype))
-      .slice(0, 6);
+      .filter((h) => h.roles.some((r) => required.includes(r)))  // STRICT: role must match
+      .sort((a, b) => scoreHeroForSlot(b, lane, archetype) - scoreHeroForSlot(a, lane, archetype))
+      .slice(0, 8);
   }
 
-  // Build ban recommendations: heroes that counter our archetype OR are top-meta disruptors
+  // ── Build ban list ────────────────────────────────────────────────────────
+  // Heroes whose archetype beats ours (counter-drafters)
   const beatsUs = Object.entries(ARCHETYPE_BEATS)
     .filter(([, beats]) => beats.includes(archetype))
     .map(([arch]) => arch as DraftArchetype);
 
-  const banCandidates = [...heroPool]
+  const banCandidates = heroPool
     .filter((h) => !excludedIds.has(String(h.id)))
     .map((h) => {
-      const archScores = heroArchetypeScores(h);
-      const counterScore = beatsUs.reduce((sum, a) => sum + (archScores[a] ?? 0), 0) / Math.max(beatsUs.length, 1);
-      const metaScore = (h.winRate ?? 50) - 50;
-      return { hero: h, score: counterScore + metaScore * 0.3 };
+      const scores = heroArchetypeScores(h);
+      const counterStr = beatsUs.reduce((s, a) => s + (scores[a] ?? 0), 0) / Math.max(beatsUs.length, 1);
+      const metaBonus  = clamp((h.winRate ?? 0.50) - 0.50, 0, 0.10) * 20;
+      return { hero: h, score: counterStr + metaBonus };
     })
     .sort((a, b) => b.score - a.score)
-    .slice(0, 8);
+    .slice(0, 6);
 
-  const bans: GeneratedBan[] = banCandidates.slice(0, 6).map((c, i) => ({
-    hero: c.hero,
+  const bans: GeneratedBan[] = banCandidates.map((c, i) => ({
+    hero:     c.hero,
     priority: (i < 2 ? 'must-ban' : i < 4 ? 'high' : 'situational') as GeneratedBan['priority'],
-    reason: i < 2
-      ? `Contre directement votre stratégie ${ARCHETYPE_LABELS[archetype]} — ban obligatoire`
+    reason:   i < 2
+      ? `Contre directement votre ${ARCHETYPE_LABELS[archetype]} — ban obligatoire`
       : i < 4
-        ? `Héros meta qui peut perturber votre plan de jeu`
-        : `A bannir si l'ennemi semble vouloir le pick`,
+        ? `Meta solide qui peut répondre à votre stratégie`
+        : `Situationnel — à bannir si l'ennemi semble vouloir le pick`,
   }));
 
-  // Generate top 10 diverse drafts
+  // ── Generate up to 10 diverse valid compositions ──────────────────────────
   const drafts: GeneratedDraft[] = [];
-  const usedCombinations = new Set<string>();
+  const usedKeys = new Set<string>();
 
   outer:
-  for (let i = 0; i < 6; i++) {
-    for (let j = 0; j < 6; j++) {
-      for (let k = 0; k < 6; k++) {
-        for (let l = 0; l < 6; l++) {
-          for (let m = 0; m < 6; m++) {
+  for (let a = 0; a < 8; a++) {
+    for (let b = 0; b < 8; b++) {
+      for (let c = 0; c < 8; c++) {
+        for (let d = 0; d < 8; d++) {
+          for (let e = 0; e < 8; e++) {
             if (drafts.length >= 10) break outer;
 
-            const heroExp    = laneTopHeroes['EXP'][i];
-            const heroJgl    = laneTopHeroes['Jungle'][j];
-            const heroMid    = laneTopHeroes['Mid'][k];
-            const heroGold   = laneTopHeroes['Gold'][l];
-            const heroRoam   = laneTopHeroes['Roam'][m];
+            const heroEXP  = candidates['EXP'][a];
+            const heroJGL  = candidates['Jungle'][b];
+            const heroMid  = candidates['Mid'][c];
+            const heroGold = candidates['Gold'][d];
+            const heroRoam = candidates['Roam'][e];
 
-            if (!heroExp || !heroJgl || !heroMid || !heroGold || !heroRoam) continue;
+            if (!heroEXP || !heroJGL || !heroMid || !heroGold || !heroRoam) continue;
 
-            // No duplicate heroes
-            const ids = [heroExp.id, heroJgl.id, heroMid.id, heroGold.id, heroRoam.id];
+            // No duplicate heroes across lanes
+            const ids = [heroEXP.id, heroJGL.id, heroMid.id, heroGold.id, heroRoam.id];
             if (new Set(ids).size < 5) continue;
             const key = [...ids].sort().join(',');
-            if (usedCombinations.has(key)) continue;
-            usedCombinations.add(key);
+            if (usedKeys.has(key)) continue;
+            usedKeys.add(key);
 
+            const archScores = heroArchetypeScores;
             const slots: GeneratedDraftSlot[] = [
-              { lane: 'EXP',    hero: heroExp,  archetypeFit: Math.round(heroArchetypeScores(heroExp)[archetype]  * 10), role: heroExp.roles[0]  ?? '', why: buildWhy(heroExp,  'EXP',    archetype) },
-              { lane: 'Jungle', hero: heroJgl,  archetypeFit: Math.round(heroArchetypeScores(heroJgl)[archetype]  * 10), role: heroJgl.roles[0]  ?? '', why: buildWhy(heroJgl,  'Jungle', archetype) },
-              { lane: 'Mid',    hero: heroMid,  archetypeFit: Math.round(heroArchetypeScores(heroMid)[archetype]  * 10), role: heroMid.roles[0]  ?? '', why: buildWhy(heroMid,  'Mid',    archetype) },
-              { lane: 'Gold',   hero: heroGold, archetypeFit: Math.round(heroArchetypeScores(heroGold)[archetype] * 10), role: heroGold.roles[0] ?? '', why: buildWhy(heroGold, 'Gold',   archetype) },
-              { lane: 'Roam',   hero: heroRoam, archetypeFit: Math.round(heroArchetypeScores(heroRoam)[archetype] * 10), role: heroRoam.roles[0] ?? '', why: buildWhy(heroRoam, 'Roam',   archetype) },
+              { lane: 'EXP',    hero: heroEXP,  archetypeFit: clamp(Math.round(archScores(heroEXP)[archetype]  * 10), 0, 100), role: heroEXP.roles[0]  ?? '', why: buildWhy(heroEXP,  'EXP',    archetype) },
+              { lane: 'Jungle', hero: heroJGL,  archetypeFit: clamp(Math.round(archScores(heroJGL)[archetype]  * 10), 0, 100), role: heroJGL.roles[0]  ?? '', why: buildWhy(heroJGL,  'Jungle', archetype) },
+              { lane: 'Mid',    hero: heroMid,  archetypeFit: clamp(Math.round(archScores(heroMid)[archetype]  * 10), 0, 100), role: heroMid.roles[0]  ?? '', why: buildWhy(heroMid,  'Mid',    archetype) },
+              { lane: 'Gold',   hero: heroGold, archetypeFit: clamp(Math.round(archScores(heroGold)[archetype] * 10), 0, 100), role: heroGold.roles[0] ?? '', why: buildWhy(heroGold, 'Gold',   archetype) },
+              { lane: 'Roam',   hero: heroRoam, archetypeFit: clamp(Math.round(archScores(heroRoam)[archetype] * 10), 0, 100), role: heroRoam.roles[0] ?? '', why: buildWhy(heroRoam, 'Roam',   archetype) },
             ];
 
-            const teamScore = Math.round(slots.reduce((s, sl) => s + sl.archetypeFit, 0) / 5);
+            const teamScore = clamp(
+              Math.round(slots.reduce((s, sl) => s + scoreHeroForSlot(sl.hero, sl.lane, archetype), 0) / 5 * 100),
+              0, 100
+            );
 
-            drafts.push({
-              rank: drafts.length + 1,
-              slots,
-              bans,
-              teamScore,
-              winCondition: buildWinCondition(archetype, slots),
-              archetype,
-            });
+            drafts.push({ rank: drafts.length + 1, slots, bans, teamScore, winCondition: buildWinCondition(archetype, slots), archetype });
           }
         }
       }
     }
   }
 
-  return drafts.sort((a, b) => b.teamScore - a.teamScore).map((d, i) => ({ ...d, rank: i + 1 }));
+  return drafts
+    .sort((a, b) => b.teamScore - a.teamScore)
+    .map((d, i) => ({ ...d, rank: i + 1 }));
 }
