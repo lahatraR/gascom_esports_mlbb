@@ -637,11 +637,25 @@ function GeneratedDraftCard({
               {draft.slots.map((sl) => sl.hero.name).join(' · ')}
             </span>
           </div>
-          <div className="flex items-center gap-1.5 mt-0.5">
-            <div className="flex-1 max-w-24 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(40,40,60,0.8)' }}>
-              <div className="h-full rounded-full" style={{ width: `${draft.teamScore}%`, background: scoreColor }} />
+          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+            <div className="flex items-center gap-1.5">
+              <div className="flex-1 max-w-20 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(40,40,60,0.8)' }}>
+                <div className="h-full rounded-full" style={{ width: `${draft.teamScore}%`, background: scoreColor }} />
+              </div>
+              <span className="text-[9px] font-bold" style={{ color: scoreColor }}>{draft.teamScore}/100</span>
             </div>
-            <span className="text-[9px] font-bold" style={{ color: scoreColor }}>{draft.teamScore}/100</span>
+            {draft.synergyScore !== undefined && (
+              <span
+                className="text-[9px] px-1.5 py-0.5 rounded font-semibold"
+                style={{
+                  background: draft.synergyScore >= 60 ? 'rgba(74,222,128,0.15)' : 'rgba(100,100,130,0.2)',
+                  color:      draft.synergyScore >= 60 ? '#4ade80' : '#64748b',
+                  border:     `1px solid ${draft.synergyScore >= 60 ? 'rgba(74,222,128,0.3)' : 'rgba(100,100,130,0.2)'}`,
+                }}
+              >
+                🔗 synergie {draft.synergyScore}%
+              </span>
+            )}
           </div>
         </div>
 
