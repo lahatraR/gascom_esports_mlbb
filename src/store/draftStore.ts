@@ -2,7 +2,7 @@
 
 import { create } from 'zustand';
 import { HERO_STATS, getDefaultsForRoles, FALLBACK_HERO_NAMES } from '@/data/heroes';
-import type { HeroData, DraftAnalysis, GameMode, DraftTeam } from '@/types/draft';
+import type { HeroData, DraftAnalysis, GameMode, DraftTeam, DraftArchetype } from '@/types/draft';
 import { getDraftSequence, getBanCount } from '@/types/draft';
 import { runDraftAnalysis } from '@/engine/teamComparison';
 
@@ -68,13 +68,18 @@ interface DraftStore {
   search:      string;
   roleFilter:  string;
 
-  loadHeroPool:    () => Promise<void>;
-  selectHero:      (hero: HeroData) => void;
-  undoLastAction:  () => void;
-  resetDraft:      () => void;
-  setGameMode:     (mode: GameMode) => void;
-  setSearch:       (q: string) => void;
-  setRoleFilter:   (role: string) => void;
+  mySide:           'blue' | 'red' | null;
+  plannedArchetype: DraftArchetype | null;
+
+  loadHeroPool:        () => Promise<void>;
+  selectHero:          (hero: HeroData) => void;
+  undoLastAction:      () => void;
+  resetDraft:          () => void;
+  setGameMode:         (mode: GameMode) => void;
+  setSearch:           (q: string) => void;
+  setRoleFilter:       (role: string) => void;
+  setMySide:           (side: 'blue' | 'red') => void;
+  setPlannedArchetype: (arch: DraftArchetype | null) => void;
 }
 
 // ─── Analysis helper ──────────────────────────────────────────────────────────
@@ -115,6 +120,9 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
   analysis:    null,
   search:      '',
   roleFilter:  'All',
+
+  mySide:           null,
+  plannedArchetype: null,
 
   // ── Load hero pool ────────────────────────────────────────────────────────
   // Fetches heroes.json (generated at prebuild time by scripts/fetch-heroes.ts).
@@ -217,12 +225,14 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
   // ── Reset ─────────────────────────────────────────────────────────────────
   resetDraft: () => {
     const bans = getBanCount(get().gameMode);
-    set({ blueBans: makeSlots(bans), redBans: makeSlots(bans), bluePicks: makeSlots(5), redPicks: makeSlots(5), currentStep: 0, analysis: null });
+    set({ blueBans: makeSlots(bans), redBans: makeSlots(bans), bluePicks: makeSlots(5), redPicks: makeSlots(5), currentStep: 0, analysis: null, mySide: null, plannedArchetype: null });
   },
 
-  setGameMode:   (mode) => set({ gameMode: mode }),
-  setSearch:     (q)    => set({ search: q }),
-  setRoleFilter: (role) => set({ roleFilter: role }),
+  setGameMode:         (mode) => set({ gameMode: mode }),
+  setSearch:           (q)    => set({ search: q }),
+  setRoleFilter:       (role) => set({ roleFilter: role }),
+  setMySide:           (side) => set({ mySide: side }),
+  setPlannedArchetype: (arch) => set({ plannedArchetype: arch }),
 }));
 
 // ─── Derived selectors ────────────────────────────────────────────────────────

@@ -11,6 +11,8 @@ import {
   ARCHETYPE_ICON,
   ARCHETYPE_CLASSES,
 } from '@/engine/archetypeEngine';
+import { generateArchetypeDrafts } from '@/engine/archetypeDraftGenerator';
+import type { GeneratedDraft, GeneratedDraftSlot, GeneratedBan } from '@/engine/archetypeDraftGenerator';
 
 // ─── Visual config per archetype ─────────────────────────────────────────────
 
@@ -575,10 +577,221 @@ function LiveStrategy({
   );
 }
 
+// ─── Generated Draft Panel ────────────────────────────────────────────────────
+
+const LANE_ICON_GEN: Record<string, string> = {
+  EXP: '⚡', Jungle: '🌿', Mid: '🔮', Gold: '💰', Roam: '🛡',
+};
+
+const BAN_PRIORITY_COLOR: Record<GeneratedBan['priority'], string> = {
+  'must-ban':   '#f87171',
+  'high':       '#fb923c',
+  'situational':'#facc15',
+};
+
+const BAN_PRIORITY_LABEL: Record<GeneratedBan['priority'], string> = {
+  'must-ban':   'BAN OBLIGATOIRE',
+  'high':       'PRIORITAIRE',
+  'situational':'SITUATIONNEL',
+};
+
+function GeneratedDraftCard({
+  draft,
+  isExpanded,
+  onToggle,
+  heroMap,
+}: {
+  draft:      GeneratedDraft;
+  isExpanded: boolean;
+  onToggle:   () => void;
+  heroMap:    Map<string, HeroData>;
+}) {
+  const s = ARCHETYPE_STYLE[draft.archetype];
+  const scoreColor = draft.teamScore >= 70 ? '#4ade80' : draft.teamScore >= 50 ? '#facc15' : '#f87171';
+
+  return (
+    <div
+      className="rounded-xl border overflow-hidden transition-all duration-300"
+      style={{
+        background:  draft.rank === 1 ? s.bg : 'rgba(8,8,14,0.92)',
+        borderColor: draft.rank === 1 ? s.border : isExpanded ? 'rgba(80,80,110,0.55)' : 'rgba(38,38,58,0.60)',
+        boxShadow:   draft.rank === 1 ? `0 0 22px ${s.glow}` : 'none',
+      }}
+    >
+      {/* Header */}
+      <button className="w-full flex items-center gap-3 px-3 py-2.5 text-left" onClick={onToggle}>
+        {/* Rank badge */}
+        <span
+          className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-black"
+          style={{
+            background: draft.rank === 1 ? s.border : 'rgba(50,50,70,0.8)',
+            color: draft.rank === 1 ? '#fff' : 'rgba(160,160,190,0.9)',
+          }}
+        >
+          #{draft.rank}
+        </span>
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-bold text-sm text-white leading-none">
+              {draft.slots.map((sl) => sl.hero.name).join(' · ')}
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <div className="flex-1 max-w-24 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(40,40,60,0.8)' }}>
+              <div className="h-full rounded-full" style={{ width: `${draft.teamScore}%`, background: scoreColor }} />
+            </div>
+            <span className="text-[9px] font-bold" style={{ color: scoreColor }}>{draft.teamScore}/100</span>
+          </div>
+        </div>
+
+        <span
+          className="shrink-0 text-slate-500 text-xs transition-transform duration-200"
+          style={{ transform: isExpanded ? 'rotate(180deg)' : 'none' }}
+        >
+          ▾
+        </span>
+      </button>
+
+      {/* Expanded */}
+      {isExpanded && (
+        <div className="border-t flex flex-col gap-4 px-3 pb-4 pt-3" style={{ borderColor: 'rgba(50,50,70,0.40)' }}>
+          {/* Lane slots */}
+          <Section title="Composition par Lane">
+            <div className="flex flex-col gap-2.5">
+              {draft.slots.map((slot: GeneratedDraftSlot) => {
+                const key  = slot.hero.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+                const hero = heroMap.get(key);
+                const fitColor = slot.archetypeFit >= 70 ? '#4ade80' : slot.archetypeFit >= 50 ? '#facc15' : '#f87171';
+                return (
+                  <div key={slot.lane} className="flex gap-2 items-start">
+                    <div className="shrink-0 flex flex-col items-center gap-0.5 pt-0.5" style={{ minWidth: 36 }}>
+                      <span className="text-sm leading-none">{LANE_ICON_GEN[slot.lane] ?? '•'}</span>
+                      <span className="text-[8px] tracking-wide" style={{ color: 'rgba(100,120,160,0.80)' }}>{slot.lane}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {/* Portrait */}
+                        <div className="rounded overflow-hidden shrink-0 border border-slate-700/40" style={{ width: 28, height: 32 }}>
+                          {hero?.image ? (
+                            <img src={hero.image} alt={slot.hero.name} className="w-full h-full object-cover object-top" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-[9px] font-bold text-slate-400 bg-slate-800/70">
+                              {slot.hero.name.charAt(0)}
+                            </div>
+                          )}
+                        </div>
+                        <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded" style={{ background: 'rgba(255,255,255,0.07)', color: '#e2e8f0' }}>
+                          {slot.hero.name}
+                        </span>
+                        <span className="text-[9px] font-bold px-1 py-0.5 rounded" style={{ color: fitColor, background: `${fitColor}22`, border: `1px solid ${fitColor}40` }}>
+                          {slot.archetypeFit}%
+                        </span>
+                      </div>
+                      <p className="text-[10px] mt-0.5 leading-snug" style={{ color: 'rgba(100,110,130,0.90)' }}>{slot.why}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </Section>
+
+          {/* Bans */}
+          <Section title="Bans Recommandés">
+            <div className="flex flex-col gap-2">
+              {draft.bans.map((ban: GeneratedBan, i: number) => {
+                const banColor = BAN_PRIORITY_COLOR[ban.priority];
+                const banKey = ban.hero.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+                const banHero = heroMap.get(banKey);
+                return (
+                  <div key={i} className="flex items-start gap-2">
+                    <span
+                      className="shrink-0 text-[8px] font-bold px-1.5 py-0.5 rounded-full tracking-wide whitespace-nowrap"
+                      style={{ background: `${banColor}22`, color: banColor, border: `1px solid ${banColor}40` }}
+                    >
+                      {BAN_PRIORITY_LABEL[ban.priority]}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        {banHero?.image && (
+                          <div className="rounded overflow-hidden shrink-0" style={{ width: 20, height: 23 }}>
+                            <img src={banHero.image} alt={ban.hero.name} className="w-full h-full object-cover object-top" />
+                          </div>
+                        )}
+                        <span className="font-semibold text-[11px] text-slate-200">{ban.hero.name}</span>
+                      </div>
+                      <p className="text-[10px] leading-snug" style={{ color: 'rgba(100,110,130,0.90)' }}>{ban.reason}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </Section>
+
+          {/* Win condition */}
+          <Section title="Condition de Victoire">
+            <p className="text-[11px] text-slate-300 leading-relaxed">{draft.winCondition}</p>
+          </Section>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function GeneratedDraftView({
+  drafts,
+  heroMap,
+}: {
+  drafts:  GeneratedDraft[];
+  heroMap: Map<string, HeroData>;
+}) {
+  const [expandedRank, setExpandedRank] = useState<number>(1);
+
+  if (drafts.length === 0) {
+    return (
+      <div
+        className="rounded-xl border p-4 flex flex-col items-center justify-center gap-2 min-h-28"
+        style={{ background: 'rgba(5,5,12,0.85)', borderColor: 'rgba(60,60,80,0.35)' }}
+      >
+        <span className="text-2xl">⚙️</span>
+        <p className="text-slate-500 text-xs text-center">Génération des compositions en cours…</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center gap-2 mb-1">
+        <span className="text-[9px] font-bold text-slate-500 tracking-[0.15em] uppercase shrink-0">
+          Top {drafts.length} compositions générées
+        </span>
+        <div className="flex-1 h-px" style={{ background: 'rgba(60,60,80,0.45)' }} />
+      </div>
+      {drafts.map((draft) => (
+        <GeneratedDraftCard
+          key={draft.rank}
+          draft={draft}
+          isExpanded={expandedRank === draft.rank}
+          onToggle={() => setExpandedRank(expandedRank === draft.rank ? -1 : draft.rank)}
+          heroMap={heroMap}
+        />
+      ))}
+    </div>
+  );
+}
+
 // ─── Main StrategyPanel ────────────────────────────────────────────────────────
 
 export function StrategyPanel() {
-  const { bluePicks, redPicks, blueBans, redBans, heroPool, analysis, currentStep, gameMode } = useDraftStore();
+  const heroPool         = useDraftStore((s) => s.heroPool);
+  const plannedArchetype = useDraftStore((s) => s.plannedArchetype);
+  const blueBans         = useDraftStore((s) => s.blueBans);
+  const redBans          = useDraftStore((s) => s.redBans);
+  const bluePicks        = useDraftStore((s) => s.bluePicks);
+  const redPicks         = useDraftStore((s) => s.redPicks);
+  const analysis         = useDraftStore((s) => s.analysis);
+  const currentStep      = useDraftStore((s) => s.currentStep);
+  const gameMode         = useDraftStore((s) => s.gameMode);
   const [expandedId,    setExpandedId]    = useState<string | null>(null);
   const [showTemplates, setShowTemplates] = useState(false);
 
@@ -609,6 +822,19 @@ export function StrategyPanel() {
     [...bluePicks, ...redPicks].forEach((h) => { if (h) s.add(h.name); });
     return s;
   }, [bluePicks, redPicks]);
+
+  // Excluded hero IDs (banned + picked) for the generator
+  const excludedSet = useMemo(() => {
+    const s = new Set<string>();
+    [...blueBans, ...redBans, ...bluePicks, ...redPicks].forEach((h) => { if (h) s.add(String(h.id)); });
+    return s;
+  }, [blueBans, redBans, bluePicks, redPicks]);
+
+  // Generated drafts when a planned archetype is set
+  const generatedDrafts = useMemo(() => {
+    if (!plannedArchetype) return [];
+    return generateArchetypeDrafts(plannedArchetype, heroPool, excludedSet);
+  }, [plannedArchetype, heroPool, excludedSet]);
 
   // Recommended template: one that counters enemy archetype or best fits ally picks
   const enemyArchetype = allyTeam === 'blue' ? analysis?.redArchetype : analysis?.blueArchetype;
@@ -645,40 +871,60 @@ export function StrategyPanel() {
         </div>
       </div>
 
-      {/* ── TEMPLATES DE RÉFÉRENCE (collapsible) ── */}
-      <div>
-        <button
-          onClick={() => setShowTemplates((v) => !v)}
-          className="w-full flex items-center gap-2 px-3 py-2 rounded-xl border transition-all"
-          style={{
-            background:  showTemplates ? 'rgba(20,20,35,0.85)' : 'rgba(10,10,18,0.75)',
-            borderColor: 'rgba(60,60,80,0.40)',
-          }}
+      {/* ── GENERATED DRAFTS (when planned archetype is set) or TEMPLATES DE RÉFÉRENCE ── */}
+      {plannedArchetype ? (
+        <div
+          className="rounded-xl border overflow-hidden"
+          style={{ background: 'rgba(5,5,12,0.92)', borderColor: 'rgba(124,26,15,0.45)' }}
         >
-          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-            📋 Templates de référence
-          </span>
-          <div className="flex-1 h-px" style={{ background: 'rgba(60,60,80,0.35)' }} />
-          <span className="text-[9px] text-slate-600">{showTemplates ? '▲ masquer' : '▼ afficher'}</span>
-        </button>
-
-        {showTemplates && (
-          <div className="mt-2 flex flex-col gap-2">
-            {sortedTemplates.map((template, i) => (
-              <TemplateCard
-                key={template.archetype}
-                template={template}
-                isRecommended={i === 0 && !!recommendedArchetype}
-                isExpanded={expandedId === template.archetype}
-                onToggle={() => setExpandedId(expandedId === template.archetype ? null : template.archetype)}
-                bannedNames={bannedNames}
-                pickedNames={pickedNames}
-                heroMap={heroMap}
-              />
-            ))}
+          <div
+            className="px-3 py-2 border-b flex items-center gap-2"
+            style={{ background: 'rgba(124,26,15,0.12)', borderColor: 'rgba(124,26,15,0.35)' }}
+          >
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-200">
+              {ARCHETYPE_ICON[plannedArchetype]} Compositions {ARCHETYPE_LABELS[plannedArchetype]} générées
+            </span>
+            <span className="text-[9px] text-slate-600">· top {generatedDrafts.length}</span>
           </div>
-        )}
-      </div>
+          <div className="p-3">
+            <GeneratedDraftView drafts={generatedDrafts} heroMap={heroMap} />
+          </div>
+        </div>
+      ) : (
+        <div>
+          <button
+            onClick={() => setShowTemplates((v) => !v)}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-xl border transition-all"
+            style={{
+              background:  showTemplates ? 'rgba(20,20,35,0.85)' : 'rgba(10,10,18,0.75)',
+              borderColor: 'rgba(60,60,80,0.40)',
+            }}
+          >
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              📋 Templates de référence
+            </span>
+            <div className="flex-1 h-px" style={{ background: 'rgba(60,60,80,0.35)' }} />
+            <span className="text-[9px] text-slate-600">{showTemplates ? '▲ masquer' : '▼ afficher'}</span>
+          </button>
+
+          {showTemplates && (
+            <div className="mt-2 flex flex-col gap-2">
+              {sortedTemplates.map((template, i) => (
+                <TemplateCard
+                  key={template.archetype}
+                  template={template}
+                  isRecommended={i === 0 && !!recommendedArchetype}
+                  isExpanded={expandedId === template.archetype}
+                  onToggle={() => setExpandedId(expandedId === template.archetype ? null : template.archetype)}
+                  bannedNames={bannedNames}
+                  pickedNames={pickedNames}
+                  heroMap={heroMap}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

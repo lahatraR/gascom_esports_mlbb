@@ -5,6 +5,7 @@ import clsx from 'clsx';
 import { useDraftStore } from '@/store/draftStore';
 import { getDraftSequence } from '@/types/draft';
 import type { DraftSuggestion, ArchetypeResult } from '@/types/draft';
+import { getTournamentPickTip, PICK_ORDER_TIPS } from '@/data/pickOrderGuide';
 import { HeroCard } from '@/components/ui/HeroCard';
 
 const ARCH_LABEL: Record<string, string> = {
@@ -233,6 +234,7 @@ export function HeroSelector() {
   const redPicks    = useDraftStore((s) => s.redPicks);
   const analysis    = useDraftStore((s) => s.analysis);
   const gameMode    = useDraftStore((s) => s.gameMode);
+  const mySide      = useDraftStore((s) => s.mySide);
   const setSearch       = useDraftStore((s) => s.setSearch);
   const setRoleFilter   = useDraftStore((s) => s.setRoleFilter);
   const selectHero      = useDraftStore((s) => s.selectHero);
@@ -258,6 +260,25 @@ export function HeroSelector() {
     const covered = new Set(picks.flatMap((h) => h!.roles));
     return ROLE_PRIORITY.find((r) => !covered.has(r)) ?? null;
   }, [activeStep, bluePicks, redPicks]);
+
+  // Pick order tip — tournament mode only
+  const myPickNumber = useMemo(() => {
+    if (gameMode !== 'tournament' || !activeStep || !isPickPhase) return null;
+    const seq = getDraftSequence('tournament');
+    let count = 0;
+    for (let i = 0; i < currentStep; i++) {
+      if (seq[i].action === 'pick' && seq[i].team === activeStep.team) count++;
+    }
+    return count + 1; // 1-indexed
+  }, [gameMode, activeStep, currentStep, isPickPhase]);
+
+  const pickTipKey = gameMode === 'tournament' && isPickPhase && myPickNumber !== null && activeStep
+    ? getTournamentPickTip(myPickNumber, activeStep.team)
+    : null;
+  const pickTip = pickTipKey ? PICK_ORDER_TIPS[pickTipKey] : null;
+
+  // Suppress unused variable warning when mySide is read but not directly rendered
+  void mySide;
 
   const filteredHeroes = useMemo(() => {
     const q = search.toLowerCase();
@@ -314,6 +335,21 @@ export function HeroSelector() {
       {isDone && (
         <div className="flex items-center justify-center py-2 rounded-lg border border-yellow-500/30 bg-yellow-950/30 text-yellow-300 font-bold tracking-widest text-sm">
           ✓ DRAFT TERMINÉ
+        </div>
+      )}
+
+      {/* ── Pick order tip — tournament mode only ── */}
+      {pickTip && (
+        <div className="rounded-lg border px-3 py-2" style={{ background: 'rgba(30,20,5,0.85)', borderColor: 'rgba(234,179,8,0.30)' }}>
+          <p className="text-[10px] font-bold text-yellow-400 mb-1">{pickTip.title}</p>
+          <ul className="space-y-0.5">
+            {pickTip.advice.map((a, i) => (
+              <li key={i} className="text-[9px] text-slate-400 flex gap-1.5">
+                <span className="text-yellow-600 shrink-0">›</span>
+                {a}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 

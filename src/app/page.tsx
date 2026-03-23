@@ -5,7 +5,14 @@ import Image from 'next/image';
 import dynamic from 'next/dynamic';
 import clsx from 'clsx';
 import { useDraftStore } from '@/store/draftStore';
-import type { GameMode } from '@/types/draft';
+import type { GameMode, DraftArchetype } from '@/types/draft';
+import {
+  ARCHETYPE_ICON,
+  ARCHETYPE_LABELS,
+  ARCHETYPE_DESCRIPTION,
+  ARCHETYPE_BEATS,
+  ARCHETYPE_LOSES_TO,
+} from '@/engine/archetypeEngine';
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
 
@@ -119,26 +126,43 @@ function Background() {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function Home() {
-  const loadHeroPool   = useDraftStore((s) => s.loadHeroPool);
-  const resetDraft     = useDraftStore((s) => s.resetDraft);
-  const undoLastAction = useDraftStore((s) => s.undoLastAction);
-  const setGameMode    = useDraftStore((s) => s.setGameMode);
-  const gameMode       = useDraftStore((s) => s.gameMode);
-  const isLoading      = useDraftStore((s) => s.isLoadingPool);
-  const poolError      = useDraftStore((s) => s.poolError);
-  const currentStep    = useDraftStore((s) => s.currentStep);
-  const heroPoolLen    = useDraftStore((s) => s.heroPool.length);
+  const loadHeroPool        = useDraftStore((s) => s.loadHeroPool);
+  const resetDraft          = useDraftStore((s) => s.resetDraft);
+  const undoLastAction      = useDraftStore((s) => s.undoLastAction);
+  const setGameMode         = useDraftStore((s) => s.setGameMode);
+  const gameMode            = useDraftStore((s) => s.gameMode);
+  const isLoading           = useDraftStore((s) => s.isLoadingPool);
+  const poolError           = useDraftStore((s) => s.poolError);
+  const currentStep         = useDraftStore((s) => s.currentStep);
+  const heroPoolLen         = useDraftStore((s) => s.heroPool.length);
+  const setMySide           = useDraftStore((s) => s.setMySide);
+  const setPlannedArchetype = useDraftStore((s) => s.setPlannedArchetype);
+  const mySide              = useDraftStore((s) => s.mySide);
 
-  const [phase, setPhase]         = useState<'lobby' | 'draft'>('lobby');
+  const [phase, setPhase]               = useState<'lobby' | 'side-select' | 'strategy-intent' | 'archetype-select' | 'draft'>('lobby');
   const [confirmReset, setConfirmReset] = useState(false);
-  // Track hovered card for imperative styles
-  const [hoveredMode, setHoveredMode] = useState<GameMode | null>(null);
+  const [hoveredMode, setHoveredMode]   = useState<GameMode | null>(null);
 
   useEffect(() => { loadHeroPool(); }, [loadHeroPool]);
 
   function handleSelectMode(mode: GameMode) {
     setGameMode(mode);
     resetDraft();
+    setPhase('side-select');
+  }
+
+  function handleSelectSide(side: 'blue' | 'red') {
+    setMySide(side);
+    setPhase('strategy-intent');
+  }
+
+  function handleStrategyIntent(hasPlan: boolean) {
+    if (hasPlan) setPhase('archetype-select');
+    else setPhase('draft');
+  }
+
+  function handleSelectArchetype(arch: DraftArchetype) {
+    setPlannedArchetype(arch);
     setPhase('draft');
   }
 
@@ -394,6 +418,271 @@ export default function Home() {
           >
             Data: mlbb-stats.rone.dev · Tier list: @gosugamersmlbb
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  // ── SIDE SELECT SCREEN ───────────────────────────────────────────────────────
+  if (phase === 'side-select') {
+    const sides = [
+      {
+        value: 'blue' as const,
+        label: 'BLUE SIDE',
+        emoji: '🔵',
+        sub: 'Premier Pick · Imposez votre stratégie',
+        accent: 'rgba(59,130,246,0.70)',
+        bg: 'rgba(30,58,138,0.22)',
+        border: 'rgba(59,130,246,0.50)',
+        glow: 'rgba(59,130,246,0.25)',
+        bullets: [
+          'Vous choisissez le premier héros — imposez votre archetype.',
+          'Vous contrôlez le rythme global de la draft.',
+          'Vos picks 4-5 sont les plus puissants (position de double-contre).',
+          'Idéal si votre équipe a des picks haute priorité à sécuriser.',
+        ],
+      },
+      {
+        value: 'red' as const,
+        label: 'RED SIDE',
+        emoji: '🔴',
+        sub: 'Second Pick · Lisez et contre-draftez',
+        accent: 'rgba(239,68,68,0.70)',
+        bg: 'rgba(127,29,29,0.22)',
+        border: 'rgba(239,68,68,0.50)',
+        glow: 'rgba(239,68,68,0.25)',
+        bullets: [
+          'Vous répondez au premier pick blue — avantage de lecture.',
+          'Deux picks consécutifs en phase 1 pour construire une synergie rapide.',
+          'Le 3e pick red est la position de contre la plus forte de la draft.',
+          'Idéal si votre équipe est forte en adaptabilité et en contre-draft.',
+        ],
+      },
+    ];
+    return (
+      <div className="min-h-screen flex flex-col" style={{ background: '#030304' }}>
+        <Background />
+        <div className="relative z-10 flex flex-col flex-1 min-h-screen items-center justify-center px-4 py-10">
+          {/* Brand */}
+          <div className="flex flex-col items-center text-center mb-8">
+            <div style={{ filter: 'drop-shadow(0 0 20px rgba(200,50,22,0.8))' }}>
+              <Image src={`${BASE}/ges-logo.png`} alt="GES" width={90} height={106}
+                className="object-contain" style={{ width: 'clamp(64px, 10vw, 90px)', height: 'auto' }} priority />
+            </div>
+            <h2 className="font-display text-white tracking-[0.18em] mt-4" style={{ fontSize: 'clamp(18px, 3.5vw, 28px)' }}>
+              De quel côté jouez-vous ?
+            </h2>
+            <div className="my-2" style={{ height: 1, width: 80, background: 'linear-gradient(to right, transparent, #7c1a0f, transparent)' }} />
+            <p className="text-xs text-slate-500 tracking-wider">Mode : {MODE_LABEL[gameMode]}</p>
+          </div>
+
+          {/* Side cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 w-full max-w-2xl">
+            {sides.map((side) => (
+              <button
+                key={side.value}
+                onClick={() => handleSelectSide(side.value)}
+                className="group flex flex-col rounded-2xl border text-left cursor-pointer transition-all duration-300 overflow-hidden hover:scale-[1.02]"
+                style={{
+                  background: side.bg,
+                  borderColor: side.border,
+                  boxShadow: `0 0 32px ${side.glow}`,
+                  padding: 'clamp(20px, 3vw, 32px)',
+                }}
+              >
+                <div className="flex items-center gap-3 mb-4">
+                  <span style={{ fontSize: '2rem' }}>{side.emoji}</span>
+                  <div>
+                    <div className="font-display tracking-[0.18em] text-white" style={{ fontSize: 'clamp(15px, 2.5vw, 20px)' }}>
+                      {side.label}
+                    </div>
+                    <div className="text-[10px] font-medium tracking-wider mt-0.5" style={{ color: side.accent }}>
+                      {side.sub}
+                    </div>
+                  </div>
+                </div>
+                <ul className="space-y-2">
+                  {side.bullets.map((b, i) => (
+                    <li key={i} className="flex items-start gap-2 text-[11px] text-slate-400">
+                      <span className="shrink-0 mt-0.5" style={{ color: side.accent }}>›</span>
+                      {b}
+                    </li>
+                  ))}
+                </ul>
+                <div
+                  className="mt-5 self-end px-4 py-1.5 rounded-full font-bold tracking-widest text-[10px] transition-all duration-300"
+                  style={{ background: side.border, color: '#fff' }}
+                >
+                  CHOISIR →
+                </div>
+              </button>
+            ))}
+          </div>
+
+          {/* Back */}
+          <button
+            onClick={() => setPhase('lobby')}
+            className="mt-8 text-[11px] text-slate-500 hover:text-slate-300 transition-colors tracking-wider"
+          >
+            ← Retour au choix du mode
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── STRATEGY INTENT SCREEN ───────────────────────────────────────────────────
+  if (phase === 'strategy-intent') {
+    const sideBadgeColor = mySide === 'blue' ? 'rgba(59,130,246,0.7)' : 'rgba(239,68,68,0.7)';
+    const sideBadgeBg    = mySide === 'blue' ? 'rgba(30,58,138,0.35)' : 'rgba(127,29,29,0.35)';
+    const sideLabel      = mySide === 'blue' ? '🔵 Blue Side' : '🔴 Red Side';
+
+    return (
+      <div className="min-h-screen flex flex-col" style={{ background: '#030304' }}>
+        <Background />
+        <div className="relative z-10 flex flex-col flex-1 min-h-screen items-center justify-center px-4 py-10">
+          <div className="flex flex-col items-center text-center mb-8">
+            <div style={{ filter: 'drop-shadow(0 0 20px rgba(200,50,22,0.8))' }}>
+              <Image src={`${BASE}/ges-logo.png`} alt="GES" width={90} height={106}
+                className="object-contain" style={{ width: 'clamp(64px, 10vw, 90px)', height: 'auto' }} priority />
+            </div>
+            {/* Side badge */}
+            <span
+              className="mt-4 px-3 py-1 rounded-full text-[10px] font-bold tracking-widest"
+              style={{ background: sideBadgeBg, color: sideBadgeColor, border: `1px solid ${sideBadgeColor}` }}
+            >
+              {sideLabel}
+            </span>
+            <h2 className="font-display text-white tracking-[0.18em] mt-4" style={{ fontSize: 'clamp(16px, 3vw, 26px)' }}>
+              Avez-vous déjà une stratégie en tête ?
+            </h2>
+            <div className="my-2" style={{ height: 1, width: 80, background: 'linear-gradient(to right, transparent, #7c1a0f, transparent)' }} />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 w-full max-w-xl">
+            {/* OUI */}
+            <button
+              onClick={() => handleStrategyIntent(true)}
+              className="flex flex-col items-center rounded-2xl border cursor-pointer transition-all duration-300 hover:scale-[1.02]"
+              style={{
+                background: 'rgba(20,40,20,0.35)',
+                borderColor: 'rgba(74,222,128,0.45)',
+                boxShadow: '0 0 24px rgba(74,222,128,0.12)',
+                padding: 'clamp(24px,3vw,36px)',
+              }}
+            >
+              <span style={{ fontSize: '2.5rem' }}>✅</span>
+              <span className="font-display tracking-widest text-white mt-3" style={{ fontSize: 'clamp(14px,2.2vw,18px)' }}>
+                OUI, j&apos;ai un plan
+              </span>
+              <p className="text-[11px] text-slate-400 mt-2 text-center leading-relaxed">
+                Choisissez un archetype de composition. On génère les 10 meilleures drafts pour vous.
+              </p>
+            </button>
+
+            {/* NON */}
+            <button
+              onClick={() => handleStrategyIntent(false)}
+              className="flex flex-col items-center rounded-2xl border cursor-pointer transition-all duration-300 hover:scale-[1.02]"
+              style={{
+                background: 'rgba(15,10,30,0.35)',
+                borderColor: 'rgba(124,26,15,0.45)',
+                boxShadow: '0 0 24px rgba(124,26,15,0.12)',
+                padding: 'clamp(24px,3vw,36px)',
+              }}
+            >
+              <span style={{ fontSize: '2.5rem' }}>🎲</span>
+              <span className="font-display tracking-widest text-white mt-3" style={{ fontSize: 'clamp(14px,2.2vw,18px)' }}>
+                NON, draft libre
+              </span>
+              <p className="text-[11px] text-slate-400 mt-2 text-center leading-relaxed">
+                Partez sans plan fixe. L&apos;IA adapte ses suggestions en temps réel selon la draft ennemie.
+              </p>
+            </button>
+          </div>
+
+          <button
+            onClick={() => setPhase('side-select')}
+            className="mt-8 text-[11px] text-slate-500 hover:text-slate-300 transition-colors tracking-wider"
+          >
+            ← Retour au choix du côté
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── ARCHETYPE SELECT SCREEN ──────────────────────────────────────────────────
+  if (phase === 'archetype-select') {
+    const archetypes: DraftArchetype[] = ['engage', 'poke', 'protect', 'split', 'catch'];
+    const ARCH_ACCENT: Record<DraftArchetype, { bg: string; border: string; glow: string; text: string }> = {
+      engage:  { bg: 'rgba(234,88,12,0.14)',  border: 'rgba(234,88,12,0.55)',  glow: 'rgba(234,88,12,0.18)',  text: '#fb923c' },
+      poke:    { bg: 'rgba(139,92,246,0.14)', border: 'rgba(139,92,246,0.55)', glow: 'rgba(139,92,246,0.18)', text: '#a78bfa' },
+      protect: { bg: 'rgba(20,184,166,0.14)', border: 'rgba(20,184,166,0.55)', glow: 'rgba(20,184,166,0.18)', text: '#2dd4bf' },
+      split:   { bg: 'rgba(234,179,8,0.14)',  border: 'rgba(234,179,8,0.55)',  glow: 'rgba(234,179,8,0.18)',  text: '#facc15' },
+      catch:   { bg: 'rgba(239,68,68,0.14)',  border: 'rgba(239,68,68,0.55)',  glow: 'rgba(239,68,68,0.18)',  text: '#f87171' },
+    };
+    return (
+      <div className="min-h-screen flex flex-col" style={{ background: '#030304' }}>
+        <Background />
+        <div className="relative z-10 flex flex-col flex-1 min-h-screen items-center justify-center px-4 py-10">
+          <div className="flex flex-col items-center text-center mb-8">
+            <div style={{ filter: 'drop-shadow(0 0 20px rgba(200,50,22,0.8))' }}>
+              <Image src={`${BASE}/ges-logo.png`} alt="GES" width={90} height={106}
+                className="object-contain" style={{ width: 'clamp(64px, 10vw, 90px)', height: 'auto' }} priority />
+            </div>
+            <h2 className="font-display text-white tracking-[0.18em] mt-4" style={{ fontSize: 'clamp(15px, 2.8vw, 24px)' }}>
+              Quelle composition voulez-vous jouer ?
+            </h2>
+            <div className="my-2" style={{ height: 1, width: 80, background: 'linear-gradient(to right, transparent, #7c1a0f, transparent)' }} />
+            <p className="text-[11px] text-slate-500 tracking-wider">Les 10 meilleures drafts seront générées selon votre choix</p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 w-full max-w-3xl">
+            {archetypes.map((arch) => {
+              const ac    = ARCH_ACCENT[arch];
+              const beats = ARCHETYPE_BEATS[arch].map((a) => ARCHETYPE_LABELS[a]).join(', ');
+              const loses = ARCHETYPE_LOSES_TO[arch].map((a) => ARCHETYPE_LABELS[a]).join(', ');
+              return (
+                <button
+                  key={arch}
+                  onClick={() => handleSelectArchetype(arch)}
+                  className="flex flex-col rounded-2xl border text-left cursor-pointer transition-all duration-300 hover:scale-[1.02]"
+                  style={{
+                    background: ac.bg,
+                    borderColor: ac.border,
+                    boxShadow: `0 0 24px ${ac.glow}`,
+                    padding: 'clamp(16px,2.5vw,24px)',
+                  }}
+                >
+                  <div className="flex items-center gap-3 mb-3">
+                    <span style={{ fontSize: '1.8rem' }}>{ARCHETYPE_ICON[arch]}</span>
+                    <span className="font-display tracking-[0.15em] text-white" style={{ fontSize: 'clamp(13px,2vw,17px)' }}>
+                      {ARCHETYPE_LABELS[arch]}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 leading-relaxed mb-3">
+                    {ARCHETYPE_DESCRIPTION[arch]}
+                  </p>
+                  <div className="flex flex-col gap-1 mt-auto">
+                    <span className="text-[9px] font-bold" style={{ color: '#4ade80' }}>
+                      ✓ Bat : {beats}
+                    </span>
+                    <span className="text-[9px] font-bold" style={{ color: '#f87171' }}>
+                      ✗ Perdu contre : {loses}
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          <button
+            onClick={() => setPhase('strategy-intent')}
+            className="mt-8 text-[11px] text-slate-500 hover:text-slate-300 transition-colors tracking-wider"
+          >
+            ← Retour
+          </button>
         </div>
       </div>
     );
