@@ -3,7 +3,7 @@
 import { useMemo } from 'react';
 import clsx from 'clsx';
 import { useDraftStore } from '@/store/draftStore';
-import { DRAFT_SEQUENCE } from '@/types/draft';
+import { getDraftSequence } from '@/types/draft';
 import type { DraftSuggestion, ArchetypeResult } from '@/types/draft';
 import { HeroCard } from '@/components/ui/HeroCard';
 
@@ -224,12 +224,14 @@ export function HeroSelector() {
   const bluePicks   = useDraftStore((s) => s.bluePicks);
   const redPicks    = useDraftStore((s) => s.redPicks);
   const analysis    = useDraftStore((s) => s.analysis);
+  const gameMode    = useDraftStore((s) => s.gameMode);
   const setSearch     = useDraftStore((s) => s.setSearch);
   const setRoleFilter = useDraftStore((s) => s.setRoleFilter);
   const selectHero    = useDraftStore((s) => s.selectHero);
 
-  const isDone      = currentStep >= DRAFT_SEQUENCE.length;
-  const activeStep  = isDone ? null : DRAFT_SEQUENCE[currentStep];
+  const sequence    = getDraftSequence(gameMode);
+  const isDone      = currentStep >= sequence.length;
+  const activeStep  = isDone ? null : sequence[currentStep];
   const isBan       = activeStep?.action === 'ban';
   const isPickPhase = activeStep?.action === 'pick';
   const isBlue      = activeStep?.team === 'blue';
