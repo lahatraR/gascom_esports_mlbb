@@ -4,8 +4,22 @@ import { useMemo } from 'react';
 import clsx from 'clsx';
 import { useDraftStore } from '@/store/draftStore';
 import { DRAFT_SEQUENCE } from '@/types/draft';
-import type { DraftSuggestion } from '@/types/draft';
+import type { DraftSuggestion, ArchetypeResult } from '@/types/draft';
 import { HeroCard } from '@/components/ui/HeroCard';
+
+const ARCH_LABEL: Record<string, string> = {
+  engage: 'Engage', poke: 'Poke', protect: 'Protect', split: 'Split Push', catch: 'Catch',
+};
+const ARCH_COLOR: Record<string, string> = {
+  engage: '#fb923c', poke: '#a78bfa', protect: '#2dd4bf', split: '#facc15', catch: '#f87171',
+};
+const ARCH_COUNTER_HINT: Record<string, string> = {
+  engage:  'Poke · Catch',
+  poke:    'Engage · Split',
+  protect: 'Poke · Split',
+  split:   'Catch · Engage',
+  catch:   'Protect · Poke',
+};
 
 const ALL_ROLES = ['All', 'Tank', 'Fighter', 'Assassin', 'Mage', 'Marksman', 'Support'];
 
@@ -30,10 +44,12 @@ function InlineSuggestionBar({
   suggestions,
   team,
   onPick,
+  enemyArchetype,
 }: {
-  suggestions: DraftSuggestion[];
-  team: 'blue' | 'red';
-  onPick: (hero: import('@/types/draft').HeroData) => void;
+  suggestions:    DraftSuggestion[];
+  team:           'blue' | 'red';
+  onPick:         (hero: import('@/types/draft').HeroData) => void;
+  enemyArchetype: ArchetypeResult | null;
 }) {
   const top3 = suggestions.slice(0, 3);
   if (top3.length === 0) return null;
@@ -55,6 +71,38 @@ function InlineSuggestionBar({
         <div className="flex-1 h-px" style={{ background: `linear-gradient(to right, ${teamBorder}, transparent)` }} />
         <span className="text-[8px] text-slate-600 shrink-0">cliquer pour picker</span>
       </div>
+
+      {/* Enemy archetype detection banner */}
+      {enemyArchetype && (
+        <div
+          className="flex items-center gap-2 rounded-lg px-2 py-1.5"
+          style={{
+            background: `${ARCH_COLOR[enemyArchetype.primary]}12`,
+            border:     `1px solid ${ARCH_COLOR[enemyArchetype.primary]}35`,
+          }}
+        >
+          <span className="text-[10px] shrink-0">⚠️</span>
+          <div className="flex-1 min-w-0">
+            <span className="text-[9px] text-slate-400">
+              Ennemi construit du{' '}
+              <span
+                className="font-bold"
+                style={{ color: ARCH_COLOR[enemyArchetype.primary] }}
+              >
+                {ARCH_LABEL[enemyArchetype.primary]}
+              </span>
+              {enemyArchetype.confidence >= 55 ? ' (confirmé)' : ' (probable)'}
+              {' '}—{' '}
+              <span className="text-slate-500">
+                privilégiez{' '}
+                <span className="font-semibold text-slate-300">
+                  {ARCH_COUNTER_HINT[enemyArchetype.primary]}
+                </span>
+              </span>
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Portrait cards */}
       <div className="grid grid-cols-3 gap-2">
@@ -252,6 +300,11 @@ export function HeroSelector() {
           suggestions={analysis!.suggestions}
           team={activeStep.team}
           onPick={(hero) => selectHero(hero)}
+          enemyArchetype={
+            activeStep.team === 'blue'
+              ? (analysis?.redArchetype ?? null)
+              : (analysis?.blueArchetype ?? null)
+          }
         />
       )}
 

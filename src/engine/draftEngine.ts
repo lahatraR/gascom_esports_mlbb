@@ -1,7 +1,8 @@
-import type { HeroData, DraftSuggestion, ScoreBreakdown, GameMode } from '@/types/draft';
+import type { HeroData, DraftSuggestion, ScoreBreakdown, GameMode, DraftArchetype } from '@/types/draft';
 import { getHeroTierScore, getHeroLanes } from '@/data/tierList';
 import type { LaneKey } from '@/data/tierList';
 import { playstyleCounterScore, buildPlaystyleHint, getPlaystyles, PLAYSTYLE_LABEL } from '@/data/heroArchetypes';
+import { heroArchetypeScores, ARCHETYPE_BEATS } from '@/engine/archetypeEngine';
 
 // ─── Weight configuration per game mode ─────────────────────────────────────
 
@@ -171,6 +172,85 @@ function calculateLaneFitScore(hero: HeroData, alliedTeam: HeroData[]): number {
   return 0.80;                        // 1st/2nd pick: mild penalty (draft is still open)
 }
 
+// ─── Enemy draft archetype detection ─────────────────────────────────────────
+//
+// Given the enemy's current picks, compute which composition archetype they
+// appear to be building (engage / poke / protect / split / catch).
+//
+// Works with 1+ heroes:
+//   1 hero  → weak signal, low confidence multiplier applied downstream
+//   2 picks → moderate signal
+//   3+ picks → strong signal
+//
+// Returns null when no archetype is clearly dominant (spread score).
+
+const ALL_ARCHETYPES: DraftArchetype[] = ['poke', 'engage', 'protect', 'split', 'catch'];
+
+export function dominantEnemyArchetype(
+  enemyTeam: HeroData[]
+): { archetype: DraftArchetype; dominance: number } | null {
+  if (enemyTeam.length === 0) return null;
+
+  const totals: Record<DraftArchetype, number> = {
+    poke: 0, engage: 0, protect: 0, split: 0, catch: 0,
+  };
+
+  for (const enemy of enemyTeam) {
+    const scores = heroArchetypeScores(enemy);
+    for (const a of ALL_ARCHETYPES) totals[a] += scores[a];
+  }
+
+  const total = ALL_ARCHETYPES.reduce((s, a) => s + totals[a], 0);
+  if (total === 0) return null;
+
+  const sorted = [...ALL_ARCHETYPES].sort((a, b) => totals[b] - totals[a]);
+  const dominance = totals[sorted[0]] / total; // share of the dominant archetype
+
+  // Threshold: only signal when dominant archetype is clearly ahead
+  // 1 hero: need > 0.32 (one hero strongly biased)
+  // 2 heroes: > 0.30
+  // 3+: > 0.27 (signal is more reliable)
+  const threshold = Math.max(0.27, 0.35 - enemyTeam.length * 0.03);
+  if (dominance < threshold) return null;
+
+  return { archetype: sorted[0], dominance };
+}
+
+/**
+ * Primary archetype of a single hero — the archetype where they score highest.
+ */
+function heroMainArchetype(hero: HeroData): DraftArchetype {
+  const scores = heroArchetypeScores(hero);
+  return ALL_ARCHETYPES.reduce(
+    (best, a) => scores[a] > scores[best] ? a : best,
+    ALL_ARCHETYPES[0]
+  );
+}
+
+/**
+ * Archetype Counter Score (added on top of the counter score):
+ *  +2.0 × confidence  if our hero's archetype beats the enemy's predicted archetype
+ *  −1.5 × confidence  if the enemy's archetype beats our hero's archetype
+ *
+ * Confidence = min(enemyPickCount / 3, 1.0)
+ * → with 1 pick: 33% weight, 2 picks: 67%, 3+ picks: full weight
+ */
+function calculateArchetypeCounterScore(
+  hero: HeroData,
+  enemyPrediction: { archetype: DraftArchetype; dominance: number } | null,
+  enemyPickCount: number
+): number {
+  if (!enemyPrediction) return 0;
+
+  const heroArch   = heroMainArchetype(hero);
+  const enemyArch  = enemyPrediction.archetype;
+  const confidence = Math.min(enemyPickCount / 3, 1.0) * enemyPrediction.dominance;
+
+  if (ARCHETYPE_BEATS[heroArch].includes(enemyArch))  return  2.0 * confidence;
+  if (ARCHETYPE_BEATS[enemyArch].includes(heroArch))  return -1.5 * confidence;
+  return 0;
+}
+
 // ─── Final hero score ────────────────────────────────────────────────────────
 
 export function scoreHero(
@@ -178,14 +258,23 @@ export function scoreHero(
   alliedTeam: HeroData[],
   enemyTeam: HeroData[],
   bannedIds: Set<number>,
-  gameMode: GameMode
+  gameMode: GameMode,
+  precomputedEnemyArch?: { archetype: DraftArchetype; dominance: number } | null
 ): ScoreBreakdown {
   if (bannedIds.has(hero.id)) {
     return { counter: 0, synergy: 0, meta: 0, phase: 0, pressure: 0, total: 0 };
   }
 
   const w = WEIGHTS[gameMode];
-  const counter  = calculateCounterScore(hero, enemyTeam);
+
+  // Archetype counter: blend into counter score
+  // Precomputed outside the loop in getSuggestions for performance; falls back to computing here
+  const enemyArch  = precomputedEnemyArch !== undefined
+    ? precomputedEnemyArch
+    : dominantEnemyArchetype(enemyTeam);
+  const archBonus  = calculateArchetypeCounterScore(hero, enemyArch, enemyTeam.length);
+
+  const counter  = clamp(calculateCounterScore(hero, enemyTeam) + archBonus, 0, 10);
   const synergy  = calculateSynergyScore(hero, alliedTeam);
   const meta     = clamp(calculateMetaScore(hero) * calculateLaneFitScore(hero, alliedTeam), 0, 10);
   const phase    = calculatePhaseScore(hero, alliedTeam, gameMode);
@@ -215,8 +304,11 @@ export function getSuggestions(
     (h) => !bannedIds.has(h.id) && !pickedIds.has(h.id)
   );
 
+  // Precompute enemy archetype once — used inside scoreHero for all candidates
+  const enemyArch = dominantEnemyArchetype(enemyTeam);
+
   const scored = available.map((hero) => {
-    const bd = scoreHero(hero, alliedTeam, enemyTeam, bannedIds, gameMode);
+    const bd = scoreHero(hero, alliedTeam, enemyTeam, bannedIds, gameMode, enemyArch);
     return { hero, bd };
   });
 
