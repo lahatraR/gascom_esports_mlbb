@@ -259,14 +259,21 @@ function scoreHeroForSlot(
   side:      'blue' | 'red' = 'blue',
 ): number {
   const archFit  = clamp((heroArchetypeScores(hero)[archetype] ?? 0) / 10, 0, 1);
-  const tierFit  = clamp(getHeroTierScore(hero.name, hero.roles) / 10, 0, 1);
+  const tierScore = getHeroTierScore(hero.name, hero.roles);
+  const tierFit  = clamp(tierScore / 10, 0, 1);
   const wrFit    = clamp(((hero.winRate ?? 0.50) - 0.45) / 0.15, 0, 1);
   const laneW    = LANE_ARCH_WEIGHT[archetype][lane] ?? 1.0;
   const roamMul  = lane === 'Roam' ? roamSubtypeMultiplier(hero, archetype) : 1.0;
   const expMul   = lane === 'EXP'  ? expContextMultiplier(hero, archetype)  : 1.0;
   // Blue side: flex picks get a bonus (safer first-pick, harder to read)
   const flexBonus = side === 'blue' && getFlexInfo(hero).isFlexPick ? 0.07 : 0;
-  return clamp((archFit * 0.50 + tierFit * 0.35 + wrFit * 0.15 + flexBonus) * laneW * roamMul * expMul, 0, 2.0);
+  // S+ multiplicative bonus — ensures the best meta heroes are always strongly preferred.
+  // S+(×1.25) and S-(×1.10) guarantee that even with slightly lower archetype fit,
+  // top-tier heroes win over lower-tier alternatives. Target: maximize S+ in every comp.
+  const tierMul  = tierScore >= 10.0 ? 1.25 : tierScore >= 8.5 ? 1.10 : 1.0;
+  // Increase tierFit weight (0.35→0.42) and reduce archFit (0.50→0.42) so that
+  // tier placement matters more vs raw stat formula.
+  return clamp((archFit * 0.42 + tierFit * 0.42 + wrFit * 0.15 + flexBonus) * laneW * roamMul * expMul * tierMul, 0, 2.5);
 }
 
 // ─── Composition health check ─────────────────────────────────────────────────

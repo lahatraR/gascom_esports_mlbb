@@ -98,8 +98,11 @@ function heroScores(hero: HeroData): Record<DraftArchetype, number> {
   if (primaryRole === 'Mage')     poke += 1.0;
   if (primaryRole === 'Marksman') poke += 1.0;
 
-  // ENGAGE: CC-heavy, durable, fight initiation, sacrifices mobility
-  let engage = cc * 0.40 + tankiness * 0.30 + early * 0.20 + (10 - mobility) * 0.10;
+  // ENGAGE: CC-heavy, durable, fight initiation, able to convert CC to kills.
+  // — damage × 0.10 rewards fighters who can follow up their own CC (Yu Zhong, Arlott, Thamuz)
+  // — mobility × 0.05 small bonus: dive engage fighters need to reach enemies
+  // — removed (10-mobility) penalty: no longer rewards low-mobility defensive peelers (Ruby) for engage
+  let engage = cc * 0.35 + tankiness * 0.30 + early * 0.20 + damage * 0.10 + mobility * 0.05;
   if (primaryRole === 'Tank')    engage += 1.5;
   if (primaryRole === 'Fighter') engage += 0.5;
 

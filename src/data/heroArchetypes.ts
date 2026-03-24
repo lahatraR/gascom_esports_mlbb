@@ -192,7 +192,10 @@ const HERO_PLAYSTYLES_RAW: [string, PlaystyleArchetype[]][] = [
   ['khufra',          ['glorious_launcher']],
   ['lolita',          ['glorious_launcher', 'avant_garde', 'initiator']],
   ['minotaur',        ['glorious_launcher', 'initiator']],
-  ['ruby',            ['glorious_launcher', 'avant_garde', 'mastodon', 'stunner', 'berserker']],
+  // Ruby: she PULLS enemies toward her (defensive peel), NOT an AoE initiator like Atlas/Khufra.
+  // Remove glorious_launcher (wrong) + stunner (her pull ≠ hard stun lockdown).
+  // She belongs in protect comps (avant_garde peel), not as primary engage initiator.
+  ['ruby',            ['avant_garde', 'mastodon', 'berserker']],
   ['tigreal',         ['glorious_launcher', 'avant_garde']],
   ['barats',          ['stone_wall', 'mastodon']],
   ['baxia',           ['stone_wall']],
@@ -234,11 +237,14 @@ const HERO_PLAYSTYLES_RAW: [string, PlaystyleArchetype[]][] = [
   ['masha',           ['berserker']],
   ['sun',             ['berserker', 'summoner']],
   ['roger',           ['berserker', 'skill_marksman']],
-  ['sora',            ['berserker', 'speed_specialist']],
-  ['arlott',          ['mastodon', 'berserker']],
+  // Sora: dash + AoE stun kick + burst dive → stunner + mastodon (can initiate engage)
+  ['sora',            ['stunner', 'mastodon', 'berserker', 'speed_specialist']],
+  // Arlott: crow dash-stun + AoE combo + tanky dive → stunner fits his engage/CC kit
+  ['arlott',          ['mastodon', 'stunner', 'berserker']],
   ['joy',             ['speed_specialist', 'berserker']],
   ['aulus',           ['berserker']],
-  ['fredrinn',        ['mastodon']],
+  // Fredrinn: grab CC + tanky frontline → stunner matches his engage initiation
+  ['fredrinn',        ['mastodon', 'stunner']],
   // ── Mages ───────────────────────────────────────────────────────────────────
   ['aurora',          ['explosive_mage', 'control_mage']],
   ['eudora',          ['explosive_mage', 'control_mage']],
