@@ -12,7 +12,7 @@ import {
   ARCHETYPE_CLASSES,
 } from '@/engine/archetypeEngine';
 import { generateArchetypeDrafts, COMBO_ICONS, COMBO_LABELS } from '@/engine/archetypeDraftGenerator';
-import type { GeneratedDraft, GeneratedDraftSlot, GeneratedBan, DraftCombo } from '@/engine/archetypeDraftGenerator';
+import type { GeneratedDraft, GeneratedDraftSlot, GeneratedBan, DraftCombo, CompositionHealthCheck } from '@/engine/archetypeDraftGenerator';
 
 // ─── Visual config per archetype ─────────────────────────────────────────────
 
@@ -701,6 +701,51 @@ const BAN_PRIORITY_LABEL: Record<GeneratedBan['priority'], string> = {
   'situational':'SITUATIONNEL',
 };
 
+// ─── Composition health check display ────────────────────────────────────────
+
+function HealthCheckDisplay({ check }: { check: CompositionHealthCheck }) {
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="grid grid-cols-2 gap-1.5">
+        {check.functions.map((fn) => (
+          <div
+            key={fn.key}
+            className="flex items-start gap-2 rounded-lg px-2 py-1.5"
+            style={{
+              background: fn.covered
+                ? 'rgba(74,222,128,0.06)'
+                : fn.severity === 'critical' ? 'rgba(248,113,113,0.10)' : 'rgba(250,204,21,0.08)',
+              border: `1px solid ${fn.covered ? 'rgba(74,222,128,0.20)' : fn.severity === 'critical' ? 'rgba(248,113,113,0.35)' : 'rgba(250,204,21,0.25)'}`,
+            }}
+          >
+            <span className="text-sm shrink-0 leading-none mt-0.5">{fn.icon}</span>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1">
+                <span
+                  className="text-[9px] font-bold leading-none"
+                  style={{ color: fn.covered ? '#4ade80' : fn.severity === 'critical' ? '#f87171' : '#facc15' }}
+                >
+                  {fn.covered ? '✓' : fn.severity === 'critical' ? '✗' : '⚠'} {fn.name}
+                </span>
+              </div>
+              {fn.covered && fn.coveredBy.length > 0 && (
+                <p className="text-[8px] text-slate-500 leading-tight mt-0.5 truncate">
+                  via {fn.coveredBy.join(', ')}
+                </p>
+              )}
+              {!fn.covered && (
+                <p className="text-[8px] leading-tight mt-0.5" style={{ color: fn.severity === 'critical' ? '#f87171' : '#facc15', opacity: 0.8 }}>
+                  {fn.severity === 'critical' ? 'Critique — pick en priorité' : 'À renforcer'}
+                </p>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function GeneratedDraftCard({
   draft,
   isExpanded,
@@ -762,6 +807,23 @@ function GeneratedDraftCard({
                 🔗 synergie {draft.synergyScore}%
               </span>
             )}
+            {/* Health check badge */}
+            {draft.healthCheck && (
+              <span
+                className="text-[9px] px-1.5 py-0.5 rounded font-bold"
+                style={{
+                  background: draft.healthCheck.overallHealth === 'good'     ? 'rgba(74,222,128,0.15)'
+                            : draft.healthCheck.overallHealth === 'warning'  ? 'rgba(250,204,21,0.15)'
+                            : 'rgba(248,113,113,0.15)',
+                  color: draft.healthCheck.overallHealth === 'good'     ? '#4ade80'
+                       : draft.healthCheck.overallHealth === 'warning'  ? '#facc15'
+                       : '#f87171',
+                  border: `1px solid ${draft.healthCheck.overallHealth === 'good' ? 'rgba(74,222,128,0.3)' : draft.healthCheck.overallHealth === 'warning' ? 'rgba(250,204,21,0.3)' : 'rgba(248,113,113,0.3)'}`,
+                }}
+              >
+                {draft.healthCheck.overallHealth === 'good' ? '✓' : draft.healthCheck.overallHealth === 'warning' ? '⚠' : '✗'} {draft.healthCheck.summary}
+              </span>
+            )}
           </div>
         </div>
 
@@ -810,6 +872,15 @@ function GeneratedDraftCard({
                         <span className="text-[9px] font-bold px-1 py-0.5 rounded" style={{ color: fitColor, background: `${fitColor}22`, border: `1px solid ${fitColor}40` }}>
                           {slot.archetypeFit}/100
                         </span>
+                        {slot.isFlexPick && (
+                          <span
+                            className="text-[8px] font-black px-1 py-0.5 rounded tracking-wide"
+                            style={{ background: 'rgba(168,85,247,0.18)', color: '#c084fc', border: '1px solid rgba(168,85,247,0.35)' }}
+                            title={`Flex pick — fort dans : ${slot.flexArchetypes.join(', ')}`}
+                          >
+                            FLEX
+                          </span>
+                        )}
                       </div>
                       <p className="text-[10px] mt-0.5 leading-snug" style={{ color: 'rgba(100,110,130,0.90)' }}>{slot.why}</p>
                       {/* Alternatives if banned */}
@@ -947,6 +1018,13 @@ function GeneratedDraftCard({
             <p className="text-[11px] text-slate-300 leading-relaxed">{draft.winCondition}</p>
           </Section>
 
+          {/* Composition health check */}
+          {draft.healthCheck && (
+            <Section title="Santé de la Composition">
+              <HealthCheckDisplay check={draft.healthCheck} />
+            </Section>
+          )}
+
           {/* Export button */}
           <ExportButton draft={draft} />
         </div>
@@ -1056,8 +1134,8 @@ export function StrategyPanel() {
   // Generated drafts when a planned archetype is set
   const generatedDrafts = useMemo(() => {
     if (!plannedArchetype) return [];
-    return generateArchetypeDrafts(plannedArchetype, heroPool, excludedSet, enemyPicks);
-  }, [plannedArchetype, heroPool, excludedSet, enemyPicks]);
+    return generateArchetypeDrafts(plannedArchetype, heroPool, excludedSet, enemyPicks, allyTeam);
+  }, [plannedArchetype, heroPool, excludedSet, enemyPicks, allyTeam]);
 
   // Recommended template: one that counters enemy archetype or best fits ally picks
   const enemyArchetype = allyTeam === 'blue' ? analysis?.redArchetype : analysis?.blueArchetype;

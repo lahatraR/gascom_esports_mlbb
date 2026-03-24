@@ -80,12 +80,34 @@ export interface DraftCombo {
 }
 
 export interface GeneratedDraftSlot {
-  lane:         'EXP' | 'Jungle' | 'Mid' | 'Gold' | 'Roam';
-  hero:          HeroData;
-  archetypeFit:  number;   // 0–100
-  role:          string;   // canonical role for this lane
-  why:           string;
-  alternatives:  HeroData[]; // backup picks if this hero is banned
+  lane:           'EXP' | 'Jungle' | 'Mid' | 'Gold' | 'Roam';
+  hero:            HeroData;
+  archetypeFit:    number;           // 0–100
+  role:            string;           // canonical role for this lane
+  why:             string;
+  alternatives:    HeroData[];       // backup picks if this hero is banned
+  isFlexPick:      boolean;          // scores ≥5/10 in 2+ archetypes → safe first pick
+  flexArchetypes:  DraftArchetype[]; // which archetypes this hero fits
+}
+
+// ─── Composition health check types ──────────────────────────────────────────
+// Function-based, not lane-based: any hero in any position can cover a function.
+// e.g. Minotaur (Roam) covers Initiateur + CC. Zetian (Mid) covers AoE.
+
+export interface FunctionCoverage {
+  key:       string;
+  name:      string;          // French label
+  icon:      string;
+  covered:   boolean;
+  coveredBy: string[];        // hero names that fill this function
+  severity:  'critical' | 'warning';
+}
+
+export interface CompositionHealthCheck {
+  functions:     FunctionCoverage[];
+  overallHealth: 'good' | 'warning' | 'critical';
+  missingCount:  number;
+  summary:       string;      // French one-liner
 }
 
 export interface GeneratedBan {
@@ -104,6 +126,7 @@ export interface GeneratedDraft {
   pickOrder:    PickOrderStep[];
   winCondition: string;
   archetype:    DraftArchetype;
+  healthCheck:  CompositionHealthCheck;
 }
 
 // ─── Role gates ───────────────────────────────────────────────────────────────
@@ -205,25 +228,125 @@ function expContextMultiplier(hero: HeroData, archetype: DraftArchetype): number
 // ─── Per-archetype lane weight ────────────────────────────────────────────────
 
 const LANE_ARCH_WEIGHT: Record<DraftArchetype, Record<string, number>> = {
-  engage:  { EXP: 1.2, Jungle: 1.3, Mid: 0.9, Gold: 1.0, Roam: 1.5 },
+  // Jungle boosted for engage/catch — jungle dictates early game pace in MLBB
+  engage:  { EXP: 1.2, Jungle: 1.5, Mid: 0.9, Gold: 1.0, Roam: 1.5 },
   poke:    { EXP: 0.9, Jungle: 0.8, Mid: 1.5, Gold: 1.4, Roam: 1.0 },
   protect: { EXP: 0.8, Jungle: 1.0, Mid: 1.2, Gold: 1.5, Roam: 1.5 },
   split:   { EXP: 1.5, Jungle: 1.3, Mid: 0.9, Gold: 1.0, Roam: 0.8 },
-  catch:   { EXP: 1.2, Jungle: 1.4, Mid: 1.2, Gold: 1.0, Roam: 1.1 },
+  catch:   { EXP: 1.2, Jungle: 1.6, Mid: 1.2, Gold: 1.0, Roam: 1.1 },
 };
 
 function clamp(v: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, v));
 }
 
-function scoreHeroForSlot(hero: HeroData, lane: LaneKey, archetype: DraftArchetype): number {
+// ─── Flex pick detection ──────────────────────────────────────────────────────
+// A "flex pick" scores ≥5/10 in at least 2 archetypes → hard to read for enemy.
+// Blue side benefits most from flex picks (forced to reveal intent first).
+
+const ALL_ARCHETYPES: DraftArchetype[] = ['engage', 'poke', 'protect', 'split', 'catch'];
+
+function getFlexInfo(hero: HeroData): { isFlexPick: boolean; flexArchetypes: DraftArchetype[] } {
+  const scores = heroArchetypeScores(hero);
+  const flexArchetypes = ALL_ARCHETYPES.filter((a) => (scores[a] ?? 0) >= 5);
+  return { isFlexPick: flexArchetypes.length >= 2, flexArchetypes };
+}
+
+function scoreHeroForSlot(
+  hero:      HeroData,
+  lane:      LaneKey,
+  archetype: DraftArchetype,
+  side:      'blue' | 'red' = 'blue',
+): number {
   const archFit  = clamp((heroArchetypeScores(hero)[archetype] ?? 0) / 10, 0, 1);
   const tierFit  = clamp(getHeroTierScore(hero.name, hero.roles) / 10, 0, 1);
   const wrFit    = clamp(((hero.winRate ?? 0.50) - 0.45) / 0.15, 0, 1);
   const laneW    = LANE_ARCH_WEIGHT[archetype][lane] ?? 1.0;
   const roamMul  = lane === 'Roam' ? roamSubtypeMultiplier(hero, archetype) : 1.0;
   const expMul   = lane === 'EXP'  ? expContextMultiplier(hero, archetype)  : 1.0;
-  return clamp((archFit * 0.50 + tierFit * 0.35 + wrFit * 0.15) * laneW * roamMul * expMul, 0, 2.0);
+  // Blue side: flex picks get a bonus (safer first-pick, harder to read)
+  const flexBonus = side === 'blue' && getFlexInfo(hero).isFlexPick ? 0.07 : 0;
+  return clamp((archFit * 0.50 + tierFit * 0.35 + wrFit * 0.15 + flexBonus) * laneW * roamMul * expMul, 0, 2.0);
+}
+
+// ─── Composition health check ─────────────────────────────────────────────────
+// Checks 4 universal combat functions + 1 archetype-specific function.
+// Any hero in any position can cover any function (flexible, not lane-locked).
+
+function checkCompositionHealth(slots: GeneratedDraftSlot[], archetype: DraftArchetype): CompositionHealthCheck {
+  const heroes = slots.map((s) => s.hero);
+  const n = (v: number) => clamp(v / 10, 0, 1);
+
+  // 1. Initiateur: can force engagement (tankiness + cc + mobility ≥ 5.5 avg)
+  const initiators = heroes.filter((h) => (n(h.tankiness) + n(h.cc) + n(h.mobility)) / 3 >= 0.52);
+
+  // 2. Contrôle de foule: lockdown — cc ≥ 7
+  const ccHeroes = heroes.filter((h) => h.cc >= 7);
+
+  // 3. Dégâts AoE: teamfight damage — Mage damage≥7, or Fighter damage≥7.5
+  const aoeHeroes = heroes.filter(
+    (h) => h.damage >= 7 && (h.roles.includes('Mage') || (h.roles.includes('Fighter') && h.damage >= 7.5)),
+  );
+
+  // 4. Finisseur: reliably closes out kills — Assassin/Marksman damage≥7, or Fighter damage≥8.5
+  const finishers = heroes.filter(
+    (h) =>
+      (h.damage >= 7 && (h.roles.includes('Assassin') || h.roles.includes('Marksman'))) ||
+      (h.damage >= 8.5 && h.roles.includes('Fighter')),
+  );
+
+  const functions: FunctionCoverage[] = [
+    {
+      key: 'initiator', name: 'Initiateur', icon: '⚡',
+      covered: initiators.length >= 1, coveredBy: initiators.map((h) => h.name),
+      severity: archetype === 'engage' || archetype === 'catch' ? 'critical' : 'warning',
+    },
+    {
+      key: 'cc', name: 'Contrôle de foule', icon: '🔗',
+      covered: ccHeroes.length >= 1, coveredBy: ccHeroes.map((h) => h.name),
+      severity: 'critical',
+    },
+    {
+      key: 'aoe', name: 'Dégâts AoE', icon: '💥',
+      covered: aoeHeroes.length >= 1, coveredBy: aoeHeroes.map((h) => h.name),
+      severity: archetype === 'poke' ? 'critical' : 'warning',
+    },
+    {
+      key: 'finisher', name: 'Finisseur', icon: '🎯',
+      covered: finishers.length >= 1, coveredBy: finishers.map((h) => h.name),
+      severity: 'warning',
+    },
+  ];
+
+  // Archetype-specific extra checks
+  if (archetype === 'protect') {
+    const carries = heroes.filter((h) => h.late >= 7 && h.damage >= 7.5 && (h.roles.includes('Marksman') || h.roles.includes('Mage')));
+    functions.push({ key: 'carry', name: 'Carry principal', icon: '💎', covered: carries.length >= 1, coveredBy: carries.map((h) => h.name), severity: 'critical' });
+  }
+  if (archetype === 'split') {
+    const pushers = heroes.filter((h) => h.push >= 7 && h.pressure >= 6);
+    functions.push({ key: 'pusher', name: 'Pression side lane', icon: '🏃', covered: pushers.length >= 1, coveredBy: pushers.map((h) => h.name), severity: 'critical' });
+  }
+  if (archetype === 'poke') {
+    const pokers = heroes.filter((h) => h.damage >= 7 && h.pressure >= 6);
+    functions.push({ key: 'poke', name: 'Double harcèlement', icon: '🎯', covered: pokers.length >= 2, coveredBy: pokers.map((h) => h.name), severity: 'warning' });
+  }
+  if (archetype === 'catch') {
+    const divers = heroes.filter((h) => h.mobility >= 7 && h.damage >= 7);
+    functions.push({ key: 'diver', name: 'Plongeur mobile', icon: '🌀', covered: divers.length >= 2, coveredBy: divers.map((h) => h.name), severity: 'warning' });
+  }
+
+  const missingCritical = functions.filter((f) => !f.covered && f.severity === 'critical').length;
+  const missingWarning  = functions.filter((f) => !f.covered && f.severity === 'warning').length;
+  const missingCount    = functions.filter((f) => !f.covered).length;
+  const overallHealth   = missingCritical > 0 ? 'critical' : missingWarning > 0 ? 'warning' : 'good';
+  const summary = overallHealth === 'good'
+    ? 'Composition équilibrée — toutes les fonctions couvertes'
+    : overallHealth === 'critical'
+    ? `${missingCritical} fonction${missingCritical > 1 ? 's' : ''} critique${missingCritical > 1 ? 's' : ''} manquante${missingCritical > 1 ? 's' : ''}`
+    : `${missingWarning} point${missingWarning > 1 ? 's' : ''} à renforcer`;
+
+  return { functions, overallHealth, missingCount, summary };
 }
 
 // ─── Kit-based synergy scoring ────────────────────────────────────────────────
@@ -440,6 +563,7 @@ export function generateArchetypeDrafts(
   heroPool:     HeroData[],
   excludedIds:  Set<string> = new Set(),
   enemyPicks:   HeroData[]  = [],
+  side:         'blue' | 'red' = 'blue',
 ): GeneratedDraft[] {
   const LANES: LaneKey[] = ['EXP', 'Jungle', 'Mid', 'Gold', 'Roam'];
   const pool = heroPool.filter((h) => !excludedIds.has(String(h.id)));
@@ -449,7 +573,7 @@ export function generateArchetypeDrafts(
   for (const lane of LANES) {
     candidates[lane] = pool
       .filter((h) => isValidCandidate(h, lane))
-      .sort((a, b) => scoreHeroForSlot(b, lane, archetype) - scoreHeroForSlot(a, lane, archetype))
+      .sort((a, b) => scoreHeroForSlot(b, lane, archetype, side) - scoreHeroForSlot(a, lane, archetype, side))
       .slice(0, 10);
   }
 
@@ -508,14 +632,19 @@ export function generateArchetypeDrafts(
                   : `Situationnel — bannir si l'ennemi semble le viser`,
               }));
 
-            const buildSlot = (hero: HeroData, lane: LaneKey): GeneratedDraftSlot => ({
-              lane,
-              hero,
-              archetypeFit: clamp(Math.round((heroArchetypeScores(hero)[archetype] ?? 0) * 10), 0, 100),
-              role:         canonicalRoleLabel(hero, lane),
-              why:          buildWhy(hero, lane, archetype),
-              alternatives: candidates[lane].filter((h) => !compIds.has(h.id)).slice(0, 2),
-            });
+            const buildSlot = (hero: HeroData, lane: LaneKey): GeneratedDraftSlot => {
+              const { isFlexPick, flexArchetypes } = getFlexInfo(hero);
+              return {
+                lane,
+                hero,
+                archetypeFit:   clamp(Math.round((heroArchetypeScores(hero)[archetype] ?? 0) * 10), 0, 100),
+                role:           canonicalRoleLabel(hero, lane),
+                why:            buildWhy(hero, lane, archetype),
+                alternatives:   candidates[lane].filter((h) => !compIds.has(h.id)).slice(0, 2),
+                isFlexPick,
+                flexArchetypes,
+              };
+            };
 
             const slots: GeneratedDraftSlot[] = [
               buildSlot(heroEXP,  'EXP'),
@@ -527,18 +656,21 @@ export function generateArchetypeDrafts(
 
             const indivScore = clamp(
               Math.round(
-                slots.reduce((s, sl) => s + scoreHeroForSlot(sl.hero, sl.lane, archetype), 0) / 5 * 100
+                slots.reduce((s, sl) => s + scoreHeroForSlot(sl.hero, sl.lane, archetype, side), 0) / 5 * 100
               ), 0, 100
             );
-            const synergy     = computeTeamSynergy(slots);
-            const topCombos   = computeTopCombos(slots);
+            const synergy   = computeTeamSynergy(slots);
+            const topCombos = computeTopCombos(slots);
+            // Red side gets stronger counter weight (reacts to enemy picks with full info)
+            const counterWeight = side === 'red' ? 14 : 10;
             const counterAdj = enemyPicks.length > 0
-              ? counterScoreVsEnemy(slots, enemyPicks) * 10
+              ? counterScoreVsEnemy(slots, enemyPicks) * counterWeight
               : 0;
-            // Bug fix: when no enemy picks, keep 0.75+0.25 so max score stays 100
             const teamScore = enemyPicks.length > 0
               ? clamp(Math.round(indivScore * 0.65 + synergy * 0.25 + counterAdj), 0, 100)
               : clamp(Math.round(indivScore * 0.75 + synergy * 0.25), 0, 100);
+
+            const healthCheck = checkCompositionHealth(slots, archetype);
 
             allDrafts.push({
               rank: 0,
@@ -550,6 +682,7 @@ export function generateArchetypeDrafts(
               pickOrder:    ARCHETYPE_PICK_ORDER[archetype],
               winCondition: buildWinCondition(archetype, slots),
               archetype,
+              healthCheck,
             });
           }
         }

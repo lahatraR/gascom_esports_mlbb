@@ -311,6 +311,45 @@ export function HeroSelector() {
         </div>
       )}
 
+      {/* ── Draft progress bar ── */}
+      {!isDone && activeStep && (
+        <div className="flex flex-col gap-1">
+          {/* Step dots */}
+          <div className="flex items-center gap-0.5">
+            {sequence.map((s, i) => {
+              const isPast    = i < currentStep;
+              const isCurrent = i === currentStep;
+              const isBanStep = s.action === 'ban';
+              const dotColor  = isBanStep
+                ? (s.team === 'blue' ? '#3b82f6' : '#ef4444')
+                : (s.team === 'blue' ? '#60a5fa' : '#f87171');
+              return (
+                <div
+                  key={i}
+                  className="flex-1 rounded-full transition-all duration-300"
+                  style={{
+                    height:     isCurrent ? 5 : 3,
+                    background: isPast    ? `${dotColor}80`
+                              : isCurrent ? dotColor
+                              : 'rgba(60,60,80,0.35)',
+                    boxShadow:  isCurrent ? `0 0 6px ${dotColor}` : 'none',
+                  }}
+                />
+              );
+            })}
+          </div>
+          {/* Step label */}
+          <div className="flex items-center justify-between">
+            <span className="text-[9px] text-slate-600">
+              Étape {currentStep + 1} / {sequence.length}
+            </span>
+            <span className="text-[9px] font-bold" style={{ color: isBlue ? '#60a5fa' : '#f87171' }}>
+              {activeStep.phase.toUpperCase().replace('1', ' Phase 1').replace('2', ' Phase 2')}
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* ── Pick order tip — tournament mode only ── */}
       {pickTip && (
         <div className="rounded-lg border px-3 py-2" style={{ background: 'rgba(30,20,5,0.85)', borderColor: 'rgba(234,179,8,0.30)' }}>
