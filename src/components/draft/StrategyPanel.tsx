@@ -698,11 +698,32 @@ function GeneratedDraftCard({
                         <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded" style={{ background: 'rgba(255,255,255,0.07)', color: '#e2e8f0' }}>
                           {slot.hero.name}
                         </span>
+                        <span className="text-[8px] font-medium text-slate-500">{slot.role}</span>
                         <span className="text-[9px] font-bold px-1 py-0.5 rounded" style={{ color: fitColor, background: `${fitColor}22`, border: `1px solid ${fitColor}40` }}>
-                          {slot.archetypeFit}%
+                          {slot.archetypeFit}/100
                         </span>
                       </div>
                       <p className="text-[10px] mt-0.5 leading-snug" style={{ color: 'rgba(100,110,130,0.90)' }}>{slot.why}</p>
+                      {/* Alternatives if banned */}
+                      {slot.alternatives && slot.alternatives.length > 0 && (
+                        <div className="flex items-center gap-1 mt-1 flex-wrap">
+                          <span className="text-[9px] text-slate-600 shrink-0">Si banni :</span>
+                          {slot.alternatives.map((alt) => {
+                            const altKey  = alt.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+                            const altHero = heroMap.get(altKey);
+                            return (
+                              <div key={alt.id} className="flex items-center gap-1 px-1.5 py-0.5 rounded" style={{ background: 'rgba(40,40,60,0.7)', border: '1px solid rgba(60,60,90,0.5)' }}>
+                                {altHero?.image && (
+                                  <div className="rounded overflow-hidden shrink-0" style={{ width: 14, height: 16 }}>
+                                    <img src={altHero.image} alt={alt.name} className="w-full h-full object-cover object-top" />
+                                  </div>
+                                )}
+                                <span className="text-[9px] text-slate-400 font-medium">{alt.name}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
