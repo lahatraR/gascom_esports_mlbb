@@ -5,6 +5,7 @@ import Image from 'next/image';
 import dynamic from 'next/dynamic';
 import clsx from 'clsx';
 import { useDraftStore } from '@/store/draftStore';
+import { OnboardingOverlay } from '@/components/onboarding/OnboardingOverlay';
 import type { GameMode, DraftArchetype } from '@/types/draft';
 import {
   ARCHETYPE_ICON,
@@ -189,6 +190,7 @@ export default function Home() {
         className="min-h-screen flex flex-col"
         style={{ background: '#030304' }}
       >
+        <OnboardingOverlay />
         <Background />
 
         <div className="relative z-10 flex flex-col flex-1 min-h-screen items-center justify-center px-4 py-10 sm:py-14">
