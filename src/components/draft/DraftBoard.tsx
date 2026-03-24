@@ -155,6 +155,7 @@ function AnalysisContent({
         banAnalysis={analysis?.banAnalysis ?? null}
         archetypeProbability={analysis?.archetypeProbability ?? null}
         enemyTeam={enemyTeam}
+        strategicRead={analysis?.strategicRead ?? null}
       />
       <EnemyPredictionPanel predictions={analysis?.enemyPredictions ?? []} enemyTeam={enemyTeam} />
       <CounterCompositionPanel analysis={analysis?.enemyCompAnalysis ?? null} enemyTeam={enemyTeam} />

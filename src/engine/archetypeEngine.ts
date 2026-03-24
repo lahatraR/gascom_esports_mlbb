@@ -88,21 +88,25 @@ function heroScores(hero: HeroData): Record<DraftArchetype, number> {
   const { early, damage, tankiness, cc, mobility, push, pressure, roles, late, mid } = hero;
   const primaryRole = roles[0] ?? '';
 
+  // ── All base scores produce 0–10 max from pure stats ──────────────────────
+  // Role bonuses are capped so the total stays within 0–10.
+  // Formula: weighted stats (max 10.0) + role bonus (≤ 1.5) → clamped to 10.
+
   // POKE: sustained range damage, high pressure, mobile, low tankiness, strong early
   let poke = pressure * 0.25 + early * 0.25 + mobility * 0.20
            + (10 - tankiness) * 0.15 + (10 - cc) * 0.15;
-  if (primaryRole === 'Mage')     poke += 1.5;
-  if (primaryRole === 'Marksman') poke += 1.5;
+  if (primaryRole === 'Mage')     poke += 1.0;
+  if (primaryRole === 'Marksman') poke += 1.0;
 
   // ENGAGE: CC-heavy, durable, fight initiation, sacrifices mobility
   let engage = cc * 0.40 + tankiness * 0.30 + early * 0.20 + (10 - mobility) * 0.10;
-  if (primaryRole === 'Tank')    engage += 2.0;
+  if (primaryRole === 'Tank')    engage += 1.5;
   if (primaryRole === 'Fighter') engage += 0.5;
 
   // PROTECT: late-game focused, peel/utility, scaling, support roles
   let protect = late * 0.35 + tankiness * 0.20 + cc * 0.20 + mid * 0.15
               + (10 - damage) * 0.10;
-  if (primaryRole === 'Support') protect += 2.5;
+  if (primaryRole === 'Support') protect += 1.5;
   if (primaryRole === 'Tank')    protect += 0.5;
 
   // SPLIT: agile + map pressure + objective/push, formation breaker
@@ -112,28 +116,27 @@ function heroScores(hero: HeroData): Record<DraftArchetype, number> {
 
   // CATCH: burst + lockdown + mobility + hard to catch after
   let catchScore = damage * 0.30 + cc * 0.30 + mobility * 0.25 + (10 - tankiness) * 0.15;
-  if (primaryRole === 'Assassin') catchScore += 1.5;
+  if (primaryRole === 'Assassin') catchScore += 1.0;
 
-  // ── Playstyle archetype bonuses ───────────────────────────────────────────
-  // Apply PLAYSTYLE_TO_COMP_BONUS so that, e.g., Glorious Launchers are always
-  // detected as Engage comps and Enchanters always register as Protect comps.
+  // ── Playstyle archetype bonuses (scaled to keep total ≤ 10) ──────────────
   const playstyles = getPlaystyles(hero.name);
   for (const ps of playstyles) {
     const bonuses = PLAYSTYLE_TO_COMP_BONUS[ps];
     if (!bonuses) continue;
-    if (bonuses.poke)    poke       += bonuses.poke;
-    if (bonuses.engage)  engage     += bonuses.engage;
-    if (bonuses.protect) protect    += bonuses.protect;
-    if (bonuses.split)   split      += bonuses.split;
-    if (bonuses.catch)   catchScore += bonuses.catch;
+    if (bonuses.poke)    poke       += bonuses.poke    * 0.7;
+    if (bonuses.engage)  engage     += bonuses.engage  * 0.7;
+    if (bonuses.protect) protect    += bonuses.protect * 0.7;
+    if (bonuses.split)   split      += bonuses.split   * 0.7;
+    if (bonuses.catch)   catchScore += bonuses.catch   * 0.7;
   }
 
+  // All scores normalized to 0–10
   return {
-    poke:    clamp(poke,       0, 14),
-    engage:  clamp(engage,     0, 14),
-    protect: clamp(protect,    0, 14),
-    split:   clamp(split,      0, 14),
-    catch:   clamp(catchScore, 0, 14),
+    poke:    clamp(poke,       0, 10),
+    engage:  clamp(engage,     0, 10),
+    protect: clamp(protect,    0, 10),
+    split:   clamp(split,      0, 10),
+    catch:   clamp(catchScore, 0, 10),
   };
 }
 
@@ -210,7 +213,7 @@ export function getMatchupTip(
 // ─── Archetype score for a single hero (used in suggestions) ──────────────────
 
 export function heroArchetypeFit(hero: HeroData, archetype: DraftArchetype): number {
-  return heroScores(hero)[archetype] / 12; // 0–1
+  return heroScores(hero)[archetype] / 10; // 0–1  (scores now 0–10)
 }
 
 // ─── Helper ───────────────────────────────────────────────────────────────────

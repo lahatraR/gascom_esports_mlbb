@@ -37,15 +37,18 @@ export const LANE_TIERS: Record<LaneKey, Partial<Record<TierRank, string[]>>> = 
     'C':  ['Alucard', 'Alpha', 'Hanzo', 'Martis', 'Hylos', 'Cyclops'],
   },
 
-  // ── Gold Lane (Marksman) ───────────────────────────────────────────────────
+  // ── Gold Lane (Marksman + Mage exceptions) ────────────────────────────────
   // Source: gosugamers — "Yi Sun-Shin newly viable in gold lane"
+  // Only Marksmen are standard Gold picks.
+  // Mage exceptions (Gold-viable via kit/playstyle, NOT standard): Lunox, Harith.
+  // Valentina removed — she is a Mage and does NOT belong in Gold lane standard meta.
   Gold: {
     'S+': ['Claude', 'Brody', 'Beatrix', 'Yi Sun-Shin'],
-    'S-': ['Wanwan', 'Melissa', 'Irithel', 'Valentina', 'Granger'],
+    'S-': ['Wanwan', 'Melissa', 'Irithel', 'Granger'],
     'A+': ['Karrie', 'Natan', 'Moskov', 'Popol and Kupa', 'Kimmy', 'Clint', 'Miya'],
     'A':  ['Layla', 'Lesley', 'Hanabi', 'Bruno'],
-    'B':  ['Ixia', 'Chang\'e', 'Zilong', 'Harley', 'Thamuz'],
-    'C':  ['Alucard', 'Vexana', 'Selena'],
+    'B':  ['Ixia', 'Zilong', 'Thamuz', 'Lunox', 'Harith'],
+    'C':  [],
   },
 
   // ── Jungle ────────────────────────────────────────────────────────────────

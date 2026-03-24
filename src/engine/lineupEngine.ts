@@ -63,12 +63,14 @@ const WIN_CONDITIONS_FR: Record<DraftArchetype, string> = {
 
 const LANES: LaneRole[] = ['Gold', 'Roam', 'Jungle', 'Mid', 'EXP'];
 
+// Synced with draftEngine.ts LANE_REQUIRED_ROLES and API hero-position logic:
+//   fighter → EXP    assassin → Jungle    mage → Mid    tank/support → Roam
 const LANE_PRIMARY_ROLES: Record<LaneRole, string[]> = {
   Gold:   ['Marksman'],
   Roam:   ['Support', 'Tank'],
   Jungle: ['Assassin', 'Fighter'],
-  Mid:    ['Mage', 'Assassin'],
-  EXP:    ['Fighter', 'Tank'],
+  Mid:    ['Mage'],
+  EXP:    ['Fighter', 'Assassin'],
 };
 
 // ─── Profil de stats par rôle ─────────────────────────────────────────────────

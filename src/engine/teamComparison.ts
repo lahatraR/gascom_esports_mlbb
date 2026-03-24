@@ -4,7 +4,7 @@ import { predictEnemyPicks } from './predictionEngine';
 import { detectTeamArchetype } from './archetypeEngine';
 import { buildEnemyCompAnalysis } from './compositionEngine';
 import { buildWinningLineup }     from './lineupEngine';
-import { analyzeBanPattern, buildArchetypeProbability, detectCompositionHoles } from './intelligenceEngine';
+import { analyzeBanPattern, buildArchetypeProbability, detectCompositionHoles, buildStrategicRead } from './intelligenceEngine';
 
 // ─── Team metric calculation ─────────────────────────────────────────────────
 
@@ -206,9 +206,18 @@ export function runDraftAnalysis(
   const allyPicksForIntel  = currentTeam === 'blue' ? blueTeam : redTeam;
   const enemyPicksForIntel = currentTeam === 'blue' ? redTeam  : blueTeam;
 
-  const banAnalysis = analyzeBanPattern(enemyBansForIntel, allyBansForIntel);
+  const banAnalysis          = analyzeBanPattern(enemyBansForIntel, allyBansForIntel);
   const archetypeProbability = buildArchetypeProbability(enemyPicksForIntel, enemyBansForIntel);
-  const compositionHoles = detectCompositionHoles(allyPicksForIntel);
+  const compositionHoles     = detectCompositionHoles(allyPicksForIntel);
+
+  // Chess master strategic read: cross-reference enemy bans + picks + our bans
+  const allyArch    = currentTeam === 'blue' ? blueArchetype : redArchetype;
+  const strategicRead = buildStrategicRead(
+    enemyPicksForIntel,
+    enemyBansForIntel,
+    allyBansForIntel,
+    allyArch?.primary ?? null,
+  );
 
   return {
     blueMetrics,
@@ -226,6 +235,7 @@ export function runDraftAnalysis(
     banAnalysis,
     archetypeProbability,
     compositionHoles,
+    strategicRead,
   };
 }
 

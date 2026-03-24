@@ -1,7 +1,9 @@
 'use client';
 
+'use client';
 import clsx from 'clsx';
 import type { BanAnalysis, ArchetypeProbability, DraftArchetype, HeroData } from '@/types/draft';
+import type { StrategicRead } from '@/engine/intelligenceEngine';
 import {
   ARCHETYPE_LABELS,
   ARCHETYPE_ICON,
@@ -77,9 +79,10 @@ interface Props {
   banAnalysis:          BanAnalysis | null;
   archetypeProbability: ArchetypeProbability | null;
   enemyTeam:            'blue' | 'red';
+  strategicRead?:       StrategicRead | null;
 }
 
-export function BanIntelligencePanel({ banAnalysis, archetypeProbability, enemyTeam }: Props) {
+export function BanIntelligencePanel({ banAnalysis, archetypeProbability, enemyTeam, strategicRead }: Props) {
   const { blueBans, redBans } = useDraftStore((s) => ({ blueBans: s.blueBans, redBans: s.redBans }));
   const enemyBans = (enemyTeam === 'blue' ? blueBans : redBans).filter((h): h is HeroData => h !== null);
 
@@ -211,6 +214,64 @@ export function BanIntelligencePanel({ banAnalysis, archetypeProbability, enemyT
             </div>
           </div>
         )}
+        {/* ── Strategic Read (chess master block) ── */}
+        {strategicRead && (strategicRead.enemyPlan || strategicRead.trapOpportunity) && (
+          <div>
+            <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+              ♟️ Lecture stratégique
+            </p>
+            <div
+              className="rounded-lg p-2.5 border space-y-2"
+              style={{
+                background: strategicRead.pivotNeeded
+                  ? 'rgba(239,68,68,0.08)'
+                  : 'rgba(74,222,128,0.06)',
+                borderColor: strategicRead.pivotNeeded
+                  ? 'rgba(239,68,68,0.30)'
+                  : 'rgba(74,222,128,0.20)',
+              }}
+            >
+              {/* Confidence + insight */}
+              <div className="flex items-start gap-2">
+                <span
+                  className="shrink-0 text-[8px] font-black px-1.5 py-0.5 rounded-full tracking-wide"
+                  style={{
+                    background: strategicRead.confidence === 'high' ? 'rgba(74,222,128,0.20)'
+                      : strategicRead.confidence === 'medium' ? 'rgba(250,204,21,0.18)'
+                      : 'rgba(100,116,139,0.25)',
+                    color: strategicRead.confidence === 'high' ? '#4ade80'
+                      : strategicRead.confidence === 'medium' ? '#facc15'
+                      : '#94a3b8',
+                  }}
+                >
+                  {strategicRead.confidence === 'high' ? '● CONFIRMÉ'
+                    : strategicRead.confidence === 'medium' ? '● PROBABLE'
+                    : '● INCERTAIN'}
+                </span>
+                {strategicRead.counterStrategy && (
+                  <span className={clsx(
+                    'text-[9px] font-bold px-1.5 py-0.5 rounded border shrink-0',
+                    ARCHETYPE_CLASSES[strategicRead.counterStrategy].badge,
+                  )}>
+                    → {ARCHETYPE_ICON[strategicRead.counterStrategy]} {ARCHETYPE_LABELS[strategicRead.counterStrategy]}
+                  </span>
+                )}
+              </div>
+              <p className="text-[10px] text-slate-300 leading-snug">{strategicRead.insight}</p>
+              {/* Trap opportunity */}
+              {strategicRead.trapOpportunity && (
+                <div
+                  className="rounded px-2 py-1.5 flex items-start gap-1.5"
+                  style={{ background: 'rgba(250,204,21,0.08)', border: '1px solid rgba(250,204,21,0.25)' }}
+                >
+                  <span className="text-yellow-400 text-[10px] shrink-0">⚡</span>
+                  <p className="text-[9px] text-yellow-300/80 leading-snug">{strategicRead.trapOpportunity}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   );
