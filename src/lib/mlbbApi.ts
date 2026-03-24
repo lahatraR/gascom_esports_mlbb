@@ -158,6 +158,63 @@ export async function fetchHeroPositions(): Promise<ParsedHeroPosition[]> {
   });
 }
 
+// ─── Hero detail stats types ──────────────────────────────────────────────────
+
+interface RawHeroDetailStatsResponse {
+  code: number;
+  data: {
+    records: Array<{
+      data: {
+        main_heroid:               number;
+        main_hero_win_rate:        number;
+        main_hero_ban_rate:        number;
+        main_hero_appearance_rate: number;
+        sub_hero: Array<{
+          data: {
+            heroid:           number;
+            increase_win_rate: number;
+          };
+        }>;
+      };
+    }>;
+  };
+}
+
+export interface ParsedHeroDetailStat {
+  id:           number;
+  winRate:      number;
+  banRate:      number;
+  pickRate:     number;
+  // Sorted descending by boost value
+  synergyPairs: Array<{ heroId: number; boost: number }>;
+}
+
+export async function fetchHeroDetailStats(heroName: string): Promise<ParsedHeroDetailStat | null> {
+  try {
+    const raw = await apiFetch<RawHeroDetailStatsResponse>(
+      `/hero-detail-stats/${encodeURIComponent(heroName)}`,
+      1, // 1 retry only — we'll fire many of these
+    );
+    const rec = raw?.data?.records?.[0]?.data;
+    if (!rec) return null;
+
+    const synergyPairs = (rec.sub_hero ?? [])
+      .filter((s) => s?.data?.heroid && (s.data.increase_win_rate ?? 0) > 0)
+      .map((s) => ({ heroId: s.data.heroid, boost: s.data.increase_win_rate }))
+      .sort((a, b) => b.boost - a.boost);
+
+    return {
+      id:       rec.main_heroid,
+      winRate:  rec.main_hero_win_rate,
+      banRate:  rec.main_hero_ban_rate,
+      pickRate: rec.main_hero_appearance_rate,
+      synergyPairs,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchHeroRank(): Promise<ParsedHeroRank[]> {
   const raw = await apiFetch<RawHeroRankResponse>('/hero-rank/');
   return raw.data.records.map((rec) => {

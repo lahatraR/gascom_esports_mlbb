@@ -11,8 +11,8 @@ import {
   ARCHETYPE_ICON,
   ARCHETYPE_CLASSES,
 } from '@/engine/archetypeEngine';
-import { generateArchetypeDrafts } from '@/engine/archetypeDraftGenerator';
-import type { GeneratedDraft, GeneratedDraftSlot, GeneratedBan } from '@/engine/archetypeDraftGenerator';
+import { generateArchetypeDrafts, COMBO_ICONS, COMBO_LABELS } from '@/engine/archetypeDraftGenerator';
+import type { GeneratedDraft, GeneratedDraftSlot, GeneratedBan, DraftCombo } from '@/engine/archetypeDraftGenerator';
 
 // ─── Visual config per archetype ─────────────────────────────────────────────
 
@@ -763,6 +763,42 @@ function GeneratedDraftCard({
             </div>
           </Section>
 
+          {/* Top combos */}
+          {draft.topCombos && draft.topCombos.length > 0 && (
+            <Section title="Combos Clés">
+              <div className="flex flex-col gap-1.5">
+                {draft.topCombos.map((combo: DraftCombo, i: number) => {
+                  const scoreColor = combo.score >= 65 ? '#4ade80' : combo.score >= 45 ? '#facc15' : '#94a3b8';
+                  return (
+                    <div
+                      key={i}
+                      className="flex items-center gap-2 rounded-lg px-2 py-1.5"
+                      style={{ background: 'rgba(12,12,24,0.80)', border: '1px solid rgba(60,60,90,0.40)' }}
+                    >
+                      <span className="text-sm shrink-0">{COMBO_ICONS[combo.comboType]}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1 flex-wrap">
+                          <span className="text-[10px] font-bold text-white">{combo.heroA}</span>
+                          <span className="text-[9px] text-slate-600">+</span>
+                          <span className="text-[10px] font-bold text-white">{combo.heroB}</span>
+                          <span
+                            className="text-[8px] font-bold px-1 py-0.5 rounded ml-1"
+                            style={{ color: scoreColor, background: `${scoreColor}18`, border: `1px solid ${scoreColor}35` }}
+                          >
+                            {combo.label}
+                          </span>
+                        </div>
+                        <p className="text-[9px] text-slate-500 leading-none mt-0.5">
+                          {combo.laneA} + {combo.laneB} · Synergie {combo.score}%
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </Section>
+          )}
+
           {/* Win condition */}
           <Section title="Condition de Victoire">
             <p className="text-[11px] text-slate-300 leading-relaxed">{draft.winCondition}</p>
@@ -865,11 +901,17 @@ export function StrategyPanel() {
     return s;
   }, [blueBans, redBans, bluePicks, redPicks]);
 
+  // Enemy picks (already confirmed on the board) for reactive counter scoring
+  const enemyPicks = useMemo((): HeroData[] => {
+    const enemySlots = allyTeam === 'blue' ? redPicks : bluePicks;
+    return enemySlots.filter((h): h is HeroData => h !== null);
+  }, [allyTeam, bluePicks, redPicks]);
+
   // Generated drafts when a planned archetype is set
   const generatedDrafts = useMemo(() => {
     if (!plannedArchetype) return [];
-    return generateArchetypeDrafts(plannedArchetype, heroPool, excludedSet);
-  }, [plannedArchetype, heroPool, excludedSet]);
+    return generateArchetypeDrafts(plannedArchetype, heroPool, excludedSet, enemyPicks);
+  }, [plannedArchetype, heroPool, excludedSet, enemyPicks]);
 
   // Recommended template: one that counters enemy archetype or best fits ally picks
   const enemyArchetype = allyTeam === 'blue' ? analysis?.redArchetype : analysis?.blueArchetype;

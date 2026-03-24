@@ -3,6 +3,7 @@
 import { create } from 'zustand';
 import { HERO_STATS, getDefaultsForRoles, FALLBACK_HERO_NAMES } from '@/data/heroes';
 import type { HeroData, DraftAnalysis, GameMode, DraftTeam, DraftArchetype } from '@/types/draft';
+import { fetchHeroDetailStats } from '@/lib/mlbbApi';
 import { getDraftSequence, getBanCount } from '@/types/draft';
 import { runDraftAnalysis } from '@/engine/teamComparison';
 
@@ -49,6 +50,57 @@ function buildFallbackPool(): HeroData[] {
 }
 
 function makeSlots(n: number): null[] { return Array(n).fill(null); }
+
+// ─── Background detail-stats enrichment ───────────────────────────────────────
+// Fetches hero-detail-stats/{name} for each hero in batches of 10.
+// Overwrites winRate/banRate/pickRate with real API values and populates
+// synergyPairs (used by draft generator for pair synergy scoring).
+// Runs after initial pool load so the UI is never blocked.
+
+async function enrichWithDetailStats(
+  pool: HeroData[],
+  onDone: (enriched: HeroData[]) => void,
+): Promise<void> {
+  const BATCH = 10;
+  const detailMap = new Map<number, { winRate: number; banRate: number; pickRate: number; synergyPairs: Record<number, number>; synergyBoost: number }>();
+
+  for (let i = 0; i < pool.length; i += BATCH) {
+    const batch   = pool.slice(i, i + BATCH);
+    const results = await Promise.allSettled(
+      batch.map((h) => fetchHeroDetailStats(h.name)),
+    );
+    results.forEach((r, idx) => {
+      if (r.status !== 'fulfilled' || !r.value) return;
+      const detail = r.value;
+      const pairs: Record<number, number> = {};
+      for (const p of detail.synergyPairs) pairs[p.heroId] = p.boost;
+
+      // synergyBoost: 5 (neutral) + average boost of top-3 partners × 0.5
+      // e.g. avg boost 6% → synergyBoost = 5 + 3 = 8
+      const top3 = detail.synergyPairs.slice(0, 3).map((p) => p.boost);
+      const avgBoost = top3.length > 0 ? top3.reduce((a, b) => a + b, 0) / top3.length : 0;
+      const synergyBoost = Math.min(10, 5 + avgBoost * 0.5);
+
+      detailMap.set(batch[idx].id, {
+        winRate:      detail.winRate,
+        banRate:      detail.banRate,
+        pickRate:     detail.pickRate,
+        synergyPairs: pairs,
+        synergyBoost,
+      });
+    });
+  }
+
+  if (detailMap.size === 0) return; // nothing fetched — keep existing data
+
+  const enriched = pool.map((h) => {
+    const d = detailMap.get(h.id);
+    if (!d) return h;
+    return { ...h, winRate: d.winRate, banRate: d.banRate, pickRate: d.pickRate, synergyPairs: d.synergyPairs, synergyBoost: d.synergyBoost };
+  });
+
+  onDone(enriched);
+}
 
 // ─── Store shape ──────────────────────────────────────────────────────────────
 
@@ -178,6 +230,12 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
           } catch { /* ignore — use heroes.json roles as-is */ }
 
           set({ heroPool: pool, isLoadingPool: false });
+
+          // Background enrichment: fetch real stats + synergy pairs without blocking UI
+          enrichWithDetailStats(pool, (enriched) => {
+            set({ heroPool: enriched });
+          }).catch(() => { /* ignore — enrichment is best-effort */ });
+
           return;
         }
       }

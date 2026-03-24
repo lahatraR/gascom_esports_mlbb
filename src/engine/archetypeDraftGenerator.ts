@@ -5,10 +5,36 @@ import type { LaneKey, TierRank } from '@/data/tierList';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+export type ComboType = 'cc_chain' | 'engage_burst' | 'peel_carry' | 'dive_cleanup';
+
+export const COMBO_LABELS: Record<ComboType, string> = {
+  cc_chain:     'Chaîne de CC',
+  engage_burst: 'Engage + Burst',
+  peel_carry:   'Peel + Carry',
+  dive_cleanup: 'Dive synchronisé',
+};
+
+export const COMBO_ICONS: Record<ComboType, string> = {
+  cc_chain:     '🔗',
+  engage_burst: '⚡',
+  peel_carry:   '🛡',
+  dive_cleanup: '🌀',
+};
+
+export interface DraftCombo {
+  heroA:     string;
+  laneA:     string;
+  heroB:     string;
+  laneB:     string;
+  comboType: ComboType;
+  label:     string;
+  score:     number; // 0–100
+}
+
 export interface GeneratedDraftSlot {
   lane:         'EXP' | 'Jungle' | 'Mid' | 'Gold' | 'Roam';
   hero:          HeroData;
-  archetypeFit:  number;   // 0-100
+  archetypeFit:  number;   // 0–100
   role:          string;   // canonical role for this lane
   why:           string;
   alternatives:  HeroData[]; // backup picks if this hero is banned
@@ -23,15 +49,15 @@ export interface GeneratedBan {
 export interface GeneratedDraft {
   rank:         number;
   slots:        GeneratedDraftSlot[];
-  bans:         GeneratedBan[];   // excludes heroes used in this composition
-  teamScore:    number;   // 0-100
-  synergyScore: number;  // 0-100
+  bans:         GeneratedBan[];
+  teamScore:    number;   // 0–100
+  synergyScore: number;  // 0–100
+  topCombos:    DraftCombo[];
   winCondition: string;
   archetype:    DraftArchetype;
 }
 
 // ─── Role gates ───────────────────────────────────────────────────────────────
-// A hero MUST have at least one of these roles to qualify for the lane.
 
 // Role → primary lane logic (mirrors https://mlbb-stats.rone.dev/api/hero-position):
 //   fighter   → Exp Lane        assassin → Jungle
@@ -48,18 +74,15 @@ const LANE_CANONICAL_ROLES: Record<LaneKey, string[]> = {
   Mid:    ['Mage'],
 };
 
-// The best role label to show for a hero in a given lane
 function canonicalRoleLabel(hero: HeroData, lane: LaneKey): string {
   const required = LANE_CANONICAL_ROLES[lane] ?? [];
   return hero.roles.find((r) => required.includes(r)) ?? hero.roles[0] ?? 'Héros';
 }
 
-// Mid lane: Assassins are only valid if they appear explicitly in the Mid tier list
 const MID_TIER_NAMES = new Set(
   (Object.values(LANE_TIERS['Mid']) as string[][]).flat().map((n) => n.toLowerCase())
 );
 
-// Tiers we consider viable for a lane slot (C = too weak to recommend)
 const VIABLE_TIERS: TierRank[] = ['S+', 'S-', 'A+', 'A', 'B'];
 
 function isValidCandidate(hero: HeroData, lane: LaneKey): boolean {
@@ -67,22 +90,67 @@ function isValidCandidate(hero: HeroData, lane: LaneKey): boolean {
   const hasRole   = hero.roles.some((r) => canonical.includes(r));
   if (!hasRole) return false;
 
-  // Check presence in a viable tier (C excluded — those heroes aren't draftable)
-  const inTierList = (VIABLE_TIERS).some((tier) =>
+  const inTierList = VIABLE_TIERS.some((tier) =>
     (LANE_TIERS[lane][tier] ?? []).some((n) => n.toLowerCase() === hero.name.toLowerCase())
   );
   if (inTierList) return true;
 
-  // Not in tier list — only allow if this is the hero's natural primary lane
   const heroLanes = getHeroLanes(hero.name, hero.roles);
   if (heroLanes.includes(lane)) return true;
 
-  // Assassin in Mid is only valid when explicitly in the Mid tier list
   if (lane === 'Mid' && hero.roles.includes('Assassin') && !hero.roles.includes('Mage')) {
     return MID_TIER_NAMES.has(hero.name.toLowerCase());
   }
 
   return false;
+}
+
+// ─── Roam subtype detection ───────────────────────────────────────────────────
+// Tank Roam: initiator (Atlas, Khufra, Tigreal…) — best for engage/catch
+// Support Roam: peeler/healer (Mathilda, Angela, Estes…) — best for protect/poke
+
+function isRoamTank(hero: HeroData): boolean {
+  return hero.roles.includes('Tank') && !hero.roles.includes('Support');
+}
+
+function isRoamSupport(hero: HeroData): boolean {
+  return hero.roles.includes('Support') && !hero.roles.includes('Tank');
+}
+
+function roamSubtypeMultiplier(hero: HeroData, archetype: DraftArchetype): number {
+  if (isRoamTank(hero)) {
+    // Tank Roam: excels at initiating, penalised when team needs peel
+    if (archetype === 'engage') return 1.35;
+    if (archetype === 'catch')  return 1.15;
+    if (archetype === 'protect') return 0.65;
+    if (archetype === 'poke')    return 0.80;
+    return 1.0;
+  }
+  if (isRoamSupport(hero)) {
+    // Support Roam: excels at protecting the carry, weak in all-in comps
+    if (archetype === 'protect') return 1.40;
+    if (archetype === 'poke')    return 1.20;
+    if (archetype === 'engage')  return 0.60;
+    if (archetype === 'catch')   return 0.80;
+    return 1.0;
+  }
+  return 1.0; // mixed role (e.g., Kaja, Faramis)
+}
+
+// ─── EXP context multiplier ───────────────────────────────────────────────────
+// EXP role: zone enemy jungler during objectives (pressure + mobility)
+//           dive backline in teamfights (damage + mobility)
+
+function expContextMultiplier(hero: HeroData, archetype: DraftArchetype): number {
+  const n = (v: number) => clamp(v / 10, 0, 1);
+  const zoneScore = (n(hero.pressure) + n(hero.mobility)) / 2;  // jungle contesting
+  const diveScore = (n(hero.damage)   + n(hero.mobility)) / 2;  // teamfight dive
+  const tankScore = (n(hero.tankiness) + n(hero.cc))      / 2;  // survive teamfight
+
+  if (archetype === 'split')  return 1 + zoneScore * 0.40;
+  if (archetype === 'catch')  return 1 + diveScore * 0.30;
+  if (archetype === 'engage') return 1 + tankScore * 0.20;
+  return 1.0;
 }
 
 // ─── Per-archetype lane weight ────────────────────────────────────────────────
@@ -104,13 +172,19 @@ function scoreHeroForSlot(hero: HeroData, lane: LaneKey, archetype: DraftArchety
   const tierFit  = clamp(getHeroTierScore(hero.name, hero.roles) / 10, 0, 1);
   const wrFit    = clamp(((hero.winRate ?? 0.50) - 0.45) / 0.15, 0, 1);
   const laneW    = LANE_ARCH_WEIGHT[archetype][lane] ?? 1.0;
-  return clamp((archFit * 0.50 + tierFit * 0.35 + wrFit * 0.15) * laneW, 0, 1.5);
+  const roamMul  = lane === 'Roam' ? roamSubtypeMultiplier(hero, archetype) : 1.0;
+  const expMul   = lane === 'EXP'  ? expContextMultiplier(hero, archetype)  : 1.0;
+  return clamp((archFit * 0.50 + tierFit * 0.35 + wrFit * 0.15) * laneW * roamMul * expMul, 0, 2.0);
 }
 
-// ─── Synergy scoring ──────────────────────────────────────────────────────────
-// Two signals:
-//   1. API synergy list (sparse but accurate when present)
-//   2. Role-based affinity (tank+mage, support+marksman, etc.)
+// ─── Kit-based synergy scoring ────────────────────────────────────────────────
+// Based on hero stats and roles — items amplify what's already there:
+//   - High CC stat → can create CC chains with another CC hero
+//   - High tankiness + CC + mobility → initiator that sets up burst
+//   - High damage + late scaling → carry that benefits from protection
+//   - High mobility × mobility → synchronized dive/engagement
+//
+// Win rates are NOT used for synergy — synergy comes from kit complementarity.
 
 const ROLE_AFFINITY: Record<string, string[]> = {
   Tank:     ['Mage', 'Assassin', 'Marksman'],
@@ -121,73 +195,175 @@ const ROLE_AFFINITY: Record<string, string[]> = {
   Assassin: ['Tank', 'Support'],
 };
 
-function pairSynergyScore(a: HeroData, b: HeroData): number {
-  // API signal
-  let apiScore = 0;
-  if (a.synergies.includes(b.id)) apiScore += 1.0;
-  if (b.synergies.includes(a.id)) apiScore += 1.0;
-  if (a.counters.includes(b.id) || b.counters.includes(a.id)) apiScore -= 0.5;
+interface KitComboComponents {
+  ccChain:     number;  // 0–1, both heroes apply CC → chain lockdown
+  engageBurst: number;  // 0–1, one dives + survives, other converts to kill
+  peelCarry:   number;  // 0–1, one protects, other scales as carry
+  diveCleanup: number;  // 0–1, both mobile → synchronized converge
+}
 
-  // Role-based fallback
+function kitComboComponents(a: HeroData, b: HeroData): KitComboComponents {
+  const n = (v: number) => clamp(v / 10, 0, 1);
+
+  // CC Chain: requires BOTH to have CC — one CC hero + zero CC hero = no chain
+  // Multiplication means if either is 0, the chain doesn't exist
+  const ccChain = n(a.cc) * n(b.cc);
+
+  // Engage + Burst: one hero initiates (survives + locks), other finishes
+  // Initiator score = tankiness (survive) + CC (lock) + mobility (reach)
+  const initA = (n(a.tankiness) + n(a.cc) + n(a.mobility)) / 3;
+  const initB = (n(b.tankiness) + n(b.cc) + n(b.mobility)) / 3;
+  const engageBurst = Math.max(initA * n(b.damage), initB * n(a.damage));
+
+  // Peel + Carry: one protects (CC + tankiness blocks threats),
+  // other wins late game (damage + late scaling = carries harder)
+  const peelA  = (n(a.cc) + n(a.tankiness)) / 2;
+  const peelB  = (n(b.cc) + n(b.tankiness)) / 2;
+  const carryA = (n(a.damage) + n(a.late)) / 2;
+  const carryB = (n(b.damage) + n(b.late)) / 2;
+  const peelCarry = Math.max(peelA * carryB, peelB * carryA);
+
+  // Dive Cleanup: both mobile → converge simultaneously on targets
+  const diveCleanup = n(a.mobility) * n(b.mobility);
+
+  return { ccChain, engageBurst, peelCarry, diveCleanup };
+}
+
+function kitSynergyScore(a: HeroData, b: HeroData): number {
+  const { ccChain, engageBurst, peelCarry, diveCleanup } = kitComboComponents(a, b);
+
+  // Role affinity (complementary roles — context bonus)
   const roleA = a.roles[0] ?? '';
   const roleB = b.roles[0] ?? '';
-  const roleScore = (ROLE_AFFINITY[roleA]?.includes(roleB) ? 0.5 : 0)
-                  + (ROLE_AFFINITY[roleB]?.includes(roleA) ? 0.5 : 0);
+  const roleBonus = ((ROLE_AFFINITY[roleA]?.includes(roleB) ? 1 : 0)
+                   + (ROLE_AFFINITY[roleB]?.includes(roleA) ? 1 : 0)) / 2;
 
-  // Blend: if API data exists, weight it heavier
-  const hasApi = apiScore !== 0;
-  return clamp(hasApi ? apiScore * 0.70 + roleScore * 0.30 : roleScore, 0, 1);
+  // Legacy API assist signal (secondary confirmation when available)
+  const apiBonus = ((a.synergies.includes(b.id) ? 1 : 0)
+                  + (b.synergies.includes(a.id) ? 1 : 0)) * 0.1;
+
+  return clamp(
+    ccChain     * 0.25 +
+    engageBurst * 0.25 +
+    peelCarry   * 0.20 +
+    diveCleanup * 0.10 +
+    roleBonus   * 0.15 +
+    apiBonus,
+    0, 1,
+  );
 }
+
+function detectComboType(a: HeroData, b: HeroData): ComboType {
+  const { ccChain, engageBurst, peelCarry, diveCleanup } = kitComboComponents(a, b);
+  const scores: Record<ComboType, number> = {
+    cc_chain:     ccChain,
+    engage_burst: engageBurst,
+    peel_carry:   peelCarry,
+    dive_cleanup: diveCleanup,
+  };
+  return (Object.entries(scores).sort((x, y) => y[1] - x[1])[0][0]) as ComboType;
+}
+
+// ─── Team synergy score ───────────────────────────────────────────────────────
 
 function computeTeamSynergy(slots: GeneratedDraftSlot[]): number {
   const byLane = Object.fromEntries(slots.map((s) => [s.lane, s.hero]));
-  const roam   = byLane['Roam'];
-  const mid    = byLane['Mid'];
-  const gold   = byLane['Gold'];
-  const jgl    = byLane['Jungle'];
-  const exp    = byLane['EXP'];
+  const roam = byLane['Roam'];
+  const mid  = byLane['Mid'];
+  const gold = byLane['Gold'];
+  const jgl  = byLane['Jungle'];
+  const exp  = byLane['EXP'];
 
-  // Weighted pairs — Roam↔Mid most important (always lane together)
+  // Weighted pairs — Roam↔Mid most important, Roam↔Gold for peel/carry
   const pairs: [HeroData, HeroData, number][] = [
-    [roam, mid,  2.0],  // duo lane: roam rotates with mage
-    [roam, gold, 1.5],  // peel: roam protects carry
-    [jgl,  exp,  1.2],  // dive coordination
-    [jgl,  mid,  0.8],  // gank → mage followup
-    [mid,  gold, 0.6],  // safe follow from mid for carry
+    [roam, mid,  2.0],
+    [roam, gold, 1.5],
+    [jgl,  exp,  1.2],
+    [jgl,  mid,  0.8],
+    [mid,  gold, 0.6],
   ];
 
   let total = 0, weight = 0;
   for (const [a, b, w] of pairs) {
     if (!a || !b) continue;
-    total  += pairSynergyScore(a, b) * w;
+    total  += kitSynergyScore(a, b) * w;
     weight += w;
   }
 
   return weight > 0 ? clamp(Math.round((total / weight) * 100), 0, 100) : 50;
 }
 
+// ─── Top combos per composition ───────────────────────────────────────────────
+// Inspects the key lane pairs and surfaces the 3 most impactful combos.
+
+function computeTopCombos(slots: GeneratedDraftSlot[]): DraftCombo[] {
+  const byLane = Object.fromEntries(slots.map((s) => [s.lane, s]));
+  // Priority pairs: most impactful duos in the game flow
+  const PAIRS: [string, string][] = [
+    ['Roam', 'Mid'],
+    ['Roam', 'Gold'],
+    ['Jungle', 'EXP'],
+    ['Jungle', 'Mid'],
+    ['EXP', 'Mid'],
+  ];
+
+  const combos: DraftCombo[] = [];
+  for (const [lA, lB] of PAIRS) {
+    const sA = byLane[lA]; const sB = byLane[lB];
+    if (!sA || !sB) continue;
+    const score = Math.round(kitSynergyScore(sA.hero, sB.hero) * 100);
+    if (score < 25) continue; // not worth surfacing
+    const type = detectComboType(sA.hero, sB.hero);
+    combos.push({
+      heroA:     sA.hero.name,
+      laneA:     lA,
+      heroB:     sB.hero.name,
+      laneB:     lB,
+      comboType: type,
+      label:     COMBO_LABELS[type],
+      score,
+    });
+  }
+
+  return combos.sort((a, b) => b.score - a.score).slice(0, 3);
+}
+
+// ─── Counter score vs known enemy picks ───────────────────────────────────────
+// Returns −1…+1: positive = this composition counters the enemy well
+
+function counterScoreVsEnemy(slots: GeneratedDraftSlot[], enemyPicks: HeroData[]): number {
+  if (enemyPicks.length === 0) return 0;
+  const allies = slots.map((s) => s.hero);
+  let score = 0;
+  for (const ally of allies) {
+    for (const enemy of enemyPicks) {
+      if (ally.counters.includes(enemy.id))   score += 1.0;
+      if (enemy.counteredBy.includes(ally.id)) score += 0.5;
+      if (enemy.counters.includes(ally.id))   score -= 0.5;
+      if (ally.counteredBy.includes(enemy.id)) score -= 0.5;
+    }
+  }
+  const maxPossible = allies.length * enemyPicks.length * 1.5;
+  return clamp(score / maxPossible, -1, 1);
+}
+
 // ─── Diversity check ──────────────────────────────────────────────────────────
-// Two compositions are "too similar" if they share 4+ heroes.
-// We enforce that each added composition differs by at least 2 heroes from all existing ones.
 
 function isDiverseEnough(draft: GeneratedDraft, selected: GeneratedDraft[]): boolean {
   const ids = new Set(draft.slots.map((s) => s.hero.id));
   for (const existing of selected) {
     const shared = existing.slots.filter((s) => ids.has(s.hero.id)).length;
-    if (shared >= 4) return false; // too similar → skip
+    if (shared >= 4) return false;
   }
   return true;
 }
 
-// ─── Win condition ────────────────────────────────────────────────────────────
+// ─── Win condition text ───────────────────────────────────────────────────────
 
 function buildWinCondition(archetype: DraftArchetype, slots: GeneratedDraftSlot[]): string {
   const find = (lane: string) => slots.find((s) => s.lane === lane)?.hero.name ?? '?';
-  const gold = find('Gold');
-  const roam = find('Roam');
-  const jgl  = find('Jungle');
-  const mid  = find('Mid');
-  const exp  = find('EXP');
+  const gold = find('Gold'); const roam = find('Roam');
+  const jgl  = find('Jungle'); const mid = find('Mid'); const exp = find('EXP');
   const cond: Record<DraftArchetype, string> = {
     engage:  `${roam} initie, ${jgl} plonge immédiatement. ${mid} + ${gold} finissent le fight. Convergence < 2 secondes — objectif Lord après chaque fight gagné.`,
     poke:    `${mid} + ${gold} harcèlent avant chaque objectif. ${jgl} sécurise les buffs et les objectifs. Engagez seulement quand l'ennemi est < 60% de vie.`,
@@ -198,36 +374,37 @@ function buildWinCondition(archetype: DraftArchetype, slots: GeneratedDraftSlot[
   return cond[archetype];
 }
 
-// ─── Why text ─────────────────────────────────────────────────────────────────
-
 function buildWhy(hero: HeroData, lane: LaneKey, archetype: DraftArchetype): string {
-  const fit      = clamp(Math.round((heroArchetypeScores(hero)[archetype] ?? 0) * 10), 0, 100);
-  const role     = canonicalRoleLabel(hero, lane);
-  const laneStr  = ({ EXP: 'EXP Lane', Jungle: 'Jungle', Mid: 'Mid Lane', Gold: 'Gold Lane', Roam: 'Roam' } as Record<string, string>)[lane] ?? lane;
-  const wr       = ((hero.winRate ?? 0) * 100).toFixed(1);
-  return `${role} ${laneStr} — score ${ARCHETYPE_LABELS[archetype]} : ${fit}/100 · WR ${wr}%`;
+  const fit     = clamp(Math.round((heroArchetypeScores(hero)[archetype] ?? 0) * 10), 0, 100);
+  const role    = canonicalRoleLabel(hero, lane);
+  const laneStr = ({ EXP: 'EXP Lane', Jungle: 'Jungle', Mid: 'Mid Lane', Gold: 'Gold Lane', Roam: 'Roam' } as Record<string, string>)[lane] ?? lane;
+  const roamType = lane === 'Roam'
+    ? isRoamTank(hero) ? ' (Initiateur)' : isRoamSupport(hero) ? ' (Support)' : ''
+    : '';
+  return `${role}${roamType} ${laneStr} — fit ${ARCHETYPE_LABELS[archetype]} : ${fit}/100`;
 }
 
 // ─── Main generator ───────────────────────────────────────────────────────────
 
 export function generateArchetypeDrafts(
-  archetype: DraftArchetype,
-  heroPool: HeroData[],
-  excludedIds: Set<string> = new Set()
+  archetype:    DraftArchetype,
+  heroPool:     HeroData[],
+  excludedIds:  Set<string> = new Set(),
+  enemyPicks:   HeroData[]  = [],
 ): GeneratedDraft[] {
   const LANES: LaneKey[] = ['EXP', 'Jungle', 'Mid', 'Gold', 'Roam'];
   const pool = heroPool.filter((h) => !excludedIds.has(String(h.id)));
 
-  // ── 1. Candidates per lane (double gate: role + tier list) ─────────────
+  // ── 1. Candidates per lane ──────────────────────────────────────────────
   const candidates: Record<LaneKey, HeroData[]> = {} as Record<LaneKey, HeroData[]>;
   for (const lane of LANES) {
     candidates[lane] = pool
       .filter((h) => isValidCandidate(h, lane))
       .sort((a, b) => scoreHeroForSlot(b, lane, archetype) - scoreHeroForSlot(a, lane, archetype))
-      .slice(0, 10); // keep top 10 per lane for more composition diversity
+      .slice(0, 10);
   }
 
-  // ── 2. Global ban candidates (before filtering per composition) ─────────
+  // ── 2. Global ban pool ──────────────────────────────────────────────────
   const beatsUs = Object.entries(ARCHETYPE_BEATS)
     .filter(([, beats]) => beats.includes(archetype))
     .map(([a]) => a as DraftArchetype);
@@ -240,9 +417,9 @@ export function generateArchetypeDrafts(
       return { hero: h, score: counterStr + metaBonus };
     })
     .sort((a, b) => b.score - a.score)
-    .slice(0, 12); // wider pool so each composition has 6 bans after excluding its own picks
+    .slice(0, 12);
 
-  // ── 3. Generate all valid compositions, then select top 10 diverse ones ─
+  // ── 3. Generate all valid compositions ─────────────────────────────────
   const allDrafts: GeneratedDraft[] = [];
   const usedKeys  = new Set<string>();
 
@@ -252,7 +429,7 @@ export function generateArchetypeDrafts(
       for (let c = 0; c < 10; c++) {
         for (let d = 0; d < 10; d++) {
           for (let e = 0; e < 10; e++) {
-            if (allDrafts.length >= 80) break outer; // generate many, then pick diverse top 10
+            if (allDrafts.length >= 80) break outer;
 
             const heroEXP  = candidates['EXP'][a];
             const heroJGL  = candidates['Jungle'][b];
@@ -270,7 +447,6 @@ export function generateArchetypeDrafts(
 
             const compIds = new Set(ids);
 
-            // Per-composition bans: exclude heroes used in this composition
             const compBans: GeneratedBan[] = banPool
               .filter((c) => !compIds.has(c.hero.id))
               .slice(0, 6)
@@ -283,16 +459,13 @@ export function generateArchetypeDrafts(
                   : `Situationnel — bannir si l'ennemi semble le viser`,
               }));
 
-            // Build slots with alternatives (next best candidate not already in compo)
             const buildSlot = (hero: HeroData, lane: LaneKey): GeneratedDraftSlot => ({
               lane,
               hero,
               archetypeFit: clamp(Math.round((heroArchetypeScores(hero)[archetype] ?? 0) * 10), 0, 100),
               role:         canonicalRoleLabel(hero, lane),
               why:          buildWhy(hero, lane, archetype),
-              alternatives: candidates[lane]
-                .filter((h) => !compIds.has(h.id))
-                .slice(0, 2),
+              alternatives: candidates[lane].filter((h) => !compIds.has(h.id)).slice(0, 2),
             });
 
             const slots: GeneratedDraftSlot[] = [
@@ -308,8 +481,15 @@ export function generateArchetypeDrafts(
                 slots.reduce((s, sl) => s + scoreHeroForSlot(sl.hero, sl.lane, archetype), 0) / 5 * 100
               ), 0, 100
             );
-            const synergy   = computeTeamSynergy(slots);
-            const teamScore = clamp(Math.round(indivScore * 0.75 + synergy * 0.25), 0, 100);
+            const synergy     = computeTeamSynergy(slots);
+            const topCombos   = computeTopCombos(slots);
+            const counterAdj  = enemyPicks.length > 0
+              ? counterScoreVsEnemy(slots, enemyPicks) * 10
+              : 0;
+            const teamScore   = clamp(
+              Math.round(indivScore * 0.65 + synergy * 0.25 + counterAdj),
+              0, 100
+            );
 
             allDrafts.push({
               rank: 0,
@@ -317,6 +497,7 @@ export function generateArchetypeDrafts(
               bans:         compBans,
               teamScore,
               synergyScore: synergy,
+              topCombos,
               winCondition: buildWinCondition(archetype, slots),
               archetype,
             });
@@ -326,7 +507,7 @@ export function generateArchetypeDrafts(
     }
   }
 
-  // ── 4. Sort and apply diversity filter — keep top 10 diverse compositions
+  // ── 4. Sort and diversity filter — keep top 10 ─────────────────────────
   allDrafts.sort((a, b) => b.teamScore - a.teamScore);
 
   const selected: GeneratedDraft[] = [];

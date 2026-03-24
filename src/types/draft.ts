@@ -47,6 +47,11 @@ export interface HeroData {
   // Average win rate boost when playing with synergy partners (from /teammates)
   // 0 = no data, 5 = neutral, >5 = positive synergy → used for Team Coordination metric
   synergyBoost: number;  // 0–10
+
+  // Real pairwise synergy boosts from hero-detail-stats API
+  // Key = partner hero ID, value = increase_win_rate (in %, e.g. 6.8 = +6.8% WR)
+  // Used for accurate pair scoring in draft generator (Atlas+Mathilda = 6.8%)
+  synergyPairs?: Record<number, number>;
 }
 
 // ─── Draft Structure ─────────────────────────────────────────────────────────
