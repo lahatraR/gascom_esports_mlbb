@@ -4,7 +4,7 @@ import { predictEnemyPicks } from './predictionEngine';
 import { detectTeamArchetype } from './archetypeEngine';
 import { buildEnemyCompAnalysis } from './compositionEngine';
 import { buildWinningLineup }     from './lineupEngine';
-import { analyzeBanPattern, buildArchetypeProbability, detectCompositionHoles, buildStrategicRead } from './intelligenceEngine';
+import { analyzeBanPattern, buildArchetypeProbability, detectCompositionHoles, buildStrategicRead, buildAdaptiveBanSuggestions, buildCounterplayTips } from './intelligenceEngine';
 
 // ─── Team metric calculation ─────────────────────────────────────────────────
 
@@ -219,6 +219,20 @@ export function runDraftAnalysis(
     allyArch?.primary ?? null,
   );
 
+  // Adaptive ban suggestions (phase-2 aware): react to confirmed enemy picks
+  const bannedIdsSet = new Set([...blueBans.map((h) => h.id), ...redBans.map((h) => h.id)]);
+  const pickedIdsSet = new Set([...blueTeam.map((h) => h.id), ...redTeam.map((h) => h.id)]);
+  const adaptiveBanSuggestions = buildAdaptiveBanSuggestions(
+    enemyPicksForIntel,
+    allyPicksForIntel,
+    allHeroes,
+    bannedIdsSet,
+    pickedIdsSet,
+  );
+
+  // Counterplay tips: stat-based actionable advice vs confirmed enemy heroes
+  const counterplayTips = buildCounterplayTips(enemyPicksForIntel);
+
   return {
     blueMetrics,
     redMetrics,
@@ -236,6 +250,8 @@ export function runDraftAnalysis(
     archetypeProbability,
     compositionHoles,
     strategicRead,
+    adaptiveBanSuggestions,
+    counterplayTips,
   };
 }
 

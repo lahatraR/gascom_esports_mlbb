@@ -272,10 +272,12 @@ export interface DraftAnalysis {
   enemyCompAnalysis: EnemyCompAnalysis | null;
   winningLineup:     WinningLineup | null;
   // Draft intelligence
-  banAnalysis:          BanAnalysis | null;
-  archetypeProbability: ArchetypeProbability | null;
-  compositionHoles:     CompositionHole[];
-  strategicRead:        import('@/engine/intelligenceEngine').StrategicRead | null;
+  banAnalysis:             BanAnalysis | null;
+  archetypeProbability:    ArchetypeProbability | null;
+  compositionHoles:        CompositionHole[];
+  strategicRead:           import('@/engine/intelligenceEngine').StrategicRead | null;
+  adaptiveBanSuggestions:  import('@/engine/intelligenceEngine').AdaptiveBanSuggestion[];
+  counterplayTips:         import('@/engine/intelligenceEngine').CounterplayTip[];
 }
 
 // ─── Draft intelligence types ─────────────────────────────────────────────────

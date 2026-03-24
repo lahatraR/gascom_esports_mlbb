@@ -3,6 +3,54 @@ import { heroArchetypeScores, ARCHETYPE_BEATS, ARCHETYPE_LABELS } from './archet
 import { getHeroTierScore, getHeroLanes, LANE_TIERS } from '@/data/tierList';
 import type { LaneKey, TierRank } from '@/data/tierList';
 
+// ─── Pick order per archetype ─────────────────────────────────────────────────
+// Defines which role to draft at each pick slot (1st → 5th) based on archetype.
+// Early picks establish intent or flex picks; late picks confirm counters.
+
+export interface PickOrderStep {
+  order:  number; // 1–5
+  lane:   string;
+  reason: string;
+}
+
+const ARCHETYPE_PICK_ORDER: Record<DraftArchetype, PickOrderStep[]> = {
+  engage: [
+    { order: 1, lane: 'Roam',   reason: 'Établit l\'intention engage — force l\'ennemi à réagir' },
+    { order: 2, lane: 'Jungle', reason: 'Duo d\'initiation avec le Roam Tank — plongeur confirmé' },
+    { order: 3, lane: 'EXP',    reason: 'Pick flex selon les réactions ennemies' },
+    { order: 4, lane: 'Mid',    reason: 'Damage burst après l\'initiation du Roam+Jungle' },
+    { order: 5, lane: 'Gold',   reason: 'Carry final — dernier pick pour counter l\'ennemi' },
+  ],
+  poke: [
+    { order: 1, lane: 'Mid',    reason: 'Cœur de la poke — oriente tout le draft' },
+    { order: 2, lane: 'Gold',   reason: 'Second DPS à distance — double pression de zone' },
+    { order: 3, lane: 'Roam',   reason: 'Support adapté à la poke (Diggie, Mathilda)' },
+    { order: 4, lane: 'Jungle', reason: 'Sécurise objectifs pendant que la poke force la respawn' },
+    { order: 5, lane: 'EXP',    reason: 'Dernier pick flex — s\'adapte aux menaces restantes' },
+  ],
+  protect: [
+    { order: 1, lane: 'Gold',   reason: 'Win condition centrale — construire toute la comp autour' },
+    { order: 2, lane: 'Mid',    reason: 'Second carry à protéger avec le Gold' },
+    { order: 3, lane: 'Jungle', reason: 'Flex peel ou dive selon les menaces confirmées' },
+    { order: 4, lane: 'Roam',   reason: 'Support peel — confirme après avoir vu le draft ennemi' },
+    { order: 5, lane: 'EXP',    reason: 'Comble les faiblesses finales de la composition' },
+  ],
+  split: [
+    { order: 1, lane: 'EXP',    reason: 'Menace side lane dès le début — force une réponse ennemie' },
+    { order: 2, lane: 'Jungle', reason: 'Conteste les objectifs pendant que l\'EXP pousse' },
+    { order: 3, lane: 'Mid',    reason: 'Flex roam ou push selon la pression ennemie' },
+    { order: 4, lane: 'Gold',   reason: 'Late game insurance si le split ne clôt pas assez vite' },
+    { order: 5, lane: 'Roam',   reason: 'Dernier pick — comble les faiblesses identifiées' },
+  ],
+  catch: [
+    { order: 1, lane: 'Jungle', reason: 'Assassin principal — annonce l\'intention pick-off' },
+    { order: 2, lane: 'Roam',   reason: 'Tank initiateur — crée l\'isolation sur la cible' },
+    { order: 3, lane: 'Mid',    reason: 'Burst de confirmation après l\'isolation' },
+    { order: 4, lane: 'EXP',    reason: 'Second isolateur ou nettoyeur de teamfight' },
+    { order: 5, lane: 'Gold',   reason: 'Carry final — capitalise les avantages créés' },
+  ],
+};
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type ComboType = 'cc_chain' | 'engage_burst' | 'peel_carry' | 'dive_cleanup';
@@ -53,6 +101,7 @@ export interface GeneratedDraft {
   teamScore:    number;   // 0–100
   synergyScore: number;  // 0–100
   topCombos:    DraftCombo[];
+  pickOrder:    PickOrderStep[];
   winCondition: string;
   archetype:    DraftArchetype;
 }
@@ -483,13 +532,13 @@ export function generateArchetypeDrafts(
             );
             const synergy     = computeTeamSynergy(slots);
             const topCombos   = computeTopCombos(slots);
-            const counterAdj  = enemyPicks.length > 0
+            const counterAdj = enemyPicks.length > 0
               ? counterScoreVsEnemy(slots, enemyPicks) * 10
               : 0;
-            const teamScore   = clamp(
-              Math.round(indivScore * 0.65 + synergy * 0.25 + counterAdj),
-              0, 100
-            );
+            // Bug fix: when no enemy picks, keep 0.75+0.25 so max score stays 100
+            const teamScore = enemyPicks.length > 0
+              ? clamp(Math.round(indivScore * 0.65 + synergy * 0.25 + counterAdj), 0, 100)
+              : clamp(Math.round(indivScore * 0.75 + synergy * 0.25), 0, 100);
 
             allDrafts.push({
               rank: 0,
@@ -498,6 +547,7 @@ export function generateArchetypeDrafts(
               teamScore,
               synergyScore: synergy,
               topCombos,
+              pickOrder:    ARCHETYPE_PICK_ORDER[archetype],
               winCondition: buildWinCondition(archetype, slots),
               archetype,
             });

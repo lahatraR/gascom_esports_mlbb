@@ -280,6 +280,161 @@ export function buildArchetypeProbability(
   };
 }
 
+// ─── Adaptive Ban Suggestions ────────────────────────────────────────────────
+//
+// Phase-2 aware ban recommendations:
+//   1. Synergy partners of confirmed enemy picks (break their combos)
+//   2. Counters to our confirmed picks (protect our carries)
+//   3. Heroes that would complete the enemy archetype
+//
+// Call when at least 1 enemy pick is confirmed.
+
+export interface AdaptiveBanSuggestion {
+  hero:    HeroData;
+  reason:  string;
+  urgency: 'critical' | 'high' | 'medium';
+}
+
+export function buildAdaptiveBanSuggestions(
+  enemyPicks: HeroData[],
+  allyPicks:  HeroData[],
+  allHeroes:  HeroData[],
+  bannedIds:  Set<number>,
+  pickedIds:  Set<number>,
+): AdaptiveBanSuggestion[] {
+  if (enemyPicks.length === 0) return [];
+
+  const available = allHeroes.filter((h) => !bannedIds.has(h.id) && !pickedIds.has(h.id));
+  const results:   AdaptiveBanSuggestion[] = [];
+  const seen = new Set<number>();
+
+  const add = (hero: HeroData, reason: string, urgency: AdaptiveBanSuggestion['urgency']) => {
+    if (seen.has(hero.id)) return;
+    seen.add(hero.id);
+    results.push({ hero, reason, urgency });
+  };
+
+  // 1. Synergy partners of confirmed enemy picks
+  for (const enemy of enemyPicks) {
+    const partners = available
+      .filter((h) => enemy.synergies.includes(h.id) || h.synergies.includes(enemy.id))
+      .slice(0, 2);
+    for (const p of partners) {
+      add(p, `Partenaire fort de ${enemy.name} — brisez leur combo de kit`, 'high');
+    }
+  }
+
+  // 2. Hard counters to our confirmed picks
+  for (const ally of allyPicks) {
+    const counters = available
+      .filter((h) => ally.counteredBy.includes(h.id) || h.counters.includes(ally.id))
+      .slice(0, 1);
+    for (const c of counters) {
+      add(c, `Counter direct de votre ${ally.name} — protégez votre composition`, 'critical');
+    }
+  }
+
+  // 3. Heroes that would complete the enemy archetype (strongest fit not yet picked)
+  const enemyArch = dominantArchetypeOfHeroes(enemyPicks);
+  if (enemyArch && enemyPicks.length >= 2) {
+    const completions = [...available]
+      .sort((a, b) => heroArchetypeScores(b)[enemyArch] - heroArchetypeScores(a)[enemyArch])
+      .slice(0, 3);
+    for (const hero of completions) {
+      if (heroArchetypeScores(hero)[enemyArch] > 7) {
+        add(hero, `Compléterait parfaitement leur ${ARCHETYPE_LABELS[enemyArch]}`, 'high');
+      }
+    }
+  }
+
+  // Sort: critical first, then high, then medium. Return top 5.
+  const urgencyOrder: Record<AdaptiveBanSuggestion['urgency'], number> = { critical: 0, high: 1, medium: 2 };
+  return results
+    .sort((a, b) => urgencyOrder[a.urgency] - urgencyOrder[b.urgency])
+    .slice(0, 5);
+}
+
+// ─── Counterplay Tips ─────────────────────────────────────────────────────────
+//
+// Generates actionable French tips based on confirmed enemy heroes' stat profiles.
+// Items amplify base stats, so a high-CC hero will apply more CC with CC items —
+// we can reliably warn about their threats without knowing their specific items.
+
+export interface CounterplayTip {
+  targetHero: string;
+  tip:        string;
+  priority:   'critical' | 'high' | 'medium';
+}
+
+export function buildCounterplayTips(enemyPicks: HeroData[]): CounterplayTip[] {
+  if (enemyPicks.length === 0) return [];
+  const tips: CounterplayTip[] = [];
+
+  for (const hero of enemyPicks) {
+    // Dominant late game carry → time pressure
+    if (hero.late >= 8) {
+      tips.push({
+        targetHero: hero.name,
+        tip:        `${hero.name} devient dominant en late — forcez les objectifs avant 12 min et ne laissez pas le jeu s'étirer.`,
+        priority:   'critical',
+      });
+    }
+    // Massive CC → positioning discipline
+    if (hero.cc >= 8) {
+      tips.push({
+        targetHero: hero.name,
+        tip:        `${hero.name} possède un CC massif — restez dispersés, gardez votre Flicker pour esquiver son lockdown.`,
+        priority:   'critical',
+      });
+    }
+    // Mobile assassin → never split
+    if (hero.mobility >= 8 && hero.damage >= 7) {
+      tips.push({
+        targetHero: hero.name,
+        tip:        `${hero.name} est un assassin mobile et dévastateur — ne vous isolez jamais, restez en groupe lors des rotations.`,
+        priority:   'high',
+      });
+    }
+    // Extreme tankiness → penetration items hint
+    if (hero.tankiness >= 8) {
+      tips.push({
+        targetHero: hero.name,
+        tip:        `${hero.name} est extrêmement résistant — priorisez les objets de pénétration physique/magique ou de réduction défense.`,
+        priority:   'high',
+      });
+    }
+    // Heavy map pressure / split threat → map awareness
+    if (hero.pressure >= 8) {
+      tips.push({
+        targetHero: hero.name,
+        tip:        `${hero.name} impose une pression de carte massive — répondez à ses rotations, ne laissez pas les objectifs sans contestation.`,
+        priority:   'high',
+      });
+    }
+    // High damage but immobile → punish positioning
+    if (hero.damage >= 8 && hero.mobility <= 4) {
+      tips.push({
+        targetHero: hero.name,
+        tip:        `${hero.name} inflige d'énormes dégâts mais manque de mobilité — plongez dessus avant qu'il puisse s'installer en position.`,
+        priority:   'high',
+      });
+    }
+    // Early game dominant → survive early
+    if (hero.early >= 8) {
+      tips.push({
+        targetHero: hero.name,
+        tip:        `${hero.name} domine l'early game — évitez les trades défavorables jusqu'à vos premiers objets clés.`,
+        priority:   'medium',
+      });
+    }
+  }
+
+  const priorityOrder: Record<CounterplayTip['priority'], number> = { critical: 0, high: 1, medium: 2 };
+  return tips
+    .sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority])
+    .slice(0, 5);
+}
+
 // ─── Composition Hole Detection ───────────────────────────────────────────────
 //
 // Detects missing roles in the allied team and returns ⚠️ alerts.

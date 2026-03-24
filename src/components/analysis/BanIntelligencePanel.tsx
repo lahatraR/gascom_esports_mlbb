@@ -3,7 +3,7 @@
 'use client';
 import clsx from 'clsx';
 import type { BanAnalysis, ArchetypeProbability, DraftArchetype, HeroData } from '@/types/draft';
-import type { StrategicRead } from '@/engine/intelligenceEngine';
+import type { StrategicRead, AdaptiveBanSuggestion, CounterplayTip } from '@/engine/intelligenceEngine';
 import {
   ARCHETYPE_LABELS,
   ARCHETYPE_ICON,
@@ -76,13 +76,15 @@ function ProbabilityBar({
 // ─── Main panel ───────────────────────────────────────────────────────────────
 
 interface Props {
-  banAnalysis:          BanAnalysis | null;
-  archetypeProbability: ArchetypeProbability | null;
-  enemyTeam:            'blue' | 'red';
-  strategicRead?:       StrategicRead | null;
+  banAnalysis:             BanAnalysis | null;
+  archetypeProbability:    ArchetypeProbability | null;
+  enemyTeam:               'blue' | 'red';
+  strategicRead?:          StrategicRead | null;
+  adaptiveBanSuggestions?: AdaptiveBanSuggestion[];
+  counterplayTips?:        CounterplayTip[];
 }
 
-export function BanIntelligencePanel({ banAnalysis, archetypeProbability, enemyTeam, strategicRead }: Props) {
+export function BanIntelligencePanel({ banAnalysis, archetypeProbability, enemyTeam, strategicRead, adaptiveBanSuggestions, counterplayTips }: Props) {
   const { blueBans, redBans } = useDraftStore((s) => ({ blueBans: s.blueBans, redBans: s.redBans }));
   const enemyBans = (enemyTeam === 'blue' ? blueBans : redBans).filter((h): h is HeroData => h !== null);
 
@@ -268,6 +270,74 @@ export function BanIntelligencePanel({ banAnalysis, archetypeProbability, enemyT
                   <p className="text-[9px] text-yellow-300/80 leading-snug">{strategicRead.trapOpportunity}</p>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* ── Adaptive ban suggestions (phase-2 aware) ── */}
+        {adaptiveBanSuggestions && adaptiveBanSuggestions.length > 0 && (
+          <div>
+            <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+              🚫 Bans à prioritiser maintenant
+            </p>
+            <div className="flex flex-col gap-1.5">
+              {adaptiveBanSuggestions.map((s, i) => {
+                const urgencyColor = s.urgency === 'critical' ? '#f87171'
+                  : s.urgency === 'high' ? '#fb923c'
+                  : '#facc15';
+                const urgencyLabel = s.urgency === 'critical' ? 'URGENT'
+                  : s.urgency === 'high' ? 'PRIORITAIRE'
+                  : 'SITUATIONNEL';
+                return (
+                  <div
+                    key={i}
+                    className="rounded-lg px-2 py-1.5 flex items-start gap-2"
+                    style={{ background: 'rgba(10,5,20,0.7)', border: `1px solid ${urgencyColor}30` }}
+                  >
+                    <span
+                      className="shrink-0 text-[8px] font-black px-1 py-0.5 rounded tracking-wide whitespace-nowrap mt-0.5"
+                      style={{ color: urgencyColor, background: `${urgencyColor}18`, border: `1px solid ${urgencyColor}35` }}
+                    >
+                      {urgencyLabel}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] font-bold text-slate-200 leading-none">{s.hero.name}</p>
+                      <p className="text-[9px] text-slate-500 leading-snug mt-0.5">{s.reason}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ── Counterplay tips ── */}
+        {counterplayTips && counterplayTips.length > 0 && (
+          <div>
+            <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+              🎯 Comment les contrer
+            </p>
+            <div className="flex flex-col gap-1.5">
+              {counterplayTips.map((tip, i) => {
+                const prioColor = tip.priority === 'critical' ? '#f87171'
+                  : tip.priority === 'high' ? '#fb923c'
+                  : '#94a3b8';
+                return (
+                  <div
+                    key={i}
+                    className="rounded-lg px-2 py-1.5 flex items-start gap-2"
+                    style={{ background: 'rgba(10,5,20,0.7)', border: `1px solid rgba(100,100,130,0.25)` }}
+                  >
+                    <span className="text-sm shrink-0 mt-0.5" style={{ color: prioColor }}>
+                      {tip.priority === 'critical' ? '⚠️' : tip.priority === 'high' ? '●' : '○'}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[8px] font-bold text-slate-500 uppercase tracking-wide leading-none mb-0.5">{tip.targetHero}</p>
+                      <p className="text-[10px] text-slate-300 leading-snug">{tip.tip}</p>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}

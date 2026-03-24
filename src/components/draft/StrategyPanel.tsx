@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useDraftStore } from '@/store/draftStore';
 import { DRAFT_TEMPLATES } from '@/data/draftTemplates';
 import { getDraftSequence } from '@/types/draft';
@@ -577,6 +577,112 @@ function LiveStrategy({
   );
 }
 
+// ─── Hero stat tooltip ────────────────────────────────────────────────────────
+
+function StatBar({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="text-[8px] text-slate-500 w-14 text-right shrink-0">{label}</span>
+      <div className="flex-1 h-1 rounded-full" style={{ background: 'rgba(40,40,60,0.8)' }}>
+        <div className="h-full rounded-full" style={{ width: `${value * 10}%`, background: color }} />
+      </div>
+      <span className="text-[8px] font-bold shrink-0" style={{ color, minWidth: 12, textAlign: 'right' }}>{value}</span>
+    </div>
+  );
+}
+
+function HeroStatTooltip({ hero, children }: { hero: HeroData; children: React.ReactNode }) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <div
+      className="relative"
+      onMouseEnter={() => setVisible(true)}
+      onMouseLeave={() => setVisible(false)}
+    >
+      {children}
+      {visible && (
+        <div
+          className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-36 rounded-lg p-2 flex flex-col gap-1 pointer-events-none"
+          style={{ background: 'rgba(8,6,18,0.97)', border: '1px solid rgba(80,80,120,0.55)', boxShadow: '0 4px 20px rgba(0,0,0,0.6)' }}
+        >
+          <p className="text-[9px] font-bold text-white truncate mb-0.5">{hero.name}</p>
+          <StatBar label="CC"        value={hero.cc}        color="#a78bfa" />
+          <StatBar label="Dégâts"    value={hero.damage}    color="#f87171" />
+          <StatBar label="Mobilité"  value={hero.mobility}  color="#4ade80" />
+          <StatBar label="Résistance" value={hero.tankiness} color="#60a5fa" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Export draft summary ─────────────────────────────────────────────────────
+
+function buildDraftSummaryText(draft: GeneratedDraft): string {
+  const laneIcon: Record<string, string> = { EXP: '⚡', Jungle: '🌿', Mid: '🔮', Gold: '💰', Roam: '🛡' };
+  const lines: string[] = [
+    `=== Composition #${draft.rank} — ${draft.archetype.toUpperCase()} ===`,
+    '',
+    '🧩 COMPOSITION PAR LANE',
+    ...draft.slots.map((s) => `  ${laneIcon[s.lane] ?? '•'} ${s.lane.padEnd(7)} ${s.hero.name}  [${s.role}]`),
+    '',
+  ];
+  if (draft.topCombos.length > 0) {
+    lines.push('🔗 COMBOS CLÉS');
+    for (const c of draft.topCombos) {
+      lines.push(`  ${c.heroA} + ${c.heroB} → ${c.label} (${c.score}%)`);
+    }
+    lines.push('');
+  }
+  if (draft.pickOrder.length > 0) {
+    lines.push('🎯 ORDRE DE PICK RECOMMANDÉ');
+    for (const p of draft.pickOrder) {
+      lines.push(`  ${p.order}. ${p.lane.padEnd(7)} — ${p.reason}`);
+    }
+    lines.push('');
+  }
+  lines.push('🚫 BANS RECOMMANDÉS');
+  for (const b of draft.bans) {
+    const tag = b.priority === 'must-ban' ? '[OBLIGATOIRE]' : b.priority === 'high' ? '[PRIORITAIRE]' : '[SITUATIONNEL]';
+    lines.push(`  ${tag} ${b.hero.name}`);
+  }
+  lines.push('');
+  lines.push('✅ CONDITION DE VICTOIRE');
+  lines.push(`  ${draft.winCondition}`);
+  lines.push('');
+  lines.push('— Généré par GES Draft Simulator —');
+  return lines.join('\n');
+}
+
+// ─── Export button ────────────────────────────────────────────────────────────
+
+function ExportButton({ draft }: { draft: GeneratedDraft }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(() => {
+    const text = buildDraftSummaryText(draft);
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(() => { /* clipboard denied */ });
+  }, [draft]);
+
+  return (
+    <button
+      onClick={handleCopy}
+      className="w-full flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-[10px] font-bold transition-all duration-200"
+      style={{
+        background:  copied ? 'rgba(74,222,128,0.12)' : 'rgba(30,30,50,0.7)',
+        border:      `1px solid ${copied ? 'rgba(74,222,128,0.35)' : 'rgba(80,80,110,0.40)'}`,
+        color:       copied ? '#4ade80' : '#94a3b8',
+      }}
+    >
+      <span>{copied ? '✓' : '📋'}</span>
+      {copied ? 'Résumé copié !' : 'Copier le résumé du draft'}
+    </button>
+  );
+}
+
 // ─── Generated Draft Panel ────────────────────────────────────────────────────
 
 const LANE_ICON_GEN: Record<string, string> = {
@@ -685,16 +791,18 @@ function GeneratedDraftCard({
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        {/* Portrait */}
-                        <div className="rounded overflow-hidden shrink-0 border border-slate-700/40" style={{ width: 28, height: 32 }}>
-                          {hero?.image ? (
-                            <img src={hero.image} alt={slot.hero.name} className="w-full h-full object-cover object-top" />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-[9px] font-bold text-slate-400 bg-slate-800/70">
-                              {slot.hero.name.charAt(0)}
-                            </div>
-                          )}
-                        </div>
+                        {/* Portrait with stat tooltip */}
+                        <HeroStatTooltip hero={slot.hero}>
+                          <div className="rounded overflow-hidden shrink-0 border border-slate-700/40 cursor-help" style={{ width: 28, height: 32 }}>
+                            {hero?.image ? (
+                              <img src={hero.image} alt={slot.hero.name} className="w-full h-full object-cover object-top" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-[9px] font-bold text-slate-400 bg-slate-800/70">
+                                {slot.hero.name.charAt(0)}
+                              </div>
+                            )}
+                          </div>
+                        </HeroStatTooltip>
                         <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded" style={{ background: 'rgba(255,255,255,0.07)', color: '#e2e8f0' }}>
                           {slot.hero.name}
                         </span>
@@ -799,10 +907,48 @@ function GeneratedDraftCard({
             </Section>
           )}
 
+          {/* Pick order */}
+          {draft.pickOrder && draft.pickOrder.length > 0 && (
+            <Section title="Ordre de Pick Recommandé">
+              <div className="flex flex-col gap-1">
+                {draft.pickOrder.map((step) => {
+                  const laneHero = draft.slots.find((s) => s.lane === step.lane);
+                  const stepKey  = laneHero?.hero.name.toLowerCase().replace(/[^a-z0-9]/g, '') ?? '';
+                  const stepHero = heroMap.get(stepKey);
+                  return (
+                    <div key={step.order} className="flex items-center gap-2 rounded-lg px-2 py-1.5" style={{ background: 'rgba(12,12,24,0.70)', border: '1px solid rgba(60,60,90,0.35)' }}>
+                      <span
+                        className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-black"
+                        style={{ background: step.order === 1 ? 'rgba(251,191,36,0.25)' : 'rgba(60,60,80,0.7)', color: step.order === 1 ? '#fbbf24' : '#64748b' }}
+                      >
+                        {step.order}
+                      </span>
+                      {stepHero?.image && (
+                        <div className="rounded overflow-hidden shrink-0" style={{ width: 18, height: 20 }}>
+                          <img src={stepHero.image} alt={laneHero?.hero.name} className="w-full h-full object-cover object-top" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[9px] font-bold text-slate-300">{LANE_ICON_GEN[step.lane]} {step.lane}</span>
+                          {laneHero && <span className="text-[9px] text-slate-500">· {laneHero.hero.name}</span>}
+                        </div>
+                        <p className="text-[9px] text-slate-600 leading-tight">{step.reason}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </Section>
+          )}
+
           {/* Win condition */}
           <Section title="Condition de Victoire">
             <p className="text-[11px] text-slate-300 leading-relaxed">{draft.winCondition}</p>
           </Section>
+
+          {/* Export button */}
+          <ExportButton draft={draft} />
         </div>
       )}
     </div>
