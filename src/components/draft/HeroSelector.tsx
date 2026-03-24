@@ -40,7 +40,7 @@ function mainLane(roles: string[]) {
   return { icon: '⚔️', label: '—' };
 }
 
-// ─── Inline suggestion bar — top 3 portrait cards ────────────────────────────
+// ─── Inline suggestion bar — compact horizontal strip ────────────────────────
 function InlineSuggestionBar({
   suggestions,
   team,
@@ -55,144 +55,117 @@ function InlineSuggestionBar({
   const top3 = suggestions.slice(0, 3);
   if (top3.length === 0) return null;
 
-  const isBlue = team === 'blue';
-  const teamBorder = isBlue ? 'rgba(59,130,246,0.45)' : 'rgba(239,68,68,0.45)';
-  const teamGlow   = isBlue ? 'rgba(59,130,246,0.14)' : 'rgba(239,68,68,0.14)';
-  const teamFill   = isBlue ? 'rgba(59,130,246,0.55)' : 'rgba(239,68,68,0.55)';
+  const isBlue     = team === 'blue';
+  const teamColor  = isBlue ? '#3b82f6' : '#ef4444';
+  const teamBorder = isBlue ? 'rgba(59,130,246,0.35)' : 'rgba(239,68,68,0.35)';
+  const teamGlow   = isBlue ? 'rgba(59,130,246,0.10)' : 'rgba(239,68,68,0.10)';
   const RANK = ['🥇', '🥈', '🥉'];
 
   return (
     <div
-      className="rounded-xl border p-2.5 flex flex-col gap-2"
-      style={{ background: 'rgba(5,5,10,0.92)', borderColor: teamBorder, boxShadow: `0 0 18px ${teamGlow}` }}
+      className="rounded-lg border overflow-hidden"
+      style={{ background: 'rgba(5,5,10,0.95)', borderColor: teamBorder, boxShadow: `0 0 12px ${teamGlow}` }}
     >
-      {/* Header row */}
-      <div className="flex items-center gap-2">
-        <span className="text-[9px] font-bold tracking-wide text-slate-400 shrink-0">Meilleurs picks</span>
-        <div className="flex-1 h-px" style={{ background: `linear-gradient(to right, ${teamBorder}, transparent)` }} />
-        <span className="text-[8px] text-slate-600 shrink-0">cliquer pour picker</span>
+      {/* ── Header strip ── */}
+      <div
+        className="flex items-center gap-2 px-2.5 py-1"
+        style={{ background: `linear-gradient(to right, ${teamColor}18, transparent)`, borderBottom: `1px solid ${teamBorder}` }}
+      >
+        <span style={{ color: teamColor }} className="text-[9px]">⚡</span>
+        <span className="text-[9px] font-black tracking-widest text-slate-300 uppercase shrink-0">
+          Meilleurs picks
+        </span>
+        {/* Inline enemy archetype badge */}
+        {enemyArchetype && (
+          <>
+            <div className="w-px h-3 bg-slate-700 shrink-0" />
+            <span className="text-[8px] text-slate-500 shrink-0">vs</span>
+            <span
+              className="text-[8px] font-bold px-1.5 py-0.5 rounded shrink-0"
+              style={{
+                color:      ARCH_COLOR[enemyArchetype.primary],
+                background: `${ARCH_COLOR[enemyArchetype.primary]}18`,
+                border:     `1px solid ${ARCH_COLOR[enemyArchetype.primary]}35`,
+              }}
+            >
+              ⚠️ {ARCH_LABEL[enemyArchetype.primary]}{enemyArchetype.confidence >= 55 ? ' ✓' : '?'}
+            </span>
+            <span className="text-[8px] text-slate-600 truncate">
+              → {ARCH_COUNTER_HINT[enemyArchetype.primary]}
+            </span>
+          </>
+        )}
+        <span className="ml-auto text-[8px] text-slate-600 shrink-0">cliquer pour picker</span>
       </div>
 
-      {/* Enemy archetype detection banner */}
-      {enemyArchetype && (
-        <div
-          className="flex items-center gap-2 rounded-lg px-2 py-1.5"
-          style={{
-            background: `${ARCH_COLOR[enemyArchetype.primary]}12`,
-            border:     `1px solid ${ARCH_COLOR[enemyArchetype.primary]}35`,
-          }}
-        >
-          <span className="text-[10px] shrink-0">⚠️</span>
-          <div className="flex-1 min-w-0">
-            <span className="text-[9px] text-slate-400">
-              Ennemi construit du{' '}
-              <span
-                className="font-bold"
-                style={{ color: ARCH_COLOR[enemyArchetype.primary] }}
-              >
-                {ARCH_LABEL[enemyArchetype.primary]}
-              </span>
-              {enemyArchetype.confidence >= 55 ? ' (confirmé)' : ' (probable)'}
-              {' '}—{' '}
-              <span className="text-slate-500">
-                privilégiez{' '}
-                <span className="font-semibold text-slate-300">
-                  {ARCH_COUNTER_HINT[enemyArchetype.primary]}
-                </span>
-              </span>
-            </span>
-          </div>
-        </div>
-      )}
-
-      {/* Portrait cards */}
-      <div className="grid grid-cols-3 gap-2">
+      {/* ── Hero chips row ── */}
+      <div className="flex gap-0">
         {top3.map((s, i) => {
           const lane       = mainLane(s.hero.roles);
           const scoreColor = s.score >= 80 ? '#4ade80' : s.score >= 65 ? '#facc15' : '#f87171';
-          const scoreBg    = s.score >= 80 ? 'rgba(74,222,128,0.18)' : s.score >= 65 ? 'rgba(250,204,21,0.18)' : 'rgba(248,113,113,0.18)';
-          const borderClr  = s.score >= 80 ? 'rgba(74,222,128,0.50)' : s.score >= 65 ? 'rgba(250,204,21,0.45)' : 'rgba(248,113,113,0.45)';
+          const isFirst    = i === 0;
 
           return (
             <button
               key={s.hero.id}
               onClick={() => onPick(s.hero)}
-              className="relative flex flex-col rounded-xl overflow-hidden border transition-all duration-200 group hover:scale-[1.03]"
+              className="relative flex-1 flex items-center gap-2 px-2.5 py-1.5 group transition-all duration-150 hover:brightness-125"
               style={{
-                background:  'rgba(8,8,14,0.97)',
-                borderColor: borderClr,
-                boxShadow:   `0 0 14px ${scoreBg}`,
+                background: isFirst ? `${scoreColor}08` : 'transparent',
+                borderLeft: i > 0 ? `1px solid ${teamBorder}` : undefined,
               }}
             >
-              {/* Portrait — taller, face-centered */}
-              <div className="relative w-full" style={{ height: 95 }}>
+              {/* Avatar */}
+              <div
+                className="shrink-0 rounded overflow-hidden"
+                style={{ width: 30, height: 30, border: `1px solid ${scoreColor}45` }}
+              >
                 {s.hero.image ? (
                   <img
                     src={s.hero.image}
                     alt={s.hero.name}
-                    className="absolute inset-0 w-full h-full object-cover"
+                    className="w-full h-full object-cover"
                     style={{ objectPosition: 'center 15%' }}
                   />
                 ) : (
                   <div
-                    className="absolute inset-0 flex items-center justify-center text-3xl font-black"
+                    className="w-full h-full flex items-center justify-center text-[11px] font-black"
                     style={{ background: 'rgba(20,20,32,0.9)', color: scoreColor }}
                   >
                     {s.hero.name.charAt(0)}
                   </div>
                 )}
-                {/* Rank medal top-left */}
-                <span
-                  className="absolute top-1 left-1 text-sm leading-none drop-shadow-lg"
-                  style={{ textShadow: '0 1px 4px rgba(0,0,0,0.9)' }}
-                >
-                  {RANK[i]}
-                </span>
-                {/* Score badge top-right */}
-                <span
-                  className="absolute top-1 right-1 text-[10px] font-black px-1.5 py-0.5 rounded-full"
-                  style={{ background: 'rgba(0,0,0,0.85)', color: scoreColor, border: `1px solid ${scoreColor}55` }}
-                >
-                  {s.score}
-                </span>
-                {/* Strong bottom gradient for name readability */}
-                <div
-                  className="absolute bottom-0 left-0 right-0"
-                  style={{ height: 40, background: 'linear-gradient(to top, rgba(8,8,14,1) 30%, rgba(8,8,14,0.6) 70%, transparent)' }}
-                />
-                {/* Name inside portrait at bottom */}
-                <div className="absolute bottom-1 left-0 right-0 px-1.5 flex flex-col items-center gap-0.5">
-                  <span className="text-[11px] font-black text-white leading-none truncate w-full text-center drop-shadow">
-                    {s.hero.name}
+              </div>
+
+              {/* Info */}
+              <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+                <div className="flex items-center gap-1">
+                  <span className="text-[10px] leading-none">{RANK[i]}</span>
+                  <span className="text-[10px] font-black text-white truncate leading-none">{s.hero.name}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-[9px] leading-none">{lane.icon}</span>
+                  <span className="text-[9px] font-semibold leading-none" style={{ color: scoreColor }}>{lane.label}</span>
+                  <span
+                    className="ml-auto text-[9px] font-black px-1 py-0.5 rounded leading-none shrink-0"
+                    style={{ background: `${scoreColor}20`, color: scoreColor, border: `1px solid ${scoreColor}40` }}
+                  >
+                    {s.score}
                   </span>
                 </div>
               </div>
 
-              {/* Lane badge below portrait */}
-              <div className="flex items-center justify-center gap-0.5 py-1">
-                <span className="text-[9px]">{lane.icon}</span>
-                <span className="text-[9px] font-semibold" style={{ color: scoreColor }}>{lane.label}</span>
-              </div>
-
               {/* PICK hover overlay */}
               <div
-                className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-150 rounded-xl"
-                style={{ background: `${teamFill.replace('0.55', '0.60')}`, backdropFilter: 'blur(2px)' }}
+                className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-150"
+                style={{ background: isBlue ? 'rgba(59,130,246,0.55)' : 'rgba(239,68,68,0.55)', backdropFilter: 'blur(2px)' }}
               >
-                <span className="text-white font-black text-base tracking-[0.25em] drop-shadow-lg">PICK</span>
+                <span className="text-white font-black text-xs tracking-[0.2em] drop-shadow-lg">PICK</span>
               </div>
             </button>
           );
         })}
       </div>
-
-      {/* Reason for #1 pick */}
-      {top3[0]?.reason && (
-        <p className="text-[9px] text-slate-600 leading-snug truncate">
-          <span className="text-slate-500 font-semibold">#{1} {top3[0].hero.name}:</span>{' '}
-          {top3[0].reason}
-        </p>
-      )}
     </div>
   );
 }
