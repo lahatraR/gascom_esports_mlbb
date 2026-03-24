@@ -142,21 +142,27 @@ export function calculatePressureScore(hero: HeroData, alliedTeam: HeroData[]): 
 // This prevents e.g. Valentina (Mage) from being suggested as Gold carry
 // when the team still has no Marksman.
 
+// Role → lane logic (mirrors hero-position API: sort_title → road_sort_title)
+//   Fighter   → Exp Lane     Assassin  → Jungle
+//   Mage      → Mid Lane     Marksman  → Gold Lane
+//   Tank      → Roam         Support   → Roam
+// Jungle: Tank-primary heroes belong in Roam, NOT Jungle.
+// A hero like Fredrinn (Fighter+Tank) qualifies via Fighter role.
 const LANE_REQUIRED_ROLES: Record<LaneKey, string[]> = {
   Gold:   ['Marksman'],
   Roam:   ['Tank', 'Support'],
-  Jungle: ['Assassin', 'Fighter', 'Tank'],
+  Jungle: ['Assassin', 'Fighter'],  // ← Tank removed
   EXP:    ['Fighter', 'Assassin'],
-  Mid:    ['Mage', 'Assassin'],
+  Mid:    ['Mage'],                 // ← Assassin removed: must be explicit Mid tier hero
 };
 
 // Required roles across the full team composition
 const TEAM_COMPOSITION_REQUIRED: string[][] = [
-  ['Marksman'],          // must have 1 Marksman (Gold)
-  ['Tank', 'Support'],   // must have 1 Tank or Support (Roam)
-  ['Assassin', 'Fighter', 'Tank'], // Jungler
+  ['Marksman'],                    // 1 Marksman (Gold)
+  ['Tank', 'Support'],             // 1 Tank or Support (Roam)
+  ['Assassin', 'Fighter'],         // Jungler (Fighter or Assassin role)
   ['Fighter', 'Assassin'],         // EXP
-  ['Mage', 'Assassin'],            // Mid
+  ['Mage'],                        // Mid — must be a Mage
 ];
 
 // ─── Lane fit multiplier ──────────────────────────────────────────────────────

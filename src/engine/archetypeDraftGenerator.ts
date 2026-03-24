@@ -1,7 +1,7 @@
 import type { HeroData, DraftArchetype } from '@/types/draft';
 import { heroArchetypeScores, ARCHETYPE_BEATS, ARCHETYPE_LABELS } from './archetypeEngine';
 import { getHeroTierScore, getHeroLanes, LANE_TIERS } from '@/data/tierList';
-import type { LaneKey } from '@/data/tierList';
+import type { LaneKey, TierRank } from '@/data/tierList';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -33,10 +33,17 @@ export interface GeneratedDraft {
 // ─── Role gates ───────────────────────────────────────────────────────────────
 // A hero MUST have at least one of these roles to qualify for the lane.
 
+// Role → primary lane logic (mirrors https://mlbb-stats.rone.dev/api/hero-position):
+//   fighter   → Exp Lane        assassin → Jungle
+//   mage      → Mid Lane        Marksman → Gold Lane
+//   tank      → Roam            support  → Roam
+//
+// Jungle: Tank-only heroes (Lolita, Khufra…) are Roam heroes — they do NOT jungle.
+// A hero like Fredrinn (Fighter + Tank) qualifies via the Fighter role.
 const LANE_CANONICAL_ROLES: Record<LaneKey, string[]> = {
   Gold:   ['Marksman'],
   Roam:   ['Tank', 'Support'],
-  Jungle: ['Assassin', 'Fighter', 'Tank'],
+  Jungle: ['Assassin', 'Fighter'],   // ← Tank removed: tank primary = Roam, not Jungle
   EXP:    ['Fighter', 'Assassin'],
   Mid:    ['Mage'],
 };
@@ -52,13 +59,17 @@ const MID_TIER_NAMES = new Set(
   (Object.values(LANE_TIERS['Mid']) as string[][]).flat().map((n) => n.toLowerCase())
 );
 
+// Tiers we consider viable for a lane slot (C = too weak to recommend)
+const VIABLE_TIERS: TierRank[] = ['S+', 'S-', 'A+', 'A', 'B'];
+
 function isValidCandidate(hero: HeroData, lane: LaneKey): boolean {
   const canonical = LANE_CANONICAL_ROLES[lane] ?? [];
   const hasRole   = hero.roles.some((r) => canonical.includes(r));
   if (!hasRole) return false;
 
-  const inTierList = (Object.values(LANE_TIERS[lane]) as string[][]).some(
-    (arr) => arr?.some((n) => n.toLowerCase() === hero.name.toLowerCase())
+  // Check presence in a viable tier (C excluded — those heroes aren't draftable)
+  const inTierList = (VIABLE_TIERS).some((tier) =>
+    (LANE_TIERS[lane][tier] ?? []).some((n) => n.toLowerCase() === hero.name.toLowerCase())
   );
   if (inTierList) return true;
 
