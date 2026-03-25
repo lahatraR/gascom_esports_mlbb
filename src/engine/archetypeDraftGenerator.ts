@@ -532,7 +532,7 @@ function isDiverseEnough(draft: GeneratedDraft, selected: GeneratedDraft[]): boo
   const ids = new Set(draft.slots.map((s) => s.hero.id));
   for (const existing of selected) {
     const shared = existing.slots.filter((s) => ids.has(s.hero.id)).length;
-    if (shared >= 4) return false;
+    if (shared >= 3) return false; // max 2 heroes shared between any two comps
   }
   return true;
 }
@@ -581,7 +581,7 @@ export function generateArchetypeDrafts(
     candidates[lane] = pool
       .filter((h) => isValidCandidate(h, lane))
       .sort((a, b) => scoreHeroForSlot(b, lane, archetype, side) - scoreHeroForSlot(a, lane, archetype, side))
-      .slice(0, 10);
+      .slice(0, 15);
   }
 
   // ── 2. Global ban pool ──────────────────────────────────────────────────
@@ -603,13 +603,19 @@ export function generateArchetypeDrafts(
   const allDrafts: GeneratedDraft[] = [];
   const usedKeys  = new Set<string>();
 
+  const nEXP  = candidates['EXP'].length;
+  const nJGL  = candidates['Jungle'].length;
+  const nMid  = candidates['Mid'].length;
+  const nGold = candidates['Gold'].length;
+  const nRoam = candidates['Roam'].length;
+
   outer:
-  for (let a = 0; a < 10; a++) {
-    for (let b = 0; b < 10; b++) {
-      for (let c = 0; c < 10; c++) {
-        for (let d = 0; d < 10; d++) {
-          for (let e = 0; e < 10; e++) {
-            if (allDrafts.length >= 80) break outer;
+  for (let a = 0; a < nEXP; a++) {
+    for (let b = 0; b < nJGL; b++) {
+      for (let c = 0; c < nMid; c++) {
+        for (let d = 0; d < nGold; d++) {
+          for (let e = 0; e < nRoam; e++) {
+            if (allDrafts.length >= 300) break outer;
 
             const heroEXP  = candidates['EXP'][a];
             const heroJGL  = candidates['Jungle'][b];
@@ -697,13 +703,38 @@ export function generateArchetypeDrafts(
     }
   }
 
-  // ── 4. Sort and diversity filter — keep top 10 ─────────────────────────
+  // ── 4. Sort and diversity filter — keep top 8 ──────────────────────────
   allDrafts.sort((a, b) => b.teamScore - a.teamScore);
 
+  // Pass 1: strict — max 2 shared heroes between any two comps, max 3 appearances per hero
+  const heroCount1 = new Map<number, number>();
   const selected: GeneratedDraft[] = [];
+
   for (const draft of allDrafts) {
-    if (selected.length >= 10) break;
-    if (isDiverseEnough(draft, selected)) {
+    if (selected.length >= 8) break;
+    if (!isDiverseEnough(draft, selected)) continue;
+    const overused = draft.slots.some((s) => (heroCount1.get(s.hero.id) ?? 0) >= 3);
+    if (overused) continue;
+    draft.slots.forEach((s) => heroCount1.set(s.hero.id, (heroCount1.get(s.hero.id) ?? 0) + 1));
+    selected.push({ ...draft, rank: selected.length + 1 });
+  }
+
+  // Pass 2: fallback — relax to max 4 appearances if we didn't fill 8 slots
+  if (selected.length < 8) {
+    const heroCount2 = new Map<number, number>(heroCount1);
+    const selectedKeys = new Set(selected.map((d) => d.slots.map((s) => s.hero.id).sort().join(',')));
+    for (const draft of allDrafts) {
+      if (selected.length >= 8) break;
+      const key = draft.slots.map((s) => s.hero.id).sort().join(',');
+      if (selectedKeys.has(key)) continue;
+      // Relaxed diversity: max 3 shared heroes allowed now
+      const ids = new Set(draft.slots.map((s) => s.hero.id));
+      const tooSimilar = selected.some((ex) => ex.slots.filter((s) => ids.has(s.hero.id)).length >= 4);
+      if (tooSimilar) continue;
+      const overused = draft.slots.some((s) => (heroCount2.get(s.hero.id) ?? 0) >= 4);
+      if (overused) continue;
+      draft.slots.forEach((s) => heroCount2.set(s.hero.id, (heroCount2.get(s.hero.id) ?? 0) + 1));
+      selectedKeys.add(key);
       selected.push({ ...draft, rank: selected.length + 1 });
     }
   }
