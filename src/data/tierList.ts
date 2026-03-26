@@ -65,9 +65,9 @@ export const LANE_TIERS: Record<LaneKey, Partial<Record<TierRank, string[]>>> = 
   // ── Mid Lane (Mage) ────────────────────────────────────────────────────────
   // Source: gosugamers — "Zhuxin, Kimmy, Yve are must-picks"
   Mid: {
-    'S+': ['Zhuxin', 'Kimmy', 'Yve', 'Kagura', 'Lunox'],
+    'S+': ['Zhuxin', 'Kimmy', 'Yve', 'Pharsa', 'Lunox'],
     'S-': ['Luo Yi', 'Lylia', 'Cecilion', 'Valir', 'Eudora'],
-    'A+': ['Xavier', 'Vale', 'Gord', 'Pharsa', 'Aurora', 'Alice', 'Harley', 'Odette'],
+    'A+': ['Xavier', 'Vale', 'Gord', 'Kagura', 'Aurora', 'Alice', 'Harley', 'Odette'],
     'A':  ['Nana', 'Chang\'e', 'Vexana', 'Cyclops', 'Esmeralda', 'Zhask', 'Guinevere'],
     'B':  ['Kadita', 'Faramis', 'Selena'],
     'C':  [],

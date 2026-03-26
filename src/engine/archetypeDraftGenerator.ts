@@ -532,7 +532,7 @@ function isDiverseEnough(draft: GeneratedDraft, selected: GeneratedDraft[]): boo
   const ids = new Set(draft.slots.map((s) => s.hero.id));
   for (const existing of selected) {
     const shared = existing.slots.filter((s) => ids.has(s.hero.id)).length;
-    if (shared >= 3) return false; // max 2 heroes shared between any two comps
+    if (shared >= 2) return false; // max 1 hero shared between any two comps
   }
   return true;
 }
@@ -581,7 +581,7 @@ export function generateArchetypeDrafts(
     candidates[lane] = pool
       .filter((h) => isValidCandidate(h, lane))
       .sort((a, b) => scoreHeroForSlot(b, lane, archetype, side) - scoreHeroForSlot(a, lane, archetype, side))
-      .slice(0, 15);
+      .slice(0, 20);
   }
 
   // ── 2. Global ban pool ──────────────────────────────────────────────────
@@ -599,7 +599,12 @@ export function generateArchetypeDrafts(
     .sort((a, b) => b.score - a.score)
     .slice(0, 12);
 
-  // ── 3. Generate all valid compositions ─────────────────────────────────
+  // ── 3. Generate compositions via diagonal index sweep ──────────────────
+  // Instead of sequential nested loops (a=0 appears in all first 15^4 combos),
+  // we iterate by "sum of indices" (k = a+b+c+d+e = 0,1,2,...).
+  // At k=0: only [0,0,0,0,0]. At k=1: 5 combos varying one position.
+  // This ensures all 5 lane positions gain variety simultaneously,
+  // producing truly diverse hero combinations from the first iterations.
   const allDrafts: GeneratedDraft[] = [];
   const usedKeys  = new Set<string>();
 
@@ -609,14 +614,17 @@ export function generateArchetypeDrafts(
   const nGold = candidates['Gold'].length;
   const nRoam = candidates['Roam'].length;
 
-  outer:
-  for (let a = 0; a < nEXP; a++) {
-    for (let b = 0; b < nJGL; b++) {
-      for (let c = 0; c < nMid; c++) {
-        for (let d = 0; d < nGold; d++) {
-          for (let e = 0; e < nRoam; e++) {
-            if (allDrafts.length >= 300) break outer;
+  const MAX_SUM = Math.min((nEXP - 1) + (nJGL - 1) + (nMid - 1) + (nGold - 1) + (nRoam - 1), 40);
 
+  outer:
+  for (let sumIdx = 0; sumIdx <= MAX_SUM; sumIdx++) {
+    for (let a = 0; a <= Math.min(sumIdx, nEXP - 1); a++) {
+      for (let b = 0; b <= Math.min(sumIdx - a, nJGL - 1); b++) {
+        for (let c = 0; c <= Math.min(sumIdx - a - b, nMid - 1); c++) {
+          for (let d = 0; d <= Math.min(sumIdx - a - b - c, nGold - 1); d++) {
+            if (allDrafts.length >= 400) break outer;
+            const e = sumIdx - a - b - c - d;
+            if (e < 0 || e >= nRoam) continue;
             const heroEXP  = candidates['EXP'][a];
             const heroJGL  = candidates['Jungle'][b];
             const heroMid  = candidates['Mid'][c];
@@ -706,20 +714,20 @@ export function generateArchetypeDrafts(
   // ── 4. Sort and diversity filter — keep top 8 ──────────────────────────
   allDrafts.sort((a, b) => b.teamScore - a.teamScore);
 
-  // Pass 1: strict — max 2 shared heroes between any two comps, max 3 appearances per hero
+  // Pass 1: strict — max 1 shared hero between any two comps, max 2 appearances per hero
   const heroCount1 = new Map<number, number>();
   const selected: GeneratedDraft[] = [];
 
   for (const draft of allDrafts) {
     if (selected.length >= 8) break;
     if (!isDiverseEnough(draft, selected)) continue;
-    const overused = draft.slots.some((s) => (heroCount1.get(s.hero.id) ?? 0) >= 3);
+    const overused = draft.slots.some((s) => (heroCount1.get(s.hero.id) ?? 0) >= 2);
     if (overused) continue;
     draft.slots.forEach((s) => heroCount1.set(s.hero.id, (heroCount1.get(s.hero.id) ?? 0) + 1));
     selected.push({ ...draft, rank: selected.length + 1 });
   }
 
-  // Pass 2: fallback — relax to max 4 appearances if we didn't fill 8 slots
+  // Pass 2: fallback — relax to max 2 shared heroes, max 3 appearances per hero
   if (selected.length < 8) {
     const heroCount2 = new Map<number, number>(heroCount1);
     const selectedKeys = new Set(selected.map((d) => d.slots.map((s) => s.hero.id).sort().join(',')));
@@ -727,11 +735,11 @@ export function generateArchetypeDrafts(
       if (selected.length >= 8) break;
       const key = draft.slots.map((s) => s.hero.id).sort().join(',');
       if (selectedKeys.has(key)) continue;
-      // Relaxed diversity: max 3 shared heroes allowed now
+      // Relaxed diversity: max 2 shared heroes allowed
       const ids = new Set(draft.slots.map((s) => s.hero.id));
-      const tooSimilar = selected.some((ex) => ex.slots.filter((s) => ids.has(s.hero.id)).length >= 4);
+      const tooSimilar = selected.some((ex) => ex.slots.filter((s) => ids.has(s.hero.id)).length >= 3);
       if (tooSimilar) continue;
-      const overused = draft.slots.some((s) => (heroCount2.get(s.hero.id) ?? 0) >= 4);
+      const overused = draft.slots.some((s) => (heroCount2.get(s.hero.id) ?? 0) >= 3);
       if (overused) continue;
       draft.slots.forEach((s) => heroCount2.set(s.hero.id, (heroCount2.get(s.hero.id) ?? 0) + 1));
       selectedKeys.add(key);
