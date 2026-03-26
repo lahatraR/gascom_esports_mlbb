@@ -7,6 +7,7 @@ import { fetchHeroDetailStats, fetchHeroFullData, fetchHeroWinRateTimeline } fro
 import type { LaneKey } from '@/data/tierList';
 import { getDraftSequence, getBanCount } from '@/types/draft';
 import { runDraftAnalysis } from '@/engine/teamComparison';
+import { getHeroDifficulty } from '@/data/executionDifficulty';
 
 // ─── Offline fallback hero list ───────────────────────────────────────────────
 // Used only if the API is completely unavailable.
@@ -97,7 +98,21 @@ async function enrichWithDetailStats(
   const enriched = pool.map((h) => {
     const d = detailMap.get(h.id);
     if (!d) return h;
-    return { ...h, winRate: d.winRate, banRate: d.banRate, pickRate: d.pickRate, synergyPairs: d.synergyPairs, synergyBoost: d.synergyBoost };
+    // Patch momentum: compare live WR to baked baseline
+    const bakedWR  = h.winRate ?? 0.50;
+    const wrDelta  = parseFloat((d.winRate - bakedWR).toFixed(4));
+    const wrTrend: 'rising' | 'stable' | 'falling' =
+      wrDelta >= 0.015 ? 'rising' : wrDelta <= -0.015 ? 'falling' : 'stable';
+    return {
+      ...h,
+      winRate:     d.winRate,
+      banRate:     d.banRate,
+      pickRate:    d.pickRate,
+      synergyPairs: d.synergyPairs,
+      synergyBoost: d.synergyBoost,
+      wrDelta,
+      wrTrend,
+    };
   });
 
   onDone(enriched);
@@ -178,6 +193,7 @@ interface DraftStore {
 
   mySide:           'blue' | 'red' | null;
   plannedArchetype: DraftArchetype | null;
+  uiMode:           'simple' | 'advanced';
 
   loadHeroPool:        () => Promise<void>;
   selectHero:          (hero: HeroData) => void;
@@ -188,6 +204,7 @@ interface DraftStore {
   setRoleFilter:       (role: string) => void;
   setMySide:           (side: 'blue' | 'red') => void;
   setPlannedArchetype: (arch: DraftArchetype | null) => void;
+  setUiMode:           (mode: 'simple' | 'advanced') => void;
 }
 
 // ─── Analysis helper ──────────────────────────────────────────────────────────
@@ -232,6 +249,7 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
 
   mySide:           null,
   plannedArchetype: null,
+  uiMode:           'simple',
 
   // ── Load hero pool ────────────────────────────────────────────────────────
   // Fetches heroes.json (generated at prebuild time by scripts/fetch-heroes.ts).
@@ -285,6 +303,9 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
               });
             }
           } catch { /* ignore — use heroes.json roles as-is */ }
+
+          // Enrich difficulty rating into every hero
+          pool = pool.map(h => ({ ...h, difficulty: h.difficulty ?? getHeroDifficulty(h.name) }));
 
           set({ heroPool: pool, isLoadingPool: false });
 
@@ -393,6 +414,7 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
   setRoleFilter:       (role) => set({ roleFilter: role }),
   setMySide:           (side) => set({ mySide: side }),
   setPlannedArchetype: (arch) => set({ plannedArchetype: arch }),
+  setUiMode:           (mode) => set({ uiMode: mode }),
 }));
 
 // ─── Derived selectors ────────────────────────────────────────────────────────

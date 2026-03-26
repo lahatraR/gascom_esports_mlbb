@@ -170,16 +170,17 @@ export interface GeneratedBan {
 }
 
 export interface GeneratedDraft {
-  rank:         number;
-  slots:        GeneratedDraftSlot[];
-  bans:         GeneratedBan[];
-  teamScore:    number;   // 0–100
-  synergyScore: number;  // 0–100
-  topCombos:    DraftCombo[];
-  pickOrder:    PickOrderStep[];
-  winCondition: string;
-  archetype:    DraftArchetype;
-  healthCheck:  CompositionHealthCheck;
+  rank:              number;
+  slots:             GeneratedDraftSlot[];
+  bans:              GeneratedBan[];
+  teamScore:         number;   // 0–100
+  synergyScore:      number;  // 0–100
+  objectiveScore:    number;  // 0–100 — map objective control rating
+  topCombos:         DraftCombo[];
+  pickOrder:         PickOrderStep[];
+  winCondition:      string;
+  archetype:         DraftArchetype;
+  healthCheck:       CompositionHealthCheck;
 }
 
 // ─── Role gates ───────────────────────────────────────────────────────────────
@@ -458,6 +459,64 @@ function computeThreatCoverage(slots: GeneratedDraftSlot[]): number {
   const totalW   = checks.reduce((s, c) => s + c.weight, 0);
   const coveredW = checks.filter((c) => c.covered).reduce((s, c) => s + c.weight, 0);
   return clamp(Math.round((coveredW / totalW) * 100), 0, 100);
+}
+
+// ─── Objective control score ──────────────────────────────────────────────────
+// 0–100: how well does this team control map objectives?
+// Evaluates four objective dimensions:
+//   1. Turtle (early burst + Jungle smite potential)
+//   2. Lord / Tormentor (sustained DPS + CC to peel/win teamfight on obj)
+//   3. Tower siege (wave clear + sustained physical/magic damage)
+//   4. Vision & map pressure (global presence, mobility)
+
+const OBJECTIVE_BONUS_ROLES: Record<string, number> = {
+  Assassin:  8,  // reliable jungler / turtle smite
+  Mage:      6,  // high burst / tower poke
+  Marksman:  9,  // sustained DPS for Lord / towers
+  Tank:      5,  // frontline peel on objectives
+  Fighter:   7,  // durable diver, EXP objective control
+  Support:   3,
+};
+
+// Heroes with specific objective-oriented specialities
+const OBJECTIVE_SPECIALITY_BONUS: Record<string, number> = {
+  'Crowd Control':  6,  // locks down enemies on objective
+  'Burst':          5,  // smite potential
+  'Reap':           8,  // finisher role — executes low-HP Lord/Turtle
+  'Initiator':      5,
+  'Damage':         4,
+  'Poke':           3,
+  'Push':           7,  // explicit tower push speciality
+  'Jungle':         8,  // objective priority in jungle role
+};
+
+export function computeObjectiveControl(slots: GeneratedDraftSlot[]): number {
+  let score = 0;
+
+  for (const slot of slots) {
+    const hero = slot.hero;
+
+    // Role contribution
+    for (const role of hero.roles) {
+      score += OBJECTIVE_BONUS_ROLES[role] ?? 2;
+    }
+
+    // Speciality contribution
+    if (hero.speciality) {
+      for (const spec of hero.speciality) {
+        const bonus = Object.entries(OBJECTIVE_SPECIALITY_BONUS).find(
+          ([key]) => spec.toLowerCase().includes(key.toLowerCase())
+        );
+        if (bonus) score += bonus[1];
+      }
+    }
+
+    // Jungler slot gets extra weight — they're the primary smite/objective taker
+    if (slot.lane === 'Jungle') score += 10;
+  }
+
+  // Normalize: max theoretical ~(9+6+8)*5 + 10 = ~125
+  return clamp(Math.round((score / 140) * 100), 0, 100);
 }
 
 // ─── Flex pick detection ──────────────────────────────────────────────────────
@@ -1078,22 +1137,26 @@ export function generateArchetypeDrafts(
             const timelineScore     = computeTimelineConsistency(slots, archetype);
             // Execution coverage: does this comp have the 2-hero execution core + support roles?
             const executionScore    = computeExecutionCoverage(slots.map((s) => s.hero.name), archetype);
+            // Objective control: Turtle/Lord/towers priority capacity
+            const objectiveScore    = computeObjectiveControl(slots);
             // Red side gets stronger counter weight (reacts to enemy picks with full info)
-            const counterWeight = side === 'red' ? 14 : 10;
+            const counterWeight = side === 'red' ? 12 : 8;
             const counterAdj = enemyPicks.length > 0
               ? counterScoreVsEnemy(slots, enemyPicks) * counterWeight
               : 0;
-            // Multidimensional team score — execution + timeline consistency are primary signals:
-            //   No enemy data  → indiv 25% + synergy 8% + phase 18% + coverage 10% + exec 22% + timeline 17%
-            //   Enemy known    → indiv 20% + synergy 7% + phase 14% + coverage  9% + exec 18% + timeline 14% + counter adj
+            // Multidimensional team score:
+            //   No enemy  → indiv 23% + synergy 7% + phase 16% + coverage 9% + exec 20% + timeline 15% + objective 10%
+            //   Enemy known → indiv 18% + synergy 6% + phase 12% + coverage 8% + exec 16% + timeline 12% + obj 8% + counter adj
             const teamScore = enemyPicks.length > 0
               ? clamp(Math.round(
-                  indivScore * 0.20 + synergy * 0.07 + phaseScore * 0.14 +
-                  coverageScore * 0.09 + executionScore * 0.18 + timelineScore * 0.14 + counterAdj
+                  indivScore * 0.18 + synergy * 0.06 + phaseScore * 0.12 +
+                  coverageScore * 0.08 + executionScore * 0.16 + timelineScore * 0.12 +
+                  objectiveScore * 0.08 + counterAdj
                 ), 0, 100)
               : clamp(Math.round(
-                  indivScore * 0.25 + synergy * 0.08 + phaseScore * 0.18 +
-                  coverageScore * 0.10 + executionScore * 0.22 + timelineScore * 0.17
+                  indivScore * 0.23 + synergy * 0.07 + phaseScore * 0.16 +
+                  coverageScore * 0.09 + executionScore * 0.20 + timelineScore * 0.15 +
+                  objectiveScore * 0.10
                 ), 0, 100);
 
             const healthCheck = checkCompositionHealth(slots, archetype);
@@ -1105,12 +1168,13 @@ export function generateArchetypeDrafts(
             allDrafts.push({
               rank: 0,
               slots,
-              bans:         compBans,
+              bans:          compBans,
               teamScore,
-              synergyScore: synergy,
+              synergyScore:  synergy,
+              objectiveScore,
               topCombos,
               pickOrder,
-              winCondition: buildWinCondition(archetype, slots),
+              winCondition:  buildWinCondition(archetype, slots),
               archetype,
               healthCheck,
             });

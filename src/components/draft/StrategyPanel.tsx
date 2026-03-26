@@ -10,8 +10,12 @@ import {
   ARCHETYPE_LABELS,
   ARCHETYPE_ICON,
   ARCHETYPE_CLASSES,
+  ARCHETYPE_DESCRIPTION,
 } from '@/engine/archetypeEngine';
 import { generateArchetypeDrafts, COMBO_ICONS, COMBO_LABELS } from '@/engine/archetypeDraftGenerator';
+import { InfoTooltip } from '@/components/ui/InfoTooltip';
+import { RadarChart } from '@/components/ui/RadarChart';
+import type { RadarAxis } from '@/components/ui/RadarChart';
 import type { GeneratedDraft, GeneratedDraftSlot, GeneratedBan, DraftCombo, CompositionHealthCheck } from '@/engine/archetypeDraftGenerator';
 
 // ─── Visual config per archetype ─────────────────────────────────────────────
@@ -42,6 +46,16 @@ const LANE_ROLE_ICON: Record<string, string> = {
   Gold: '💰', Roam: '🛡', Jungle: '🌿', Mid: '🔮', EXP: '⚡',
 };
 const LANES = ['exp', 'jungle', 'mid', 'gold', 'roam'] as const;
+
+// ─── Educational tooltip content ─────────────────────────────────────────────
+
+const LANE_TOOLTIP: Record<string, string> = {
+  exp:    'EXP Lane — Laner solo (Fighter ou carry secondaire). Farm les waves seul pour monter en niveau rapidement. Peut split push en late game.',
+  jungle: 'Jungle — Contrôle les objectifs (Turtle, Lord) et gank les autres lanes. Son timing dicte le tempo de la partie.',
+  mid:    'Mid Lane — Mage ou assassin central. Influence toutes les lanes grâce à sa position au cœur de la carte. Apporte burst et contrôle de zone.',
+  gold:   'Gold Lane — Carry (Marksman). Farm le gold pour devenir très puissant en fin de partie. Doit être protégé pour atteindre son pic.',
+  roam:   'Roam — Support ou Tank qui abandonne le farm pour être partout à la fois. Crée des opportunités pour ses carries grâce à son CC.',
+};
 
 // ─── Phase dot bar ────────────────────────────────────────────────────────────
 
@@ -238,9 +252,11 @@ function TemplateCard({
                   <div key={lane} className="flex gap-2 items-start">
                     <div className="shrink-0 flex flex-col items-center gap-0.5 pt-0.5" style={{ minWidth: 36 }}>
                       <span className="text-sm leading-none">{LANE_ICON[lane]}</span>
-                      <span className="text-[8px] tracking-wide" style={{ color: 'rgba(100,120,160,0.80)' }}>
-                        {LANE_LABEL[lane]}
-                      </span>
+                      <InfoTooltip content={LANE_TOOLTIP[lane] ?? ''} position="right">
+                        <span className="text-[8px] tracking-wide underline decoration-dotted decoration-slate-600" style={{ color: 'rgba(100,120,160,0.90)' }}>
+                          {LANE_LABEL[lane]}
+                        </span>
+                      </InfoTooltip>
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
@@ -258,7 +274,7 @@ function TemplateCard({
                           ))}
                         </div>
                       )}
-                      <p className="text-[10px] mt-0.5 leading-snug" style={{ color: 'rgba(100,110,130,0.90)' }}>
+                      <p className="text-[11px] mt-0.5 leading-snug" style={{ color: '#94a3b8' }}>
                         {opt.why}
                       </p>
                     </div>
@@ -294,7 +310,7 @@ function TemplateCard({
                           <span className="text-[9px] text-emerald-500 font-bold">✓ déjà banni</span>
                         )}
                       </div>
-                      <p className="text-[10px] leading-snug" style={{ color: 'rgba(100,110,130,0.90)' }}>
+                      <p className="text-[11px] leading-snug" style={{ color: '#94a3b8' }}>
                         {ban.reason}
                       </p>
                     </div>
@@ -306,7 +322,15 @@ function TemplateCard({
 
           {/* ── Win condition ── */}
           <Section title="Condition de Victoire">
-            <p className="text-[11px] text-slate-300 leading-relaxed">{template.winCondition}</p>
+            <div
+              className="flex items-start gap-2.5 rounded-xl p-3"
+              style={{ background: 'rgba(20,50,25,0.50)', border: '1px solid rgba(34,197,94,0.28)' }}
+            >
+              <span className="text-emerald-400 text-base shrink-0 mt-0.5">✓</span>
+              <p className="text-[13px] font-semibold text-emerald-200 leading-snug">
+                {template.winCondition}
+              </p>
+            </div>
           </Section>
 
           {/* ── Phase breakdown ── */}
@@ -758,11 +782,13 @@ function GeneratedDraftCard({
   isExpanded,
   onToggle,
   heroMap,
+  uiMode,
 }: {
   draft:      GeneratedDraft;
   isExpanded: boolean;
   onToggle:   () => void;
   heroMap:    Map<string, HeroData>;
+  uiMode:     'simple' | 'advanced';
 }) {
   const s = ARCHETYPE_STYLE[draft.archetype];
   const scoreColor = draft.teamScore >= 70 ? '#4ade80' : draft.teamScore >= 50 ? '#facc15' : '#f87171';
@@ -852,6 +878,26 @@ function GeneratedDraftCard({
                 🔗 synergie {draft.synergyScore}%
               </span>
             )}
+            {/* Objective control badge */}
+            {draft.objectiveScore !== undefined && (
+              <span
+                className="text-[9px] px-1.5 py-0.5 rounded font-semibold"
+                style={{
+                  background: draft.objectiveScore >= 70 ? 'rgba(251,146,60,0.15)'
+                            : draft.objectiveScore >= 50 ? 'rgba(250,204,21,0.10)'
+                            : 'rgba(100,100,130,0.2)',
+                  color:      draft.objectiveScore >= 70 ? '#fb923c'
+                            : draft.objectiveScore >= 50 ? '#facc15'
+                            : '#64748b',
+                  border:     `1px solid ${draft.objectiveScore >= 70 ? 'rgba(251,146,60,0.30)'
+                            : draft.objectiveScore >= 50 ? 'rgba(250,204,21,0.25)'
+                            : 'rgba(100,100,130,0.2)'}`,
+                }}
+                title="Capacité à contrôler les objectifs (Turtle, Lord, Tours)"
+              >
+                🏯 objectifs {draft.objectiveScore}%
+              </span>
+            )}
             {/* Health check badge */}
             {draft.healthCheck && (
               <span
@@ -883,6 +929,37 @@ function GeneratedDraftCard({
       {/* Expanded */}
       {isExpanded && (
         <div className="border-t flex flex-col gap-4 px-3 pb-4 pt-3" style={{ borderColor: 'rgba(50,50,70,0.40)' }}>
+
+          {/* ── Radar chart + archetype description ── */}
+          {(() => {
+            const avg = (key: keyof typeof draft.slots[0]['hero']) =>
+              draft.slots.reduce((sum, sl) => sum + ((sl.hero[key] as number) ?? 0), 0) / draft.slots.length;
+            const radarAxes: RadarAxis[] = [
+              { key: 'early',     label: 'Early',   value: avg('early')     },
+              { key: 'mid',       label: 'Mid',     value: avg('mid')       },
+              { key: 'late',      label: 'Late',    value: avg('late')      },
+              { key: 'damage',    label: 'Dégâts',  value: avg('damage')    },
+              { key: 'tankiness', label: 'Résist.', value: avg('tankiness') },
+              { key: 'cc',        label: 'CC',      value: avg('cc')        },
+              { key: 'mobility',  label: 'Mobilité',value: avg('mobility')  },
+            ];
+            return (
+              <div className="flex items-center gap-3 rounded-xl p-3" style={{ background: 'rgba(10,10,20,0.60)', border: '1px solid rgba(60,60,90,0.35)' }}>
+                <RadarChart axes={radarAxes} size={150} color={s.text} />
+                <div className="flex-1 min-w-0">
+                  <InfoTooltip content={ARCHETYPE_DESCRIPTION[draft.archetype]} position="bottom">
+                    <span className="text-[12px] font-black tracking-wide inline-flex items-center gap-1.5 underline decoration-dotted" style={{ color: s.text }}>
+                      {ARCHETYPE_ICON[draft.archetype]} {ARCHETYPE_LABELS[draft.archetype]} <span className="text-slate-600 text-[9px]">ⓘ</span>
+                    </span>
+                  </InfoTooltip>
+                  <p className="text-[11px] text-slate-400 leading-snug mt-1.5">
+                    {ARCHETYPE_DESCRIPTION[draft.archetype]}
+                  </p>
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Lane slots */}
           <Section title="Composition par Lane">
             <div className="flex flex-col gap-2.5">
@@ -894,7 +971,9 @@ function GeneratedDraftCard({
                   <div key={slot.lane} className="flex gap-2 items-start">
                     <div className="shrink-0 flex flex-col items-center gap-0.5 pt-0.5" style={{ minWidth: 36 }}>
                       <span className="text-sm leading-none">{LANE_ICON_GEN[slot.lane] ?? '•'}</span>
-                      <span className="text-[8px] tracking-wide" style={{ color: 'rgba(100,120,160,0.80)' }}>{slot.lane}</span>
+                      <InfoTooltip content={LANE_TOOLTIP[slot.lane.toLowerCase()] ?? ''} position="right">
+                        <span className="text-[8px] tracking-wide underline decoration-dotted decoration-slate-600" style={{ color: 'rgba(100,120,160,0.90)' }}>{slot.lane}</span>
+                      </InfoTooltip>
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
@@ -927,7 +1006,7 @@ function GeneratedDraftCard({
                           </span>
                         )}
                       </div>
-                      <p className="text-[10px] mt-0.5 leading-snug" style={{ color: 'rgba(100,110,130,0.90)' }}>{slot.why}</p>
+                      <p className="text-[11px] mt-0.5 leading-snug" style={{ color: '#94a3b8' }}>{slot.why}</p>
                       {/* Battle spell recommendation */}
                       {slot.battleSpell && (
                         <div className="flex items-start gap-1.5 mt-1 rounded-lg px-2 py-1" style={{ background: 'rgba(251,191,36,0.07)', border: '1px solid rgba(251,191,36,0.20)' }}>
@@ -1141,7 +1220,7 @@ function GeneratedDraftCard({
                           <span className="text-[9px] font-bold text-slate-300">{LANE_ICON_GEN[step.lane]} {step.lane}</span>
                           {laneHero && <span className="text-[9px] text-slate-500">· {laneHero.hero.name}</span>}
                         </div>
-                        <p className="text-[9px] text-slate-600 leading-tight">{step.reason}</p>
+                        <p className="text-[11px] text-slate-400 leading-tight">{step.reason}</p>
                       </div>
                     </div>
                   );
@@ -1152,7 +1231,15 @@ function GeneratedDraftCard({
 
           {/* Win condition */}
           <Section title="Condition de Victoire">
-            <p className="text-[11px] text-slate-300 leading-relaxed">{draft.winCondition}</p>
+            <div
+              className="flex items-start gap-2.5 rounded-xl p-3"
+              style={{ background: 'rgba(20,50,25,0.50)', border: '1px solid rgba(34,197,94,0.28)' }}
+            >
+              <span className="text-emerald-400 text-base shrink-0 mt-0.5">✓</span>
+              <p className="text-[13px] font-semibold text-emerald-200 leading-snug">
+                {draft.winCondition}
+              </p>
+            </div>
           </Section>
 
           {/* Composition health check */}
@@ -1173,9 +1260,11 @@ function GeneratedDraftCard({
 function GeneratedDraftView({
   drafts,
   heroMap,
+  uiMode,
 }: {
   drafts:  GeneratedDraft[];
   heroMap: Map<string, HeroData>;
+  uiMode:  'simple' | 'advanced';
 }) {
   const [expandedRank, setExpandedRank] = useState<number>(1);
 
@@ -1206,6 +1295,7 @@ function GeneratedDraftView({
           isExpanded={expandedRank === draft.rank}
           onToggle={() => setExpandedRank(expandedRank === draft.rank ? -1 : draft.rank)}
           heroMap={heroMap}
+          uiMode={uiMode}
         />
       ))}
     </div>
@@ -1224,6 +1314,8 @@ export function StrategyPanel() {
   const analysis         = useDraftStore((s) => s.analysis);
   const currentStep      = useDraftStore((s) => s.currentStep);
   const gameMode         = useDraftStore((s) => s.gameMode);
+  const uiMode           = useDraftStore((s) => s.uiMode);
+  const setUiMode        = useDraftStore((s) => s.setUiMode);
   const [expandedId,    setExpandedId]    = useState<string | null>(null);
   const [showTemplates, setShowTemplates] = useState(false);
 
@@ -1288,6 +1380,23 @@ export function StrategyPanel() {
   return (
     <div className="flex flex-col gap-3">
 
+      {/* ── Mode toggle ── */}
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[9px] text-slate-600 uppercase tracking-widest">Panneau Stratégie</span>
+        <button
+          onClick={() => setUiMode(uiMode === 'simple' ? 'advanced' : 'simple')}
+          className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full transition-all duration-200"
+          style={{
+            background:  uiMode === 'advanced' ? 'rgba(139,92,246,0.18)' : 'rgba(30,30,50,0.70)',
+            border:      `1px solid ${uiMode === 'advanced' ? 'rgba(139,92,246,0.45)' : 'rgba(80,80,110,0.40)'}`,
+            color:       uiMode === 'advanced' ? '#a78bfa' : '#64748b',
+          }}
+          title={uiMode === 'simple' ? 'Passer en mode Avancé — affiche toutes les données tactiques' : 'Passer en mode Simple — affichage épuré'}
+        >
+          {uiMode === 'simple' ? '⚙ Mode Avancé' : '◎ Mode Simple'}
+        </button>
+      </div>
+
       {/* ── LIVE STRATEGY (top — always visible) ── */}
       <div
         className="rounded-xl border overflow-hidden"
@@ -1325,7 +1434,7 @@ export function StrategyPanel() {
             <span className="text-[9px] text-slate-600">· top {generatedDrafts.length}</span>
           </div>
           <div className="p-3">
-            <GeneratedDraftView drafts={generatedDrafts} heroMap={heroMap} />
+            <GeneratedDraftView drafts={generatedDrafts} heroMap={heroMap} uiMode={uiMode} />
           </div>
         </div>
       ) : (

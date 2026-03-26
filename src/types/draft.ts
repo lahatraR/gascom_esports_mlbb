@@ -69,6 +69,18 @@ export interface HeroData {
     late:  number;              // 0–10 normalized win rate at 16+ min
     peak:  'early' | 'mid' | 'late';
   };
+
+  // Execution difficulty (1–5): how mechanically demanding is this hero to play optimally?
+  // 1 = beginner-friendly (Miya, Layla)
+  // 3 = moderate (most meta heroes)
+  // 5 = high-skill floor required (Fanny, Ling, Kagura)
+  // Used to penalise suggestions in ranked casual, flag in tournament mode.
+  difficulty?: 1 | 2 | 3 | 4 | 5;
+
+  // Patch momentum: direction of win-rate trend since heroes.json was baked.
+  // Computed live: liveWR − staticWR threshold ±0.02
+  wrTrend?: 'rising' | 'stable' | 'falling';
+  wrDelta?: number;  // raw delta (liveWR − staticWR), e.g. +0.035 or −0.018
 }
 
 // ─── Draft Structure ─────────────────────────────────────────────────────────

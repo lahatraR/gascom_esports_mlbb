@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import clsx from 'clsx';
 import { useDraftStore } from '@/store/draftStore';
 import { getDraftSequence } from '@/types/draft';
@@ -9,6 +9,9 @@ import { getTournamentPickTip, PICK_ORDER_TIPS } from '@/data/pickOrderGuide';
 import { HeroCard } from '@/components/ui/HeroCard';
 import { computeBanSuggestions } from '@/engine/archetypeDraftGenerator';
 import type { GeneratedBan } from '@/engine/archetypeDraftGenerator';
+import { difficultyColor } from '@/data/executionDifficulty';
+import { simulateWhatIf } from '@/engine/whatIfEngine';
+import type { WhatIfTree } from '@/engine/whatIfEngine';
 
 const ARCH_LABEL: Record<string, string> = {
   engage: 'Engage', poke: 'Poke', protect: 'Protect', split: 'Split Push', catch: 'Catch',
@@ -267,6 +270,26 @@ function InlineSuggestionBar({
                 <div className="flex items-center gap-1">
                   <span className="text-[9px] leading-none">{lane.icon}</span>
                   <span className="text-[9px] font-semibold leading-none" style={{ color: scoreColor }}>{lane.label}</span>
+                  {/* Difficulty badge */}
+                  {s.hero.difficulty && s.hero.difficulty >= 4 && (
+                    <span
+                      className="text-[8px] font-black leading-none px-0.5 rounded shrink-0"
+                      style={{ color: difficultyColor(s.hero.difficulty), background: `${difficultyColor(s.hero.difficulty)}18` }}
+                      title={`Difficulté ${s.hero.difficulty}/5`}
+                    >
+                      {'⚡'.repeat(s.hero.difficulty)}
+                    </span>
+                  )}
+                  {/* Patch momentum badge */}
+                  {s.hero.wrTrend && s.hero.wrTrend !== 'stable' && (
+                    <span
+                      className="text-[8px] font-black leading-none shrink-0"
+                      style={{ color: s.hero.wrTrend === 'rising' ? '#4ade80' : '#f87171' }}
+                      title={`Momentum patch: ${s.hero.wrTrend === 'rising' ? '+' : ''}${((s.hero.wrDelta ?? 0) * 100).toFixed(1)}% WR`}
+                    >
+                      {s.hero.wrTrend === 'rising' ? '▲' : '▼'}
+                    </span>
+                  )}
                   <span
                     className="ml-auto text-[9px] font-black px-1 py-0.5 rounded leading-none shrink-0"
                     style={{ background: `${scoreColor}20`, color: scoreColor, border: `1px solid ${scoreColor}40` }}
@@ -290,6 +313,115 @@ function InlineSuggestionBar({
     </div>
   );
 }
+// ─── What-If simulation panel ─────────────────────────────────────────────────
+function WhatIfPanel({ tree, team }: { tree: WhatIfTree; team: 'blue' | 'red' }) {
+  const isBlue     = team === 'blue';
+  const teamBorder = isBlue ? 'rgba(59,130,246,0.30)' : 'rgba(239,68,68,0.30)';
+  const teamGlow   = isBlue ? 'rgba(59,130,246,0.08)' : 'rgba(239,68,68,0.08)';
+
+  return (
+    <div
+      className="rounded-lg border overflow-hidden"
+      style={{ background: 'rgba(5,5,10,0.97)', borderColor: teamBorder, boxShadow: `0 0 14px ${teamGlow}` }}
+    >
+      {/* Header */}
+      <div
+        className="flex items-center gap-1.5 px-2.5 py-1"
+        style={{ background: 'rgba(250,204,21,0.06)', borderBottom: '1px solid rgba(250,204,21,0.15)' }}
+      >
+        <span className="text-[9px]">🌳</span>
+        <span className="text-[9px] font-black tracking-widest text-yellow-300 uppercase">
+          Simulation What-If
+        </span>
+        <span className="text-[8px] text-slate-500 ml-1 truncate">
+          si vous pickez {tree.candidate.name}…
+        </span>
+      </div>
+
+      {/* Branches */}
+      <div className="flex flex-col divide-y divide-slate-800/60">
+        {tree.branches.map((branch, i) => {
+          const threatColor = branch.threatScore >= 70 ? '#f87171' : branch.threatScore >= 50 ? '#fb923c' : '#facc15';
+          const counterColor = branch.bestCounter
+            ? branch.bestCounter.fitScore >= 70 ? '#4ade80' : branch.bestCounter.fitScore >= 50 ? '#facc15' : '#94a3b8'
+            : '#64748b';
+          return (
+            <div key={branch.threatHero.id} className="flex items-center gap-2 px-2.5 py-1.5">
+              {/* Threat */}
+              <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                <span className="text-[8px] text-slate-600 shrink-0">#{i + 1}</span>
+                {branch.threatHero.image ? (
+                  <img
+                    src={branch.threatHero.image}
+                    alt={branch.threatHero.name}
+                    className="shrink-0 rounded overflow-hidden object-cover"
+                    style={{ width: 20, height: 20, filter: 'grayscale(0.3)' }}
+                  />
+                ) : (
+                  <div
+                    className="shrink-0 rounded flex items-center justify-center text-[9px] font-black"
+                    style={{ width: 20, height: 20, background: 'rgba(20,20,32,0.9)', color: threatColor }}
+                  >
+                    {branch.threatHero.name.charAt(0)}
+                  </div>
+                )}
+                <div className="flex flex-col min-w-0">
+                  <span className="text-[9px] font-black leading-none" style={{ color: threatColor }}>
+                    {branch.threatHero.name}
+                  </span>
+                  <span className="text-[7px] text-slate-500 leading-none truncate">
+                    {branch.threatReason}
+                  </span>
+                </div>
+              </div>
+
+              {/* Arrow */}
+              <span className="text-[9px] text-slate-600 shrink-0">→</span>
+
+              {/* Counter */}
+              {branch.bestCounter ? (
+                <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                  {branch.bestCounter.hero.image ? (
+                    <img
+                      src={branch.bestCounter.hero.image}
+                      alt={branch.bestCounter.hero.name}
+                      className="shrink-0 rounded overflow-hidden object-cover"
+                      style={{ width: 20, height: 20 }}
+                    />
+                  ) : (
+                    <div
+                      className="shrink-0 rounded flex items-center justify-center text-[9px] font-black"
+                      style={{ width: 20, height: 20, background: 'rgba(20,20,32,0.9)', color: counterColor }}
+                    >
+                      {branch.bestCounter.hero.name.charAt(0)}
+                    </div>
+                  )}
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-[9px] font-black leading-none" style={{ color: counterColor }}>
+                      {branch.bestCounter.hero.name}
+                    </span>
+                    <span className="text-[7px] text-slate-500 leading-none truncate">
+                      {branch.bestCounter.reason}
+                    </span>
+                  </div>
+                  <span
+                    className="ml-auto text-[8px] font-black shrink-0 px-1 py-0.5 rounded leading-none"
+                    style={{ background: `${counterColor}18`, color: counterColor }}
+                  >
+                    {branch.bestCounter.fitScore}
+                  </span>
+                </div>
+              ) : (
+                <span className="text-[8px] text-slate-600 flex-1">—</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 const ROLE_PRIORITY = ['Tank', 'Marksman', 'Support', 'Mage', 'Fighter', 'Assassin'];
 
 const ROLE_ICON: Record<string, string> = {
@@ -330,6 +462,8 @@ export function HeroSelector() {
   const gameMode         = useDraftStore((s) => s.gameMode);
   const mySide           = useDraftStore((s) => s.mySide);
   const plannedArchetype = useDraftStore((s) => s.plannedArchetype);
+
+  const [hoveredHero, setHoveredHero] = useState<HeroData | null>(null);
   const setSearch       = useDraftStore((s) => s.setSearch);
   const setRoleFilter   = useDraftStore((s) => s.setRoleFilter);
   const selectHero      = useDraftStore((s) => s.selectHero);
@@ -382,6 +516,14 @@ export function HeroSelector() {
     ? getTournamentPickTip(myPickNumber, activeStep.team)
     : null;
   const pickTip = pickTipKey ? PICK_ORDER_TIPS[pickTipKey] : null;
+
+  // What-If simulation — computed on hover during pick phase
+  const whatIfTree = useMemo((): WhatIfTree | null => {
+    if (!hoveredHero || !isPickPhase || !activeStep || !plannedArchetype) return null;
+    const alliedTeam = (activeStep.team === 'blue' ? bluePicks : redPicks).filter(Boolean) as HeroData[];
+    const enemyTeam  = (activeStep.team === 'blue' ? redPicks  : bluePicks).filter(Boolean) as HeroData[];
+    return simulateWhatIf(hoveredHero, alliedTeam, enemyTeam, heroPool, plannedArchetype, activeStep.team);
+  }, [hoveredHero, isPickPhase, activeStep, plannedArchetype, bluePicks, redPicks, heroPool]);
 
   // Suppress unused variable warning when mySide is read but not directly rendered
   void mySide;
@@ -521,6 +663,11 @@ export function HeroSelector() {
         />
       )}
 
+      {/* ── What-If simulation panel — appears when hovering a hero during pick phase ── */}
+      {whatIfTree && activeStep && (
+        <WhatIfPanel tree={whatIfTree} team={activeStep.team} />
+      )}
+
       {/* ── Search ── */}
       <div className="relative">
         <input
@@ -579,15 +726,20 @@ export function HeroSelector() {
             {filteredHeroes.map((hero) => {
               const isUsed = usedIds.has(hero.id);
               return (
-                <HeroCard
+                <div
                   key={hero.id}
-                  hero={hero}
-                  variant="selector"
-                  disabled={isUsed || isDone}
-                  onClick={() => !isUsed && !isDone && selectHero(hero)}
-                  showTooltip
-                  size="md"
-                />
+                  onMouseEnter={() => isPickPhase && !isUsed && setHoveredHero(hero)}
+                  onMouseLeave={() => setHoveredHero(null)}
+                >
+                  <HeroCard
+                    hero={hero}
+                    variant="selector"
+                    disabled={isUsed || isDone}
+                    onClick={() => !isUsed && !isDone && selectHero(hero)}
+                    showTooltip
+                    size="md"
+                  />
+                </div>
               );
             })}
           </div>

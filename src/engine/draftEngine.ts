@@ -3,6 +3,7 @@ import { getHeroTierScore, getHeroLanes } from '@/data/tierList';
 import type { LaneKey } from '@/data/tierList';
 import { playstyleCounterScore, buildPlaystyleHint, getPlaystyles, PLAYSTYLE_LABEL } from '@/data/heroArchetypes';
 import { heroArchetypeScores, ARCHETYPE_BEATS } from '@/engine/archetypeEngine';
+import { getHeroDifficulty } from '@/data/executionDifficulty';
 
 // ─── Weight configuration per game mode ─────────────────────────────────────
 
@@ -351,11 +352,22 @@ export function scoreHero(
   const phase    = calculatePhaseScore(hero, alliedTeam, gameMode);
   const pressure = calculatePressureScore(hero, alliedTeam);
 
-  const total = (counter * w.counter) +
-                (synergy * w.synergy) +
-                (meta    * w.meta)    +
-                (phase   * w.phase)   +
-                (pressure * w.pressure);
+  let total = (counter * w.counter) +
+              (synergy * w.synergy) +
+              (meta    * w.meta)    +
+              (phase   * w.phase)   +
+              (pressure * w.pressure);
+
+  // ── Execution difficulty penalty ────────────────────────────────────────
+  // In ranked: high-difficulty heroes are risky without practice.
+  // In tournament: difficulty is neutral (pros are expected to master their pool).
+  // In custom: slight penalty to avoid recommending heroes the team can't play.
+  if (gameMode !== 'tournament') {
+    const diff = hero.difficulty ?? getHeroDifficulty(hero.name);
+    if (diff >= 5) total *= gameMode === 'ranked' ? 0.72 : 0.88;  // Fanny/Ling/Kagura
+    else if (diff >= 4) total *= gameMode === 'ranked' ? 0.85 : 0.94;
+    // Difficulty 1-3: no penalty — within reach of most players
+  }
 
   return { counter, synergy, meta, phase, pressure, total };
 }
