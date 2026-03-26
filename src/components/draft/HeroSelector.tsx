@@ -4,9 +4,11 @@ import { useMemo } from 'react';
 import clsx from 'clsx';
 import { useDraftStore } from '@/store/draftStore';
 import { getDraftSequence } from '@/types/draft';
-import type { DraftSuggestion, ArchetypeResult } from '@/types/draft';
+import type { DraftSuggestion, ArchetypeResult, HeroData } from '@/types/draft';
 import { getTournamentPickTip, PICK_ORDER_TIPS } from '@/data/pickOrderGuide';
 import { HeroCard } from '@/components/ui/HeroCard';
+import { computeBanSuggestions } from '@/engine/archetypeDraftGenerator';
+import type { GeneratedBan } from '@/engine/archetypeDraftGenerator';
 
 const ARCH_LABEL: Record<string, string> = {
   engage: 'Engage', poke: 'Poke', protect: 'Protect', split: 'Split Push', catch: 'Catch',
@@ -38,6 +40,125 @@ function mainLane(roles: string[]) {
     if (roles.includes(r)) return ROLE_TO_LANE[r] ?? { icon: '⚔️', label: '—' };
   }
   return { icon: '⚔️', label: '—' };
+}
+
+// ─── Inline ban suggestion bar ────────────────────────────────────────────────
+function InlineBanSuggestionBar({
+  bans,
+  team,
+  onBan,
+}: {
+  bans:  GeneratedBan[];
+  team:  'blue' | 'red';
+  onBan: (hero: HeroData) => void;
+}) {
+  const top3 = bans.slice(0, 3);
+  if (top3.length === 0) return null;
+
+  const isBlue     = team === 'blue';
+  const teamBorder = isBlue ? 'rgba(59,130,246,0.35)' : 'rgba(239,68,68,0.35)';
+  const teamGlow   = isBlue ? 'rgba(59,130,246,0.10)' : 'rgba(239,68,68,0.10)';
+
+  const priorityColor: Record<GeneratedBan['priority'], string> = {
+    'must-ban':    '#f87171',
+    'high':        '#fb923c',
+    'situational': '#facc15',
+  };
+  const priorityLabel: Record<GeneratedBan['priority'], string> = {
+    'must-ban':    '🚫 OBLIGATOIRE',
+    'high':        '⚠️ PRIORITAIRE',
+    'situational': '🎯 SITUATIONNEL',
+  };
+  const RANK = ['🥇', '🥈', '🥉'];
+
+  return (
+    <div
+      className="rounded-lg border overflow-hidden"
+      style={{ background: 'rgba(5,5,10,0.95)', borderColor: teamBorder, boxShadow: `0 0 12px ${teamGlow}` }}
+    >
+      {/* Header strip */}
+      <div
+        className="flex items-center gap-2 px-2.5 py-1"
+        style={{ background: `linear-gradient(to right, rgba(248,113,113,0.12), transparent)`, borderBottom: `1px solid rgba(248,113,113,0.20)` }}
+      >
+        <span className="text-[9px]" style={{ color: '#f87171' }}>🚫</span>
+        <span className="text-[9px] font-black tracking-widest text-slate-300 uppercase shrink-0">
+          Meilleurs bans
+        </span>
+        <span className="ml-auto text-[8px] text-slate-600 shrink-0">cliquer pour bannir</span>
+      </div>
+
+      {/* Hero chips row */}
+      <div className="flex gap-0">
+        {top3.map((ban, i) => {
+          const c       = priorityColor[ban.priority];
+          const isFirst = i === 0;
+          return (
+            <button
+              key={ban.hero.id}
+              onClick={() => onBan(ban.hero)}
+              className="relative flex-1 flex items-center gap-2 px-2.5 py-1.5 group transition-all duration-150 hover:brightness-125"
+              style={{
+                background: isFirst ? 'rgba(248,113,113,0.06)' : 'transparent',
+                borderLeft: i > 0 ? `1px solid ${teamBorder}` : undefined,
+              }}
+            >
+              {/* Avatar with grayscale + X overlay */}
+              <div
+                className="relative shrink-0 rounded overflow-hidden"
+                style={{ width: 30, height: 30, border: `1px solid ${c}45` }}
+              >
+                {ban.hero.image ? (
+                  <img
+                    src={ban.hero.image}
+                    alt={ban.hero.name}
+                    className="w-full h-full object-cover"
+                    style={{ objectPosition: 'center 15%', filter: 'grayscale(0.4) brightness(0.85)' }}
+                  />
+                ) : (
+                  <div
+                    className="w-full h-full flex items-center justify-center text-[11px] font-black"
+                    style={{ background: 'rgba(20,20,32,0.9)', color: c }}
+                  >
+                    {ban.hero.name.charAt(0)}
+                  </div>
+                )}
+                {/* X badge bottom-right */}
+                <div
+                  className="absolute bottom-0 right-0 w-3 h-3 flex items-center justify-center rounded-tl"
+                  style={{ background: c, color: '#0a0a14' }}
+                >
+                  <span className="text-[7px] font-black leading-none">✕</span>
+                </div>
+              </div>
+
+              {/* Info */}
+              <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+                <div className="flex items-center gap-1">
+                  <span className="text-[10px] leading-none">{RANK[i]}</span>
+                  <span className="text-[10px] font-black text-white truncate leading-none">{ban.hero.name}</span>
+                </div>
+                <span
+                  className="text-[8px] font-bold leading-none"
+                  style={{ color: c }}
+                >
+                  {priorityLabel[ban.priority]}
+                </span>
+              </div>
+
+              {/* BAN hover overlay */}
+              <div
+                className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-150"
+                style={{ background: 'rgba(180,20,20,0.55)', backdropFilter: 'blur(2px)' }}
+              >
+                <span className="text-white font-black text-xs tracking-[0.2em] drop-shadow-lg">BAN</span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 // ─── Inline suggestion bar — compact horizontal strip ────────────────────────
@@ -197,17 +318,18 @@ const ROLE_IDLE: Record<string, string> = {
 };
 
 export function HeroSelector() {
-  const heroPool    = useDraftStore((s) => s.heroPool);
-  const search      = useDraftStore((s) => s.search);
-  const roleFilter  = useDraftStore((s) => s.roleFilter);
-  const currentStep = useDraftStore((s) => s.currentStep);
-  const blueBans    = useDraftStore((s) => s.blueBans);
-  const redBans     = useDraftStore((s) => s.redBans);
-  const bluePicks   = useDraftStore((s) => s.bluePicks);
-  const redPicks    = useDraftStore((s) => s.redPicks);
-  const analysis    = useDraftStore((s) => s.analysis);
-  const gameMode    = useDraftStore((s) => s.gameMode);
-  const mySide      = useDraftStore((s) => s.mySide);
+  const heroPool         = useDraftStore((s) => s.heroPool);
+  const search           = useDraftStore((s) => s.search);
+  const roleFilter       = useDraftStore((s) => s.roleFilter);
+  const currentStep      = useDraftStore((s) => s.currentStep);
+  const blueBans         = useDraftStore((s) => s.blueBans);
+  const redBans          = useDraftStore((s) => s.redBans);
+  const bluePicks        = useDraftStore((s) => s.bluePicks);
+  const redPicks         = useDraftStore((s) => s.redPicks);
+  const analysis         = useDraftStore((s) => s.analysis);
+  const gameMode         = useDraftStore((s) => s.gameMode);
+  const mySide           = useDraftStore((s) => s.mySide);
+  const plannedArchetype = useDraftStore((s) => s.plannedArchetype);
   const setSearch       = useDraftStore((s) => s.setSearch);
   const setRoleFilter   = useDraftStore((s) => s.setRoleFilter);
   const selectHero      = useDraftStore((s) => s.selectHero);
@@ -225,6 +347,15 @@ export function HeroSelector() {
     [...blueBans, ...redBans, ...bluePicks, ...redPicks].forEach((h) => h && ids.add(h.id));
     return ids;
   }, [blueBans, redBans, bluePicks, redPicks]);
+
+  // Ban suggestions — computed from plannedArchetype, refreshed as heroes get banned
+  const banSuggestions = useMemo((): GeneratedBan[] => {
+    if (!plannedArchetype || heroPool.length === 0) return [];
+    const excluded = new Set<string>(
+      [...blueBans, ...redBans].filter(Boolean).map((h) => String(h!.id))
+    );
+    return computeBanSuggestions(plannedArchetype, heroPool, excluded);
+  }, [plannedArchetype, heroPool, blueBans, redBans]);
 
   // Fix #5 — Suggest missing role during pick phase
   const suggestedRole = useMemo(() => {
@@ -363,6 +494,15 @@ export function HeroSelector() {
             ))}
           </ul>
         </div>
+      )}
+
+      {/* ── Inline ban suggestion bar — visible during ban phase ── */}
+      {isBan && activeStep && plannedArchetype && (
+        <InlineBanSuggestionBar
+          bans={banSuggestions}
+          team={activeStep.team}
+          onBan={(hero) => selectHero(hero)}
+        />
       )}
 
       {/* ── Inline AI suggestion bar — visible during pick phase without scrolling ── */}

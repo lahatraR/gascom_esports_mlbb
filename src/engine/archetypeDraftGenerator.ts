@@ -1158,3 +1158,90 @@ export function generateArchetypeDrafts(
 
   return selected;
 }
+
+// ─── Standalone ban suggestions ───────────────────────────────────────────────
+// Same 3-phase logic as the ban pool inside generateArchetypeDrafts, but without
+// running the full 400-composition sweep. Used by the InlineBanSuggestionBar.
+
+export function computeBanSuggestions(
+  archetype:   DraftArchetype,
+  heroPool:    HeroData[],
+  excludedIds: Set<string> = new Set(),
+): GeneratedBan[] {
+  const pool = heroPool.filter((h) => !excludedIds.has(String(h.id)));
+
+  const beatsUs = Object.entries(ARCHETYPE_BEATS)
+    .filter(([, beats]) => beats.includes(archetype))
+    .map(([a]) => a as DraftArchetype);
+
+  // Phase 1: heroes that neutralise our execution core
+  const executionCounterRoles: Record<DraftArchetype, string[]> = {
+    catch:   ['hard_peel', 'sustain_heal'],
+    engage:  ['anti_dash', 'hard_peel'],
+    protect: ['vision_assassin', 'mono_burst'],
+    poke:    ['execution_finisher', 'anti_dash'],
+    split:   ['objective_rusher', 'global_presence'],
+  };
+  const phase1 = pool
+    .filter((h) => {
+      const execRoles = getExecutionRoles(h.name);
+      return execRoles.some((r) => (executionCounterRoles[archetype] ?? []).includes(r));
+    })
+    .map((h) => {
+      const scores = heroArchetypeScores(h);
+      const counterStr = beatsUs.reduce((s, a) => s + (scores[a] ?? 0), 0) / Math.max(beatsUs.length, 1);
+      return { hero: h, score: counterStr * 0.60 + getHeroTierScore(h.name, h.roles) * 0.40 };
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 2);
+
+  // Phase 2: S+ flex picks
+  const phase1Ids = new Set(phase1.map((p) => p.hero.id));
+  const phase2 = pool
+    .filter((h) => {
+      if (phase1Ids.has(h.id)) return false;
+      return getHeroTierScore(h.name, h.roles) >= 8.5;
+    })
+    .map((h) => {
+      const scores = heroArchetypeScores(h);
+      const flexCount = (Object.values(scores) as number[]).filter((s) => s >= 7.0).length;
+      return { hero: h, score: getHeroTierScore(h.name, h.roles) + flexCount * 0.5 };
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 2);
+
+  // Phase 3: carry threats that exploit archetype holes
+  const archetypeHoleRoles: Record<DraftArchetype, string[]> = {
+    catch:   ['hypercarry', 'hard_peel'],
+    engage:  ['split_threat', 'vision_assassin'],
+    protect: ['sustained_dps', 'aoe_burst'],
+    poke:    ['hypercarry', 'sustain_heal'],
+    split:   ['aoe_cc_initiator', 'mono_burst'],
+  };
+  const phase12Ids = new Set([...phase1, ...phase2].map((p) => p.hero.id));
+  const phase3 = pool
+    .filter((h) => {
+      if (phase12Ids.has(h.id)) return false;
+      const execRoles = getExecutionRoles(h.name);
+      return execRoles.some((r) => (archetypeHoleRoles[archetype] ?? []).includes(r));
+    })
+    .map((h) => ({ hero: h, score: getHeroTierScore(h.name, h.roles) + (h.winRate ?? 0.50) * 5 }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 2);
+
+  const BAN_PHASE_REASON: Record<DraftArchetype, string[]> = {
+    catch:   ['Protège la cible contre votre isolation CC', 'Contre-poke force l\'approach'],
+    engage:  ['Bloque les dashes — neutralise votre initiation', 'Peel empêche le dive de passer'],
+    protect: ['Burst traverse vos shields', 'Assassin contourne le peel'],
+    poke:    ['Sustain annule votre attrition', 'Gap closer punit votre position'],
+    split:   ['Présence globale annule le split', 'Engage force les 5v5 que vous évitez'],
+  };
+
+  const allPhases = [
+    ...phase1.map((p, i) => ({ hero: p.hero, priority: 'must-ban'    as GeneratedBan['priority'], reason: BAN_PHASE_REASON[archetype]?.[i] ?? 'Contre directement votre core exécution' })),
+    ...phase2.map((p, i) => ({ hero: p.hero, priority: 'high'        as GeneratedBan['priority'], reason: i === 0 ? 'Pick S+ flex — trop polyvalent à laisser passer' : 'Pick méta dominant avec haute flexibilité' })),
+    ...phase3.map((p, i) => ({ hero: p.hero, priority: 'situational' as GeneratedBan['priority'], reason: BAN_PHASE_REASON[archetype]?.[i] ?? 'Exploite les failles naturelles de votre composition' })),
+  ];
+
+  return allPhases;
+}
