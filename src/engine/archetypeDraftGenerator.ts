@@ -2,6 +2,8 @@ import type { HeroData, DraftArchetype } from '@/types/draft';
 import { heroArchetypeScores, ARCHETYPE_BEATS, ARCHETYPE_LABELS } from './archetypeEngine';
 import { getHeroTierScore, getHeroLanes, LANE_TIERS } from '@/data/tierList';
 import type { LaneKey, TierRank } from '@/data/tierList';
+import { getPlaystyles } from '@/data/heroArchetypes';
+import type { PlaystyleArchetype } from '@/data/heroArchetypes';
 
 // ─── Pick order per archetype ─────────────────────────────────────────────────
 // Defines which role to draft at each pick slot (1st → 5th) based on archetype.
@@ -240,6 +242,117 @@ function clamp(v: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, v));
 }
 
+// ─── Speciality → archetype bonus ────────────────────────────────────────────
+// Maps official MLBB speciality tags (from /api/heroes/{name}) to composition
+// archetype contributions. These are additive bonuses on top of stat-based archFit.
+// Each value is a 0–1 bonus applied in scoreHeroForSlot.
+
+const SPECIALITY_ARCH_BONUS: Record<string, Partial<Record<DraftArchetype, number>>> = {
+  'Crowd Control': { engage: 0.12, catch: 0.10, poke: 0.04 },
+  'Initiator':     { engage: 0.15, catch: 0.10 },
+  'Burst':         { catch: 0.12, poke: 0.10 },
+  'Finisher':      { catch: 0.15 },
+  'Guard':         { protect: 0.15 },
+  'Regen':         { protect: 0.10, split: 0.08 },
+  'Poke':          { poke: 0.12 },
+  'Damage':        { poke: 0.08, protect: 0.04 },
+  'Charge':        { engage: 0.10, catch: 0.08 },
+  'Slow':          { poke: 0.08, catch: 0.06 },
+  'Push':          { split: 0.15 },
+  'Flicker':       { split: 0.10, catch: 0.08 },
+  'Control':       { poke: 0.10, engage: 0.06 },
+};
+
+// Returns total speciality bonus (0–0.25 max) for a hero in a given archetype.
+function specialityFit(hero: HeroData, archetype: DraftArchetype): number {
+  if (!hero.speciality?.length) return 0;
+  let bonus = 0;
+  for (const spec of hero.speciality) {
+    bonus += SPECIALITY_ARCH_BONUS[spec]?.[archetype] ?? 0;
+  }
+  return Math.min(0.25, bonus);
+}
+
+// ─── Power spike alignment ────────────────────────────────────────────────────
+// Returns 0–1: how well a hero's power curve peak aligns with the archetype's
+// preferred fight window. Uses real API win-rate data when available.
+
+const ARCHETYPE_PEAK_WINDOW: Record<DraftArchetype, 'early' | 'mid' | 'late'> = {
+  engage:  'early',
+  catch:   'early',
+  poke:    'mid',
+  split:   'mid',
+  protect: 'late',
+};
+
+function powerSpikeAlignment(hero: HeroData, archetype: DraftArchetype): number {
+  const pc = hero.powerCurve;
+  if (!pc) {
+    // Fallback: use existing early/mid/late stats
+    const wanted = ARCHETYPE_PEAK_WINDOW[archetype];
+    const score  = wanted === 'early' ? hero.early : wanted === 'mid' ? hero.mid : hero.late;
+    return clamp(score / 10, 0, 1);
+  }
+  const wanted = ARCHETYPE_PEAK_WINDOW[archetype];
+  const score  = wanted === 'early' ? pc.early : wanted === 'mid' ? pc.mid : pc.late;
+  return clamp(score / 10, 0, 1);
+}
+
+// ─── Phase control score ──────────────────────────────────────────────────────
+// 0–100: does the composition dominate at the right game phases?
+// Uses powerCurve (real data) with fallback to hero early/mid/late stats.
+
+function computePhaseControl(slots: GeneratedDraftSlot[], archetype: DraftArchetype): number {
+  const heroes = slots.map((s) => s.hero);
+  const get = (h: HeroData, phase: 'early' | 'mid' | 'late') => {
+    if (h.powerCurve) return h.powerCurve[phase];
+    return phase === 'early' ? h.early : phase === 'mid' ? h.mid : h.late;
+  };
+  const avgEarly = heroes.reduce((s, h) => s + get(h, 'early'), 0) / 5;
+  const avgMid   = heroes.reduce((s, h) => s + get(h, 'mid'),   0) / 5;
+  const avgLate  = heroes.reduce((s, h) => s + get(h, 'late'),  0) / 5;
+
+  // Count phases where team has meaningful advantage (> 6.5/10)
+  const dominated = [avgEarly > 6.5, avgMid > 6.5, avgLate > 6.5].filter(Boolean).length;
+
+  // Archetype-specific wanted phase score
+  const wantedPhase = ARCHETYPE_PEAK_WINDOW[archetype];
+  const wantedScore = wantedPhase === 'early' ? avgEarly : wantedPhase === 'mid' ? avgMid : avgLate;
+
+  // 20 base + 13 per dominated phase + wanted phase score weighted
+  return clamp(Math.round(20 + dominated * 13 + wantedScore * 3.5), 0, 100);
+}
+
+// ─── Universal threat coverage ────────────────────────────────────────────────
+// 0–100: can this composition answer the 6 universal threat profiles?
+// Independent of enemy picks — tests if the comp is self-sufficient.
+// Uses playstyle archetypes so it works even before API data loads.
+
+function computeThreatCoverage(slots: GeneratedDraftSlot[]): number {
+  const heroNames   = slots.map((s) => s.hero.name);
+  const allStyles   = heroNames.flatMap((n) => getPlaystyles(n));
+  const has = (ps: PlaystyleArchetype) => allStyles.includes(ps);
+
+  const checks: { covered: boolean; weight: number }[] = [
+    // 1. Can we burst / take down tanky/regen heroes?
+    { covered: has('explosive_mage') || has('sniper') || has('dps_mage') || has('prey_hunter'), weight: 1.0 },
+    // 2. Can we protect against assassins / divers?
+    { covered: has('avant_garde') || has('enchanter') || has('stone_wall'), weight: 1.0 },
+    // 3. Do we have fight-starting capability?
+    { covered: has('glorious_launcher') || has('stunner') || has('initiator'), weight: 1.0 },
+    // 4. Can we execute / finish kills?
+    { covered: has('prey_hunter') || has('sniper') || has('skill_marksman') || has('crit_marksman'), weight: 0.8 },
+    // 5. Can we answer split push / map pressure?
+    { covered: has('speed_specialist') || has('prey_hunter'), weight: 0.7 },
+    // 6. Do we have reliable sustained damage?
+    { covered: has('crit_marksman') || has('skill_marksman') || has('dps_mage') || has('berserker'), weight: 0.8 },
+  ];
+
+  const totalW   = checks.reduce((s, c) => s + c.weight, 0);
+  const coveredW = checks.filter((c) => c.covered).reduce((s, c) => s + c.weight, 0);
+  return clamp(Math.round((coveredW / totalW) * 100), 0, 100);
+}
+
 // ─── Flex pick detection ──────────────────────────────────────────────────────
 // A "flex pick" scores ≥5/10 in at least 2 archetypes → hard to read for enemy.
 // Blue side benefits most from flex picks (forced to reveal intent first).
@@ -258,22 +371,30 @@ function scoreHeroForSlot(
   archetype: DraftArchetype,
   side:      'blue' | 'red' = 'blue',
 ): number {
-  const archFit  = clamp((heroArchetypeScores(hero)[archetype] ?? 0) / 10, 0, 1);
+  const archFit   = clamp((heroArchetypeScores(hero)[archetype] ?? 0) / 10, 0, 1);
   const tierScore = getHeroTierScore(hero.name, hero.roles);
-  const tierFit  = clamp(tierScore / 10, 0, 1);
-  const wrFit    = clamp(((hero.winRate ?? 0.50) - 0.45) / 0.15, 0, 1);
-  const laneW    = LANE_ARCH_WEIGHT[archetype][lane] ?? 1.0;
-  const roamMul  = lane === 'Roam' ? roamSubtypeMultiplier(hero, archetype) : 1.0;
-  const expMul   = lane === 'EXP'  ? expContextMultiplier(hero, archetype)  : 1.0;
+  const tierFit   = clamp(tierScore / 10, 0, 1);
+  const wrFit     = clamp(((hero.winRate ?? 0.50) - 0.45) / 0.15, 0, 1);
+  const laneW     = LANE_ARCH_WEIGHT[archetype][lane] ?? 1.0;
+  const roamMul   = lane === 'Roam' ? roamSubtypeMultiplier(hero, archetype) : 1.0;
+  const expMul    = lane === 'EXP'  ? expContextMultiplier(hero, archetype)  : 1.0;
   // Blue side: flex picks get a bonus (safer first-pick, harder to read)
-  const flexBonus = side === 'blue' && getFlexInfo(hero).isFlexPick ? 0.07 : 0;
-  // S+ multiplicative bonus — ensures the best meta heroes are always strongly preferred.
-  // S+(×1.25) and S-(×1.10) guarantee that even with slightly lower archetype fit,
-  // top-tier heroes win over lower-tier alternatives. Target: maximize S+ in every comp.
-  const tierMul  = tierScore >= 10.0 ? 1.25 : tierScore >= 8.5 ? 1.10 : 1.0;
-  // Increase tierFit weight (0.35→0.42) and reduce archFit (0.50→0.42) so that
-  // tier placement matters more vs raw stat formula.
-  return clamp((archFit * 0.42 + tierFit * 0.42 + wrFit * 0.15 + flexBonus) * laneW * roamMul * expMul * tierMul, 0, 2.5);
+  const flexBonus = side === 'blue' && getFlexInfo(hero).isFlexPick ? 0.06 : 0;
+  // S+ multiplicative bonus — ensures top meta heroes always strongly preferred
+  const tierMul   = tierScore >= 10.0 ? 1.25 : tierScore >= 8.5 ? 1.10 : 1.0;
+  // Speciality fit from official MLBB tags (0–0.25 additive bonus)
+  const specBonus = specialityFit(hero, archetype);
+  // Power spike alignment: multiplier when hero peaks at the right phase (0.97–1.12)
+  const spikeMul  = 1.0 + powerSpikeAlignment(hero, archetype) * 0.12;
+
+  // Combined formula: archetype stats (35%) + tier (35%) + win rate (10%) +
+  //                   speciality tags (up to 18%) + flex bonus (6%)
+  // × lane weight × role subtypes × tier multiplier × spike multiplier
+  return clamp(
+    (archFit * 0.35 + tierFit * 0.35 + wrFit * 0.10 + specBonus + flexBonus)
+    * laneW * roamMul * expMul * tierMul * spikeMul,
+    0, 2.5,
+  );
 }
 
 // ─── Composition health check ─────────────────────────────────────────────────
@@ -675,21 +796,26 @@ export function generateArchetypeDrafts(
               buildSlot(heroRoam, 'Roam'),
             ];
 
-            const indivScore = clamp(
+            const indivScore   = clamp(
               Math.round(
                 slots.reduce((s, sl) => s + scoreHeroForSlot(sl.hero, sl.lane, archetype, side), 0) / 5 * 100
               ), 0, 100
             );
-            const synergy   = computeTeamSynergy(slots);
-            const topCombos = computeTopCombos(slots);
+            const synergy      = computeTeamSynergy(slots);
+            const topCombos    = computeTopCombos(slots);
+            const phaseScore   = computePhaseControl(slots, archetype);
+            const coverageScore = computeThreatCoverage(slots);
             // Red side gets stronger counter weight (reacts to enemy picks with full info)
             const counterWeight = side === 'red' ? 14 : 10;
             const counterAdj = enemyPicks.length > 0
               ? counterScoreVsEnemy(slots, enemyPicks) * counterWeight
               : 0;
+            // Multidimensional team score:
+            //   No enemy data  → tier+archFit 32% + synergy 13% + phase 28% + coverage 27%
+            //   Enemy known    → tier+archFit 28% + synergy 10% + phase 20% + coverage 15% + counter adj
             const teamScore = enemyPicks.length > 0
-              ? clamp(Math.round(indivScore * 0.65 + synergy * 0.25 + counterAdj), 0, 100)
-              : clamp(Math.round(indivScore * 0.75 + synergy * 0.25), 0, 100);
+              ? clamp(Math.round(indivScore * 0.28 + synergy * 0.10 + phaseScore * 0.20 + coverageScore * 0.15 + counterAdj), 0, 100)
+              : clamp(Math.round(indivScore * 0.32 + synergy * 0.13 + phaseScore * 0.28 + coverageScore * 0.27), 0, 100);
 
             const healthCheck = checkCompositionHealth(slots, archetype);
 

@@ -4,15 +4,16 @@
  * Run via:  npx tsx scripts/fetch-heroes.ts
  *
  * Data sources (mlbb-stats.rone.dev):
- *  /hero-list?size=200       → all 132 heroes: names, images, counter/synergy relations
- *  /hero-rank?size=200       → win/ban/pick rates for all heroes
- *  /academy/guide/{id}/time-win-rate/1  → phase win rates (Early/Mid/Late)
- *  /academy/guide/{id}/teammates        → synergy win rate boost (Team Coordination)
+ *  /hero-list?size=200                                      → names, images, counter/synergy relations
+ *  /hero-rank?size=200                                      → win/ban/pick rates
+ *  /academy/guide/{id}/time-win-rate/1                      → phase win rates (Early/Mid/Late)
+ *  /academy/guide/{id}/teammates                            → synergyBoost + synergyPairs
+ *  /heroes/{name}                                           → speciality tags + skill type tags
+ *  /academy/heroes/{name}/win-rate/timeline?lane={lane}     → real power curve per phase
  *
- * NOTE: The API defaults to 20 results. Adding ?size=200 returns all 132 heroes.
- *
- * Phase win rates are normalized from 0.42–0.58 → 0–10 to match the M7/MPL broadcast scale.
- * (RORA earlyMid=3.60 corresponds to win_rate ≈ 0.478, formula: (wr-0.42)/0.16×10)
+ * All data is baked into heroes.json at build time so the app works for every user,
+ * including first-time visitors, even when the API is unavailable at runtime.
+ * A data-status.json file records the build timestamp for the freshness indicator.
  */
 
 import fs   from 'fs';
@@ -74,8 +75,8 @@ interface RawTeammates {
   data: {
     records: Array<{
       data: {
-        main_heroid:         number;
-        main_hero_win_rate:  number;
+        main_heroid:        number;
+        main_hero_win_rate: number;
         sub_hero: Array<{
           heroid:            number;
           hero_win_rate:     number;
@@ -84,6 +85,40 @@ interface RawTeammates {
       };
     }>;
     total: number;
+  };
+}
+
+// New API shapes
+interface RawSkillTag  { tagname?: string }
+interface RawSkill     { skilltag?: RawSkillTag[] }
+interface RawSkillList { skilllist?: RawSkill[] }
+
+interface RawHeroFullResponse {
+  data: {
+    records: Array<{
+      data: {
+        hero_id: number;
+        hero: {
+          data: {
+            speciality?:    string[];
+            heroskilllist?: RawSkillList[];
+          };
+        };
+      };
+    }>;
+  };
+}
+
+interface RawTimelineEntry { time_min: number; time_max?: number; win_rate: number }
+
+interface RawWinRateTimelineResponse {
+  data: {
+    records: Array<{
+      data: {
+        time_win_rate:  RawTimelineEntry[];
+        total_win_rate: number;
+      };
+    }>;
   };
 }
 
@@ -124,32 +159,26 @@ async function batchedAll<T>(
 /**
  * Normalize a win rate (0.0–1.0) to the 0–10 broadcast scale.
  * Formula matches MPL/M-Series overlay: 0.42 → 0, 0.50 → 5, 0.58 → 10.
- * This is how RORA earlyMid=3.60 corresponds to win_rate≈0.478.
  */
 function normalizeWR(wr: number): number {
   return Math.max(0, Math.min(10, ((wr - 0.42) / 0.16) * 10));
 }
 
 /**
- * Normalize a synergy boost (increase_win_rate, likely 0.0–0.08 decimal)
- * to a 0–10 coordination score. 0% boost → 5, +5% → ~8.
+ * Normalize power curve win rate to 0–10.
+ * 0.40 → 0, 0.50 → 5, 0.60 → 10.
  */
+function normalizePowerWR(wr: number): number {
+  return Math.max(0, Math.min(10, ((wr - 0.40) / 0.20) * 10));
+}
+
 function normalizeSynergyBoost(boost: number): number {
-  // Handle both decimal (0.03) and percentage (3.0) formats
   const dec = boost > 1 ? boost / 100 : boost;
   return Math.max(0, Math.min(10, 5 + dec * 100));
 }
 
-// ─── Phase win-rate extraction ────────────────────────────────────────────────
+// ─── Phase win-rate extraction (old endpoint) ─────────────────────────────────
 
-/**
- * From the time_win_rate brackets, compute:
- *  phaseEarly = avg win rate where time_max ≤ 12 min
- *  phaseMid   = avg win rate where 12 < time_max ≤ 20 min
- *  phaseLate  = avg win rate where time_min ≥ 18 min
- *
- * Returns normalized 0–10 values.
- */
 function extractPhases(brackets: Array<{ time_min: number; time_max: number; win_rate: number }>) {
   const early = brackets.filter((b) => b.time_max <= 12);
   const mid   = brackets.filter((b) => b.time_max > 12 && b.time_max <= 20);
@@ -158,12 +187,15 @@ function extractPhases(brackets: Array<{ time_min: number; time_max: number; win
   const avg = (arr: typeof brackets) =>
     arr.length > 0 ? arr.reduce((s, b) => s + b.win_rate, 0) / arr.length : null;
 
-  return {
-    phaseEarly: avg(early),
-    phaseMid:   avg(mid),
-    phaseLate:  avg(late),
-  };
+  return { phaseEarly: avg(early), phaseMid: avg(mid), phaseLate: avg(late) };
 }
+
+// ─── Lane parameter mapping (for win-rate/timeline endpoint) ─────────────────
+
+const ROLE_TO_LANE_PARAM: Record<string, string> = {
+  Tank: 'roam', Support: 'roam', Fighter: 'exp',
+  Mage: 'mid',  Assassin: 'jungle', Marksman: 'gold',
+};
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
@@ -171,7 +203,6 @@ async function main() {
   console.log('[fetch-heroes] Fetching hero data from mlbb-stats.rone.dev…');
 
   // ── Step 1: Core endpoints (parallel) ──────────────────────────────────────
-  // ?size=200 returns all 132 heroes (default page size is 20)
   const [rawList, rawRank] = await Promise.all([
     apiFetch<RawHeroListResponse>('/hero-list/?size=200'),
     apiFetch<RawHeroRankResponse>('/hero-rank/?size=200').catch(() => null),
@@ -185,7 +216,6 @@ async function main() {
   const records = rawList.data.records;
   console.log(`[fetch-heroes] → ${records.length} heroes from /hero-list`);
 
-  // Build rank lookup
   const rankMap = new Map(
     (rawRank?.data.records ?? []).map((rec) => [
       rec.data.main_heroid,
@@ -199,51 +229,128 @@ async function main() {
   console.log(`[fetch-heroes] → ${rankMap.size} heroes with rank data`);
 
   // ── Step 2: Per-hero Academy data (batched, 8 concurrent) ──────────────────
-  console.log('[fetch-heroes] → Fetching phase win-rates and synergy data per hero…');
+  console.log('[fetch-heroes] → Fetching phase win-rates and synergy data…');
 
   const heroIds = records.map((r) => r.data.hero_id);
 
-  // time-win-rate (lane_id=1 — API returns the hero's primary lane data)
   const timeWRTasks = heroIds.map((id) => () =>
     apiFetch<RawTimeWinRate>(`/academy/guide/${id}/time-win-rate/1`)
   );
-  // teammates synergy data
   const teammateTasks = heroIds.map((id) => () =>
     apiFetch<RawTeammates>(`/academy/guide/${id}/teammates`)
   );
 
   const [timeWRResults, teammateResults] = await Promise.all([
-    batchedAll(timeWRTasks,    8),
-    batchedAll(teammateTasks,  8),
+    batchedAll(timeWRTasks,   8),
+    batchedAll(teammateTasks, 8),
   ]);
 
-  // Index by hero_id
-  const timeWRMap  = new Map<number, { phaseEarly: number | null; phaseMid: number | null; phaseLate: number | null }>();
-  const synergyMap = new Map<number, number>();
+  const timeWRMap      = new Map<number, { phaseEarly: number | null; phaseMid: number | null; phaseLate: number | null }>();
+  const synergyMap     = new Map<number, number>();
+  const synergyPairsMap = new Map<number, Record<number, number>>();
 
   for (let i = 0; i < heroIds.length; i++) {
     const id    = heroIds[i];
     const twr   = timeWRResults[i];
     const mates = teammateResults[i];
 
-    // Phase win rates
     const rec = twr?.data?.records?.[0]?.data;
     if (rec?.time_win_rate?.length) {
       timeWRMap.set(id, extractPhases(rec.time_win_rate));
     }
 
-    // Synergy boost = avg increase_win_rate of top teammates (positive signal)
     const subHeroes = mates?.data?.records?.[0]?.data?.sub_hero ?? [];
     if (subHeroes.length > 0) {
       const avgBoost = subHeroes.reduce((s, h) => s + h.increase_win_rate, 0) / subHeroes.length;
       synergyMap.set(id, normalizeSynergyBoost(avgBoost));
+
+      // Also store individual synergyPairs (positive boosts only)
+      const pairs: Record<number, number> = {};
+      for (const h of subHeroes) {
+        if (h.increase_win_rate > 0) pairs[h.heroid] = h.increase_win_rate;
+      }
+      if (Object.keys(pairs).length > 0) synergyPairsMap.set(id, pairs);
     }
   }
 
-  console.log(`[fetch-heroes] → Phase data:   ${timeWRMap.size}/${heroIds.length} heroes`);
-  console.log(`[fetch-heroes] → Synergy data: ${synergyMap.size}/${heroIds.length} heroes`);
+  console.log(`[fetch-heroes] → Phase data:    ${timeWRMap.size}/${heroIds.length} heroes`);
+  console.log(`[fetch-heroes] → Synergy data:  ${synergyMap.size}/${heroIds.length} heroes`);
+  console.log(`[fetch-heroes] → SynergyPairs:  ${synergyPairsMap.size}/${heroIds.length} heroes`);
 
-  // ── Step 3: Build hero objects ──────────────────────────────────────────────
+  // ── Step 3: Speciality + skill tags + power curve (new API, batched 5) ──────
+  console.log('[fetch-heroes] → Fetching speciality, skill tags, and power curves (new API)…');
+
+  const idToName = new Map(records.map((r) => [r.data.hero_id, r.data.hero.data.name]));
+  const idToLane = new Map(heroIds.map((id) => {
+    const role = HERO_STATS[id]?.roles?.[0] ?? 'Fighter';
+    return [id, ROLE_TO_LANE_PARAM[role] ?? 'exp'];
+  }));
+
+  const fullDataTasks = heroIds.map((id) => () => {
+    const name = idToName.get(id) ?? '';
+    return apiFetch<RawHeroFullResponse>(`/heroes/${encodeURIComponent(name)}`);
+  });
+
+  const timelineTasks = heroIds.map((id) => () => {
+    const name = idToName.get(id) ?? '';
+    const lane = idToLane.get(id) ?? 'exp';
+    return apiFetch<RawWinRateTimelineResponse>(
+      `/academy/heroes/${encodeURIComponent(name)}/win-rate/timeline?lane=${lane}`
+    );
+  });
+
+  // Smaller batches — 2 new API calls per hero
+  const [fullDataResults, timelineResults] = await Promise.all([
+    batchedAll(fullDataTasks,  5),
+    batchedAll(timelineTasks,  5),
+  ]);
+
+  const specialityMap  = new Map<number, string[]>();
+  const skillTagsMap   = new Map<number, string[]>();
+  const powerCurveMap  = new Map<number, { early: number; mid: number; late: number; peak: string }>();
+
+  for (let i = 0; i < heroIds.length; i++) {
+    const id   = heroIds[i];
+    const full = fullDataResults[i];
+    const tl   = timelineResults[i];
+
+    // Speciality + skill tags
+    const heroData = full?.data?.records?.[0]?.data?.hero?.data;
+    if (heroData) {
+      specialityMap.set(id, heroData.speciality ?? []);
+      const tagSet = new Set<string>();
+      for (const sl of heroData.heroskilllist ?? []) {
+        for (const skill of sl.skilllist ?? []) {
+          for (const tag of skill.skilltag ?? []) {
+            if (tag.tagname) tagSet.add(tag.tagname);
+          }
+        }
+      }
+      skillTagsMap.set(id, Array.from(tagSet));
+    }
+
+    // Power curve
+    const entries = tl?.data?.records?.[0]?.data?.time_win_rate;
+    if (entries?.length) {
+      const avgWR = (minMin: number, maxMin: number) => {
+        const relevant = entries.filter((t) => t.time_min >= minMin && t.time_min < maxMin);
+        return relevant.length > 0
+          ? relevant.reduce((s, t) => s + t.win_rate, 0) / relevant.length
+          : 0.50;
+      };
+      const early = parseFloat(normalizePowerWR(avgWR(0,  10)).toFixed(2));
+      const mid   = parseFloat(normalizePowerWR(avgWR(10, 16)).toFixed(2));
+      const late  = parseFloat(normalizePowerWR(avgWR(16, 99)).toFixed(2));
+      const peak  = early >= mid && early >= late ? 'early' : mid >= late ? 'mid' : 'late';
+      powerCurveMap.set(id, { early, mid, late, peak });
+    }
+  }
+
+  console.log(`[fetch-heroes] → Speciality:    ${specialityMap.size}/${heroIds.length} heroes`);
+  console.log(`[fetch-heroes] → Skill tags:    ${skillTagsMap.size}/${heroIds.length} heroes`);
+  console.log(`[fetch-heroes] → Power curves:  ${powerCurveMap.size}/${heroIds.length} heroes`);
+
+  // ── Step 4: Build hero objects ──────────────────────────────────────────────
   const heroes = records.map((rec) => {
     const d      = rec.data;
     const id     = d.hero_id;
@@ -253,7 +360,6 @@ async function main() {
     const rank   = rankMap.get(id);
     const phases = timeWRMap.get(id);
 
-    // Phase win rates: prefer API data, fall back to static estimates
     const phaseEarly = phases?.phaseEarly != null
       ? parseFloat(normalizeWR(phases.phaseEarly).toFixed(2))
       : defs.early;
@@ -264,16 +370,12 @@ async function main() {
       ? parseFloat(normalizeWR(phases.phaseLate).toFixed(2))
       : defs.late;
 
-    // Synergy boost: API data or neutral 5.0
-    const synergyBoost = synergyMap.get(id) ?? 5.0;
-
     return {
       id,
       name:  d.hero.data.name,
       image: d.hero.data.head,
       roles,
 
-      // Static combat attributes (no API equivalent — role-based tuning)
       early:     defs.early,
       mid:       defs.mid,
       late:      defs.late,
@@ -284,33 +386,60 @@ async function main() {
       push:      defs.push,
       pressure:  defs.pressure,
 
-      // API-derived phase win rates
       phaseEarly,
       phaseMid,
       phaseLate,
 
-      // API-derived synergy boost
-      synergyBoost,
+      synergyBoost: synergyMap.get(id) ?? 5.0,
 
-      // Counter/synergy relationships
+      // Pairwise synergy boosts (baked from teammates API)
+      synergyPairs: synergyPairsMap.get(id) ?? {},
+
       counters:    (d.relation.weak.target_hero_id   ?? []).filter((x: number) => x > 0),
       counteredBy: (d.relation.strong.target_hero_id ?? []).filter((x: number) => x > 0),
       synergies:   (d.relation.assist.target_hero_id ?? []).filter((x: number) => x > 0),
 
-      // Meta rates
       winRate:  rank?.winRate  ?? (defs as { winRate?: number }).winRate  ?? 0.500,
       pickRate: rank?.pickRate ?? (defs as { pickRate?: number }).pickRate ?? 0.050,
       banRate:  rank?.banRate  ?? (defs as { banRate?: number }).banRate  ?? 0.010,
+
+      // New enriched fields — baked at build time for offline resilience
+      speciality: specialityMap.get(id) ?? [],
+      skillTags:  skillTagsMap.get(id)  ?? [],
+      powerCurve: powerCurveMap.get(id),
     };
   });
 
-  const withPhases  = heroes.filter((h) => timeWRMap.has(h.id)).length;
-  const withSynergy = heroes.filter((h) => synergyMap.has(h.id)).length;
+  // ── Step 5: Write output files ──────────────────────────────────────────────
+  const outDir = path.join(process.cwd(), 'public');
+  fs.mkdirSync(outDir, { recursive: true });
 
-  const outPath = path.join(process.cwd(), 'public', 'heroes.json');
-  fs.mkdirSync(path.dirname(outPath), { recursive: true });
-  fs.writeFileSync(outPath, JSON.stringify(heroes));
-  console.log(`[fetch-heroes] ✓ Wrote ${heroes.length} heroes (${withPhases} with phase data, ${withSynergy} with synergy data)`);
+  fs.writeFileSync(path.join(outDir, 'heroes.json'), JSON.stringify(heroes));
+
+  const withPhases    = heroes.filter((h) => timeWRMap.has(h.id)).length;
+  const withSynergy   = heroes.filter((h) => synergyMap.has(h.id)).length;
+  const withSpeciality = heroes.filter((h) => (specialityMap.get(h.id)?.length ?? 0) > 0).length;
+  const withCurve     = heroes.filter((h) => powerCurveMap.has(h.id)).length;
+
+  console.log(`[fetch-heroes] ✓ Wrote ${heroes.length} heroes`);
+  console.log(`  Phase data:    ${withPhases}/${heroes.length}`);
+  console.log(`  Synergy data:  ${withSynergy}/${heroes.length}`);
+  console.log(`  Speciality:    ${withSpeciality}/${heroes.length}`);
+  console.log(`  Power curves:  ${withCurve}/${heroes.length}`);
+
+  // Write data-status.json — used by the UI freshness indicator
+  const status = {
+    buildTime:   new Date().toISOString(),
+    heroCount:   heroes.length,
+    enriched: {
+      phase:       withPhases,
+      synergy:     withSynergy,
+      speciality:  withSpeciality,
+      powerCurve:  withCurve,
+    },
+  };
+  fs.writeFileSync(path.join(outDir, 'data-status.json'), JSON.stringify(status));
+  console.log(`[fetch-heroes] ✓ Wrote data-status.json (buildTime: ${status.buildTime})`);
 }
 
 main().catch((err) => {

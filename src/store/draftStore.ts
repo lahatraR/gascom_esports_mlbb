@@ -3,7 +3,8 @@
 import { create } from 'zustand';
 import { HERO_STATS, getDefaultsForRoles, FALLBACK_HERO_NAMES } from '@/data/heroes';
 import type { HeroData, DraftAnalysis, GameMode, DraftTeam, DraftArchetype } from '@/types/draft';
-import { fetchHeroDetailStats } from '@/lib/mlbbApi';
+import { fetchHeroDetailStats, fetchHeroFullData, fetchHeroWinRateTimeline } from '@/lib/mlbbApi';
+import type { LaneKey } from '@/data/tierList';
 import { getDraftSequence, getBanCount } from '@/types/draft';
 import { runDraftAnalysis } from '@/engine/teamComparison';
 
@@ -102,12 +103,67 @@ async function enrichWithDetailStats(
   onDone(enriched);
 }
 
+// ─── Background full-data enrichment ──────────────────────────────────────────
+// Fetches speciality + skill tags + power curve for every hero in batches of 5.
+// Two API calls per hero (/api/heroes/{name} + /win-rate/timeline) so small batches
+// avoid rate-limiting. Runs after detail-stats enrichment — purely additive.
+
+const ROLE_TO_LANE_KEY: Record<string, LaneKey> = {
+  Tank: 'Roam', Support: 'Roam', Fighter: 'EXP',
+  Mage: 'Mid', Assassin: 'Jungle', Marksman: 'Gold',
+};
+
+async function enrichWithFullData(
+  pool:   HeroData[],
+  onDone: (enriched: HeroData[]) => void,
+): Promise<void> {
+  const BATCH  = 5;
+  const fullMap = new Map<number, {
+    speciality: string[];
+    skillTags:  string[];
+    powerCurve: HeroData['powerCurve'];
+  }>();
+
+  for (let i = 0; i < pool.length; i += BATCH) {
+    const batch = pool.slice(i, i + BATCH);
+    await Promise.allSettled(
+      batch.map(async (h) => {
+        const primaryLane = ROLE_TO_LANE_KEY[h.roles[0] ?? 'Fighter'] ?? 'EXP';
+        const [fullRes, timelineRes] = await Promise.allSettled([
+          fetchHeroFullData(h.name),
+          fetchHeroWinRateTimeline(h.name, primaryLane),
+        ]);
+        const full     = fullRes.status     === 'fulfilled' ? fullRes.value     : null;
+        const timeline = timelineRes.status === 'fulfilled' ? timelineRes.value : null;
+        if (!full && !timeline) return;
+        fullMap.set(h.id, {
+          speciality: full?.speciality ?? [],
+          skillTags:  full?.skillTags  ?? [],
+          powerCurve: timeline ?? undefined,
+        });
+      }),
+    );
+  }
+
+  if (fullMap.size === 0) return;
+
+  const enriched = pool.map((h) => {
+    const d = fullMap.get(h.id);
+    return d ? { ...h, ...d } : h;
+  });
+
+  onDone(enriched);
+}
+
 // ─── Store shape ──────────────────────────────────────────────────────────────
 
 interface DraftStore {
   heroPool:       HeroData[];
   isLoadingPool:  boolean;
   poolError:      string | null;
+  // 'build'  → data from heroes.json (no live enrichment yet)
+  // 'live'   → at least one live enrichment pass succeeded
+  dataFreshness:  'build' | 'live';
 
   blueBans:    (HeroData | null)[];
   redBans:     (HeroData | null)[];
@@ -161,6 +217,7 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
   heroPool:       [],
   isLoadingPool:  false,
   poolError:      null,
+  dataFreshness:  'build',
 
   blueBans:    makeSlots(getBanCount('ranked')),
   redBans:     makeSlots(getBanCount('ranked')),
@@ -231,9 +288,14 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
 
           set({ heroPool: pool, isLoadingPool: false });
 
-          // Background enrichment: fetch real stats + synergy pairs without blocking UI
-          enrichWithDetailStats(pool, (enriched) => {
-            set({ heroPool: enriched });
+          // Background enrichment pass 1: real stats + synergy pairs
+          // Background enrichment pass 2 (chained): speciality, skill tags, power curve
+          // On first success → mark dataFreshness as 'live'
+          enrichWithDetailStats(pool, (enriched1) => {
+            set({ heroPool: enriched1, dataFreshness: 'live' });
+            enrichWithFullData(enriched1, (enriched2) => {
+              set({ heroPool: enriched2 });
+            }).catch(() => { /* ignore */ });
           }).catch(() => { /* ignore — enrichment is best-effort */ });
 
           return;

@@ -215,6 +215,123 @@ export async function fetchHeroDetailStats(heroName: string): Promise<ParsedHero
   }
 }
 
+// ─── Hero Full Data (skills + speciality from /api/heroes/{name}) ────────────
+
+interface RawSkillTag  { tagname: string }
+interface RawSkill     { skilltag?: RawSkillTag[] }
+interface RawSkillList { skilllist?: RawSkill[] }
+
+interface RawHeroFullResponse {
+  code: number;
+  data: {
+    records: Array<{
+      data: {
+        hero_id: number;
+        hero: {
+          data: {
+            speciality?:    string[];
+            abilityshow?:   string[];
+            heroskilllist?: RawSkillList[];
+          };
+        };
+      };
+    }>;
+  };
+}
+
+export interface ParsedHeroFullData {
+  id:         number;
+  speciality: string[];    // e.g. ["Crowd Control", "Initiator"]
+  skillTags:  string[];    // unique tags across all skills: ["CC", "AOE", "Mobility"]
+}
+
+export async function fetchHeroFullData(heroName: string): Promise<ParsedHeroFullData | null> {
+  try {
+    const raw = await apiFetch<RawHeroFullResponse>(`/heroes/${encodeURIComponent(heroName)}`, 1);
+    const rec  = raw?.data?.records?.[0]?.data;
+    if (!rec) return null;
+    const heroData = rec.hero?.data;
+    if (!heroData) return null;
+
+    const tagSet = new Set<string>();
+    for (const sl of heroData.heroskilllist ?? []) {
+      for (const skill of sl.skilllist ?? []) {
+        for (const tag of skill.skilltag ?? []) {
+          if (tag.tagname) tagSet.add(tag.tagname);
+        }
+      }
+    }
+
+    return {
+      id:         rec.hero_id,
+      speciality: heroData.speciality ?? [],
+      skillTags:  Array.from(tagSet),
+    };
+  } catch { return null; }
+}
+
+// ─── Hero Win-Rate Timeline (/api/academy/heroes/{name}/win-rate/timeline) ───
+
+interface RawTimelineEntry { time_min: number; time_max?: number; win_rate: number }
+
+interface RawWinRateTimelineResponse {
+  code: number;
+  data: {
+    records: Array<{
+      data: {
+        time_win_rate:  RawTimelineEntry[];
+        total_win_rate: number;
+      };
+    }>;
+  };
+}
+
+export interface ParsedPowerCurve {
+  early: number;               // 0–10 normalized win rate at 0–10 min
+  mid:   number;               // 0–10 normalized win rate at 10–16 min
+  late:  number;               // 0–10 normalized win rate at 16+ min
+  peak:  'early' | 'mid' | 'late';
+}
+
+const LANE_TIMELINE_PARAM: Record<LaneKey, string> = {
+  EXP: 'exp', Gold: 'gold', Mid: 'mid', Jungle: 'jungle', Roam: 'roam',
+};
+
+export async function fetchHeroWinRateTimeline(
+  heroName:    string,
+  primaryLane: LaneKey,
+): Promise<ParsedPowerCurve | null> {
+  try {
+    const laneParam = LANE_TIMELINE_PARAM[primaryLane] ?? 'exp';
+    const raw = await apiFetch<RawWinRateTimelineResponse>(
+      `/academy/heroes/${encodeURIComponent(heroName)}/win-rate/timeline?lane=${laneParam}`,
+      1,
+    );
+    const entries = raw?.data?.records?.[0]?.data?.time_win_rate;
+    if (!entries?.length) return null;
+
+    // Average win rate across each phase bucket
+    const avg = (minMin: number, maxMin: number) => {
+      const relevant = entries.filter((t) => t.time_min >= minMin && t.time_min < maxMin);
+      if (!relevant.length) return 0.50;
+      return relevant.reduce((s, t) => s + t.win_rate, 0) / relevant.length;
+    };
+
+    const earlyWR = avg(0,  10);
+    const midWR   = avg(10, 16);
+    const lateWR  = avg(16, 99);
+
+    // Normalise: 0.40 → 0, 0.60 → 10
+    const norm = (wr: number) => Math.max(0, Math.min(10, (wr - 0.40) / 0.20 * 10));
+    const early = norm(earlyWR);
+    const mid   = norm(midWR);
+    const late  = norm(lateWR);
+    const peak  = early >= mid && early >= late ? 'early' : mid >= late ? 'mid' : 'late';
+
+    return { early, mid, late, peak };
+  } catch { return null; }
+}
+
 export async function fetchHeroRank(): Promise<ParsedHeroRank[]> {
   const raw = await apiFetch<RawHeroRankResponse>('/hero-rank/');
   return raw.data.records.map((rec) => {

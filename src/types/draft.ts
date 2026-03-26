@@ -52,6 +52,23 @@ export interface HeroData {
   // Key = partner hero ID, value = increase_win_rate (in %, e.g. 6.8 = +6.8% WR)
   // Used for accurate pair scoring in draft generator (Atlas+Mathilda = 6.8%)
   synergyPairs?: Record<number, number>;
+
+  // Official MLBB speciality tags from /api/heroes/{name}
+  // e.g. ["Crowd Control", "Initiator"] — what the hero is designed to do
+  speciality?: string[];
+
+  // Unique skill type tags across all skills: ["CC", "AOE", "Mobility", "Buff", "Debuff"]
+  // Used to validate kit functions and detect combo potential
+  skillTags?: string[];
+
+  // Per-phase win rate from /api/academy/heroes/{name}/win-rate/timeline
+  // Represents actual power curve based on real match data at each game stage
+  powerCurve?: {
+    early: number;              // 0–10 normalized win rate at 0–10 min
+    mid:   number;              // 0–10 normalized win rate at 10–16 min
+    late:  number;              // 0–10 normalized win rate at 16+ min
+    peak:  'early' | 'mid' | 'late';
+  };
 }
 
 // ─── Draft Structure ─────────────────────────────────────────────────────────
