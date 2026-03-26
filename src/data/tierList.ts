@@ -121,6 +121,21 @@ export function getHeroLanes(heroName: string, roles: string[]): LaneKey[] {
   return lane ? [lane] : [];
 }
 
+// ─── Lookup: tier score for a hero in a specific lane ────────────────────────
+// Returns the tier score if the hero is explicitly listed for this lane,
+// or null if not in this lane's tier list.
+
+export function getHeroTierScoreForLane(heroName: string, lane: LaneKey): number | null {
+  const tiers = LANE_TIERS[lane];
+  const nameLower = heroName.toLowerCase();
+  for (const [tier, heroes] of Object.entries(tiers) as [TierRank, string[]][]) {
+    if (heroes?.some((n) => n.toLowerCase() === nameLower)) {
+      return TIER_META_SCORE[tier];
+    }
+  }
+  return null;
+}
+
 // ─── Lookup: get tier meta score for a hero by name + roles ──────────────────
 
 export function getHeroTierScore(heroName: string, roles: string[]): number {
@@ -187,7 +202,7 @@ export const HERO_ARCHETYPE_TAGS: Record<string, DraftArchetypeTag[]> = {
   Atlas:     ['engage'],
   Khufra:    ['engage'],
   Tigreal:   ['engage'],
-  Franco:    ['engage'],
+  Franco:    ['engage', 'catch'],  // hook = pick-off tool in catch, AoE initiation in engage
   Akai:      ['engage'],
   Barats:    ['engage'],
   Belerick:  ['engage'],

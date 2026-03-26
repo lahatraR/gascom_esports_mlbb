@@ -204,7 +204,9 @@ const HERO_PLAYSTYLES_RAW: [string, PlaystyleArchetype[]][] = [
   ['grock',           ['stone_wall']],
   ['hylos',           ['stone_wall']],
   ['uranus',          ['stone_wall', 'berserker']],
-  ['franco',          ['avant_garde', 'initiator']],
+  // Franco: his hook (S1) is a mono-target hard CC that pulls enemies — pure stunner.
+  // NOT avant_garde (which protects backline). Franco hooks ENEMY targets → stunner + initiator.
+  ['franco',          ['stunner', 'initiator']],
   ['carmilla',        ['initiator']],
   // ── Fighters ────────────────────────────────────────────────────────────────
   ['aldous',          ['mastodon']],

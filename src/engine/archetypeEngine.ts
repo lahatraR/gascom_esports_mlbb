@@ -117,8 +117,10 @@ function heroScores(hero: HeroData): Record<DraftArchetype, number> {
   if (primaryRole === 'Assassin') split += 1.0;
   if (primaryRole === 'Fighter')  split += 1.0;
 
-  // CATCH: burst + lockdown + mobility + hard to catch after
-  let catchScore = damage * 0.30 + cc * 0.30 + mobility * 0.25 + (10 - tankiness) * 0.15;
+  // CATCH: burst + lockdown + mobility + early aggression.
+  // Replaced (10 - tankiness) with early: being tanky ≠ bad catcher (Franco hooks from fog,
+  // survives the initiation). Early aggression is what defines a pick-off hero.
+  let catchScore = damage * 0.30 + cc * 0.30 + mobility * 0.25 + early * 0.15;
   if (primaryRole === 'Assassin') catchScore += 1.0;
 
   // ── Playstyle archetype bonuses (scaled to keep total ≤ 10) ──────────────

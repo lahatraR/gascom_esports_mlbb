@@ -20,6 +20,39 @@ import fs   from 'fs';
 import path from 'path';
 import { HERO_STATS, getDefaultsForRoles } from '../src/data/heroes';
 
+// ─── Snapshot (local API backup) ─────────────────────────────────────────────
+
+const SNAPSHOT_PATH = path.join(process.cwd(), 'data', 'api-snapshot.json');
+
+interface ApiSnapshot {
+  savedAt: string;
+  rankMap:        Record<string, { winRate: number; banRate: number; pickRate: number }>;
+  timeWRMap:      Record<string, { phaseEarly: number | null; phaseMid: number | null; phaseLate: number | null }>;
+  synergyMap:     Record<string, number>;
+  synergyPairsMap: Record<string, Record<number, number>>;
+  specialityMap:  Record<string, string[]>;
+  skillTagsMap:   Record<string, string[]>;
+  powerCurveMap:  Record<string, { early: number; mid: number; late: number; peak: string }>;
+}
+
+function loadSnapshot(): ApiSnapshot | null {
+  try {
+    if (!fs.existsSync(SNAPSHOT_PATH)) return null;
+    const raw = fs.readFileSync(SNAPSHOT_PATH, 'utf-8');
+    const snap = JSON.parse(raw) as ApiSnapshot;
+    console.log(`[fetch-heroes] ↩ Loaded api-snapshot.json (saved ${snap.savedAt})`);
+    return snap;
+  } catch {
+    return null;
+  }
+}
+
+function saveSnapshot(snap: Omit<ApiSnapshot, 'savedAt'>) {
+  fs.mkdirSync(path.dirname(SNAPSHOT_PATH), { recursive: true });
+  fs.writeFileSync(SNAPSHOT_PATH, JSON.stringify({ savedAt: new Date().toISOString(), ...snap }, null, 2));
+  console.log('[fetch-heroes] ✓ Saved api-snapshot.json (local backup updated)');
+}
+
 // ─── API response shapes ──────────────────────────────────────────────────────
 
 interface RawHeroListResponse {
@@ -202,6 +235,9 @@ const ROLE_TO_LANE_PARAM: Record<string, string> = {
 async function main() {
   console.log('[fetch-heroes] Fetching hero data from mlbb-stats.rone.dev…');
 
+  // Load local snapshot as fallback (used when API is unavailable)
+  const snapshot = loadSnapshot();
+
   // ── Step 1: Core endpoints (parallel) ──────────────────────────────────────
   const [rawList, rawRank] = await Promise.all([
     apiFetch<RawHeroListResponse>('/hero-list/?size=200'),
@@ -226,6 +262,13 @@ async function main() {
       },
     ])
   );
+  // Fallback: fill missing rank entries from snapshot
+  if (snapshot) {
+    for (const [key, val] of Object.entries(snapshot.rankMap)) {
+      const id = parseInt(key, 10);
+      if (!rankMap.has(id)) rankMap.set(id, val);
+    }
+  }
   console.log(`[fetch-heroes] → ${rankMap.size} heroes with rank data`);
 
   // ── Step 2: Per-hero Academy data (batched, 8 concurrent) ──────────────────
@@ -270,6 +313,22 @@ async function main() {
         if (h.increase_win_rate > 0) pairs[h.heroid] = h.increase_win_rate;
       }
       if (Object.keys(pairs).length > 0) synergyPairsMap.set(id, pairs);
+    }
+  }
+
+  // Fallback from snapshot for phase/synergy (endpoints often unavailable)
+  if (snapshot) {
+    for (const [key, val] of Object.entries(snapshot.timeWRMap)) {
+      const id = parseInt(key, 10);
+      if (!timeWRMap.has(id)) timeWRMap.set(id, val);
+    }
+    for (const [key, val] of Object.entries(snapshot.synergyMap)) {
+      const id = parseInt(key, 10);
+      if (!synergyMap.has(id)) synergyMap.set(id, val);
+    }
+    for (const [key, val] of Object.entries(snapshot.synergyPairsMap)) {
+      const id = parseInt(key, 10);
+      if (!synergyPairsMap.has(id)) synergyPairsMap.set(id, val as Record<number, number>);
     }
   }
 
@@ -343,6 +402,22 @@ async function main() {
       const late  = parseFloat(normalizePowerWR(avgWR(16, 99)).toFixed(2));
       const peak  = early >= mid && early >= late ? 'early' : mid >= late ? 'mid' : 'late';
       powerCurveMap.set(id, { early, mid, late, peak });
+    }
+  }
+
+  // Fallback from snapshot for speciality/skillTags/powerCurve
+  if (snapshot) {
+    for (const [key, val] of Object.entries(snapshot.specialityMap)) {
+      const id = parseInt(key, 10);
+      if (!specialityMap.has(id)) specialityMap.set(id, val);
+    }
+    for (const [key, val] of Object.entries(snapshot.skillTagsMap)) {
+      const id = parseInt(key, 10);
+      if (!skillTagsMap.has(id)) skillTagsMap.set(id, val);
+    }
+    for (const [key, val] of Object.entries(snapshot.powerCurveMap)) {
+      const id = parseInt(key, 10);
+      if (!powerCurveMap.has(id)) powerCurveMap.set(id, val);
     }
   }
 
@@ -440,6 +515,35 @@ async function main() {
   };
   fs.writeFileSync(path.join(outDir, 'data-status.json'), JSON.stringify(status));
   console.log(`[fetch-heroes] ✓ Wrote data-status.json (buildTime: ${status.buildTime})`);
+
+  // ── Step 6: Save api-snapshot.json (local backup for next offline build) ────
+  // Only update entries that we actually fetched from the live API this run,
+  // so the snapshot always holds the union of all successful fetches over time.
+  const mergedRank:         ApiSnapshot['rankMap']         = { ...snapshot?.rankMap };
+  const mergedTimeWR:       ApiSnapshot['timeWRMap']       = { ...snapshot?.timeWRMap };
+  const mergedSynergy:      ApiSnapshot['synergyMap']      = { ...snapshot?.synergyMap };
+  const mergedSynergyPairs: ApiSnapshot['synergyPairsMap'] = { ...snapshot?.synergyPairsMap };
+  const mergedSpeciality:   ApiSnapshot['specialityMap']   = { ...snapshot?.specialityMap };
+  const mergedSkillTags:    ApiSnapshot['skillTagsMap']    = { ...snapshot?.skillTagsMap };
+  const mergedPowerCurve:   ApiSnapshot['powerCurveMap']   = { ...snapshot?.powerCurveMap };
+
+  for (const [id, val] of rankMap)        mergedRank[id]         = val;
+  for (const [id, val] of timeWRMap)      mergedTimeWR[id]       = val;
+  for (const [id, val] of synergyMap)     mergedSynergy[id]      = val;
+  for (const [id, val] of synergyPairsMap) mergedSynergyPairs[id] = val;
+  for (const [id, val] of specialityMap)  mergedSpeciality[id]   = val;
+  for (const [id, val] of skillTagsMap)   mergedSkillTags[id]    = val;
+  for (const [id, val] of powerCurveMap)  mergedPowerCurve[id]   = val;
+
+  saveSnapshot({
+    rankMap:         mergedRank,
+    timeWRMap:       mergedTimeWR,
+    synergyMap:      mergedSynergy,
+    synergyPairsMap: mergedSynergyPairs,
+    specialityMap:   mergedSpeciality,
+    skillTagsMap:    mergedSkillTags,
+    powerCurveMap:   mergedPowerCurve,
+  });
 }
 
 main().catch((err) => {

@@ -1,6 +1,6 @@
 import type { HeroData, DraftArchetype } from '@/types/draft';
 import { heroArchetypeScores, ARCHETYPE_BEATS, ARCHETYPE_LABELS } from './archetypeEngine';
-import { getHeroTierScore, getHeroLanes, LANE_TIERS } from '@/data/tierList';
+import { getHeroTierScore, getHeroTierScoreForLane, getHeroLanes, LANE_TIERS } from '@/data/tierList';
 import type { LaneKey, TierRank } from '@/data/tierList';
 import { getPlaystyles } from '@/data/heroArchetypes';
 import type { PlaystyleArchetype } from '@/data/heroArchetypes';
@@ -160,14 +160,18 @@ const MID_TIER_NAMES = new Set(
 const VIABLE_TIERS: TierRank[] = ['S+', 'S-', 'A+', 'A', 'B'];
 
 function isValidCandidate(hero: HeroData, lane: LaneKey): boolean {
-  const canonical = LANE_CANONICAL_ROLES[lane] ?? [];
-  const hasRole   = hero.roles.some((r) => canonical.includes(r));
-  if (!hasRole) return false;
-
+  // Priority 1: tier list is authoritative — explicitly listed heroes always qualify,
+  // even if their primary role doesn't match the canonical lane role
+  // (e.g. Chou Fighter/Assassin is S+ Roam, Jawhead Fighter is S- Roam).
   const inTierList = VIABLE_TIERS.some((tier) =>
     (LANE_TIERS[lane][tier] ?? []).some((n) => n.toLowerCase() === hero.name.toLowerCase())
   );
   if (inTierList) return true;
+
+  // Priority 2: role-based eligibility for heroes not listed in the tier list
+  const canonical = LANE_CANONICAL_ROLES[lane] ?? [];
+  const hasRole   = hero.roles.some((r) => canonical.includes(r));
+  if (!hasRole) return false;
 
   const heroLanes = getHeroLanes(hero.name, hero.roles);
   if (heroLanes.includes(lane)) return true;
@@ -192,8 +196,16 @@ function isRoamSupport(hero: HeroData): boolean {
 }
 
 function roamSubtypeMultiplier(hero: HeroData, archetype: DraftArchetype): number {
-  if (isRoamTank(hero)) {
-    // Tank Roam: excels at initiating, penalised when team needs peel
+  // "Engage-type" Roam: glorious launchers and stunners — they initiate/catch,
+  // not healers. Detected by playstyle, not role, so Chou (Fighter) and Kaja
+  // (Fighter/Support) get the correct initiator multiplier in Roam.
+  const playstyles = getPlaystyles(hero.name);
+  const isEngageType = playstyles.some(
+    (ps) => ps === 'glorious_launcher' || ps === 'stunner',
+  );
+
+  if (isRoamTank(hero) || isEngageType) {
+    // Tank/initiator Roam: excels at initiating, penalised when team needs peel
     if (archetype === 'engage') return 1.35;
     if (archetype === 'catch')  return 1.15;
     if (archetype === 'protect') return 0.65;
@@ -208,7 +220,7 @@ function roamSubtypeMultiplier(hero: HeroData, archetype: DraftArchetype): numbe
     if (archetype === 'catch')   return 0.80;
     return 1.0;
   }
-  return 1.0; // mixed role (e.g., Kaja, Faramis)
+  return 1.0; // mixed role without strong playstyle signal (e.g., Faramis)
 }
 
 // ─── EXP context multiplier ───────────────────────────────────────────────────
@@ -372,7 +384,8 @@ function scoreHeroForSlot(
   side:      'blue' | 'red' = 'blue',
 ): number {
   const archFit   = clamp((heroArchetypeScores(hero)[archetype] ?? 0) / 10, 0, 1);
-  const tierScore = getHeroTierScore(hero.name, hero.roles);
+  // Use lane-specific tier score when available (e.g. Chou is S+ Roam, A+ EXP → use S+ when scoring Roam)
+  const tierScore = getHeroTierScoreForLane(hero.name, lane) ?? getHeroTierScore(hero.name, hero.roles);
   const tierFit   = clamp(tierScore / 10, 0, 1);
   const wrFit     = clamp(((hero.winRate ?? 0.50) - 0.45) / 0.15, 0, 1);
   const laneW     = LANE_ARCH_WEIGHT[archetype][lane] ?? 1.0;
