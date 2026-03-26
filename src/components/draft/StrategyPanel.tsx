@@ -701,6 +701,13 @@ const BAN_PRIORITY_LABEL: Record<GeneratedBan['priority'], string> = {
   'situational':'SITUATIONNEL',
 };
 
+// Phase labels and descriptions shown above each ban group
+const BAN_PHASE_META: Record<GeneratedBan['priority'], { phase: string; desc: string; icon: string }> = {
+  'must-ban':    { phase: 'Phase 1', desc: 'Neutralise votre core — bannir en premier',         icon: '🚫' },
+  'high':        { phase: 'Phase 2', desc: 'S+ flex picks — trop polyvalents pour laisser passer', icon: '⚠️' },
+  'situational': { phase: 'Phase 3', desc: 'Menaces ciblées — exploitent vos failles naturelles',   icon: '🎯' },
+};
+
 // ─── Composition health check display ────────────────────────────────────────
 
 function HealthCheckDisplay({ check }: { check: CompositionHealthCheck }) {
@@ -783,12 +790,50 @@ function GeneratedDraftCard({
         </span>
 
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-bold text-sm text-white leading-none">
-              {draft.slots.map((sl) => sl.hero.name).join(' · ')}
-            </span>
+          {/* Pick strip — portraits instead of text names */}
+          <div className="flex items-center gap-1 flex-wrap">
+            {draft.slots.map((sl) => {
+              const k = sl.hero.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+              const h = heroMap.get(k);
+              return (
+                <div
+                  key={sl.lane}
+                  className="rounded overflow-hidden shrink-0 border"
+                  style={{ width: 26, height: 30, borderColor: 'rgba(80,80,110,0.55)' }}
+                  title={`${sl.lane}: ${sl.hero.name}`}
+                >
+                  {h?.image
+                    ? <img src={h.image} alt={sl.hero.name} className="w-full h-full object-cover object-top" />
+                    : <div className="w-full h-full flex items-center justify-center text-[8px] font-bold text-slate-400 bg-slate-800/80">{sl.hero.name.charAt(0)}</div>
+                  }
+                </div>
+              );
+            })}
+            {/* Separator */}
+            <div className="w-px h-5 mx-0.5 shrink-0" style={{ background: 'rgba(80,80,110,0.45)' }} />
+            {/* Ban mini-strip — top 3 must-ban heroes */}
+            {draft.bans.filter((b) => b.priority === 'must-ban').slice(0, 3).map((ban, i) => {
+              const bk = ban.hero.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+              const bh = heroMap.get(bk);
+              return (
+                <div
+                  key={i}
+                  className="relative rounded overflow-hidden shrink-0"
+                  style={{ width: 22, height: 25, border: '1px solid rgba(248,113,113,0.40)' }}
+                  title={`Ban: ${ban.hero.name}`}
+                >
+                  {bh?.image
+                    ? <img src={bh.image} alt={ban.hero.name} className="w-full h-full object-cover object-top" style={{ filter: 'grayscale(0.6)' }} />
+                    : <div className="w-full h-full flex items-center justify-center text-[7px] font-bold bg-red-950/60 text-red-400">{ban.hero.name.charAt(0)}</div>
+                  }
+                  <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(180,20,20,0.30)' }}>
+                    <span className="text-red-400 font-black text-[9px] leading-none">✕</span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
             <div className="flex items-center gap-1.5">
               <div className="flex-1 max-w-20 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(40,40,60,0.8)' }}>
                 <div className="h-full rounded-full" style={{ width: `${draft.teamScore}%`, background: scoreColor }} />
@@ -883,6 +928,30 @@ function GeneratedDraftCard({
                         )}
                       </div>
                       <p className="text-[10px] mt-0.5 leading-snug" style={{ color: 'rgba(100,110,130,0.90)' }}>{slot.why}</p>
+                      {/* Battle spell recommendation */}
+                      {slot.battleSpell && (
+                        <div className="flex items-start gap-1.5 mt-1 rounded-lg px-2 py-1" style={{ background: 'rgba(251,191,36,0.07)', border: '1px solid rgba(251,191,36,0.20)' }}>
+                          <span className="text-[9px] shrink-0 mt-0.5">⚡</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1 flex-wrap">
+                              <span className="text-[9px] font-black" style={{ color: '#fbbf24' }}>
+                                {slot.battleSpell.primary}
+                              </span>
+                              {slot.battleSpell.secondary && (
+                                <>
+                                  <span className="text-[8px] text-slate-600">ou</span>
+                                  <span className="text-[9px] font-semibold text-slate-400">
+                                    {slot.battleSpell.secondary}
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                            <p className="text-[8px] leading-snug mt-0.5" style={{ color: 'rgba(150,120,60,0.85)' }}>
+                              {slot.battleSpell.note}
+                            </p>
+                          </div>
+                        </div>
+                      )}
                       {/* Alternatives if banned */}
                       {slot.alternatives && slot.alternatives.length > 0 && (
                         <div className="flex items-center gap-1 mt-1 flex-wrap">
@@ -910,31 +979,99 @@ function GeneratedDraftCard({
             </div>
           </Section>
 
-          {/* Bans */}
-          <Section title="Bans Recommandés">
-            <div className="flex flex-col gap-2">
-              {draft.bans.map((ban: GeneratedBan, i: number) => {
-                const banColor = BAN_PRIORITY_COLOR[ban.priority];
-                const banKey = ban.hero.name.toLowerCase().replace(/[^a-z0-9]/g, '');
-                const banHero = heroMap.get(banKey);
+          {/* Bans — 3-phase visual layout */}
+          <Section title="Stratégie de Ban">
+            <div className="flex flex-col gap-2.5">
+              {(['must-ban', 'high', 'situational'] as GeneratedBan['priority'][]).map((priority) => {
+                const phaseBans = draft.bans.filter((b) => b.priority === priority);
+                if (phaseBans.length === 0) return null;
+                const c     = BAN_PRIORITY_COLOR[priority];
+                const meta  = BAN_PHASE_META[priority];
                 return (
-                  <div key={i} className="flex items-start gap-2">
-                    <span
-                      className="shrink-0 text-[8px] font-bold px-1.5 py-0.5 rounded-full tracking-wide whitespace-nowrap"
-                      style={{ background: `${banColor}22`, color: banColor, border: `1px solid ${banColor}40` }}
+                  <div
+                    key={priority}
+                    className="rounded-xl overflow-hidden"
+                    style={{ border: `1px solid ${c}28`, background: `${c}09` }}
+                  >
+                    {/* Phase header */}
+                    <div
+                      className="flex items-center gap-2 px-2.5 py-1.5"
+                      style={{ background: `${c}18`, borderBottom: `1px solid ${c}22` }}
                     >
-                      {BAN_PRIORITY_LABEL[ban.priority]}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        {banHero?.image && (
-                          <div className="rounded overflow-hidden shrink-0" style={{ width: 20, height: 23 }}>
-                            <img src={banHero.image} alt={ban.hero.name} className="w-full h-full object-cover object-top" />
+                      <span className="text-sm leading-none">{meta.icon}</span>
+                      <span className="text-[9px] font-black tracking-widest uppercase" style={{ color: c }}>
+                        {meta.phase}
+                      </span>
+                      <span className="text-[8px] text-slate-500 leading-none">{meta.desc}</span>
+                    </div>
+
+                    {/* Hero cards in a horizontal row */}
+                    <div className="flex gap-2 px-2.5 py-2 flex-wrap">
+                      {phaseBans.map((ban, i) => {
+                        const bk   = ban.hero.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+                        const bh   = heroMap.get(bk);
+                        return (
+                          <div
+                            key={i}
+                            className="flex items-start gap-2 rounded-lg flex-1 min-w-[110px]"
+                            style={{
+                              padding:    '6px 8px',
+                              background: 'rgba(8,8,18,0.70)',
+                              border:     `1px solid ${c}25`,
+                            }}
+                          >
+                            {/* Portrait with grayscale + X overlay */}
+                            <div
+                              className="relative shrink-0 rounded-lg overflow-hidden"
+                              style={{ width: 38, height: 44 }}
+                            >
+                              {bh?.image
+                                ? <img
+                                    src={bh.image}
+                                    alt={ban.hero.name}
+                                    className="w-full h-full object-cover object-top"
+                                    style={{ filter: 'grayscale(0.45) brightness(0.85)' }}
+                                  />
+                                : <div
+                                    className="w-full h-full flex items-center justify-center text-[11px] font-black"
+                                    style={{ background: `${c}22`, color: c }}
+                                  >
+                                    {ban.hero.name.charAt(0)}
+                                  </div>
+                              }
+                              {/* X overlay */}
+                              <div
+                                className="absolute inset-0 flex items-end justify-end p-0.5"
+                                style={{ background: `${c}18` }}
+                              >
+                                <span
+                                  className="rounded-full w-3.5 h-3.5 flex items-center justify-center text-[8px] font-black leading-none"
+                                  style={{ background: c, color: '#0a0a14' }}
+                                >✕</span>
+                              </div>
+                            </div>
+
+                            {/* Info */}
+                            <div className="flex-1 min-w-0">
+                              <span
+                                className="block text-[11px] font-bold leading-snug"
+                                style={{ color: '#e2e8f0' }}
+                              >
+                                {ban.hero.name}
+                              </span>
+                              <p
+                                className="text-[9px] leading-snug mt-0.5"
+                                style={{ color: 'rgba(100,110,140,0.85)' }}
+                              >
+                                {/* Show only the tactical part (after the " — " if present) */}
+                                {ban.reason.includes(' — ')
+                                  ? ban.reason.split(' — ').slice(1).join(' — ')
+                                  : ban.reason}
+                              </p>
+                            </div>
                           </div>
-                        )}
-                        <span className="font-semibold text-[11px] text-slate-200">{ban.hero.name}</span>
-                      </div>
-                      <p className="text-[10px] leading-snug" style={{ color: 'rgba(100,110,130,0.90)' }}>{ban.reason}</p>
+                        );
+                      })}
                     </div>
                   </div>
                 );
