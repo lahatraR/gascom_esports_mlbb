@@ -4,6 +4,12 @@ import { getHeroTierScore, getHeroTierScoreForLane, getHeroLanes, LANE_TIERS } f
 import type { LaneKey, TierRank } from '@/data/tierList';
 import { getPlaystyles } from '@/data/heroArchetypes';
 import type { PlaystyleArchetype } from '@/data/heroArchetypes';
+import {
+  getExecutionRoles,
+  computeExecutionCoverage,
+  detectCorePair,
+  ARCHETYPE_EXECUTION_TEMPLATE,
+} from '@/data/executionRoles';
 
 // ─── Pick order per archetype ─────────────────────────────────────────────────
 // Defines which role to draft at each pick slot (1st → 5th) based on archetype.
@@ -400,11 +406,31 @@ function scoreHeroForSlot(
   // Power spike alignment: multiplier when hero peaks at the right phase (0.97–1.12)
   const spikeMul  = 1.0 + powerSpikeAlignment(hero, archetype) * 0.12;
 
-  // Combined formula: archetype stats (35%) + tier (35%) + win rate (10%) +
-  //                   speciality tags (up to 18%) + flex bonus (6%)
-  // × lane weight × role subtypes × tier multiplier × spike multiplier
+  // ── Hybrid archetype blending (70% primary / 30% secondary) ──────────────
+  // Real compositions have a natural secondary identity — Catch comps naturally
+  // have some Engage in them (the isolation initiator also works in teamfights).
+  // Blending ensures we pick heroes that work in both scenarios, not just one.
+  const secondaryArchetype = ARCHETYPE_EXECUTION_TEMPLATE[archetype].naturalSecondary;
+  const blendRatio         = ARCHETYPE_EXECUTION_TEMPLATE[archetype].hybridRatio;
+  const secondaryFit = clamp((heroArchetypeScores(hero)[secondaryArchetype] ?? 0) / 10, 0, 1);
+  const blendedArchFit = archFit * (1 - blendRatio) + secondaryFit * blendRatio;
+
+  // ── Execution role bonus ──────────────────────────────────────────────────
+  // Heroes that fill the core execution pair get a significant bonus.
+  // Heroes that fill support execution needs get a smaller bonus.
+  // This ensures the composition naturally builds around an execution core.
+  const execRoles   = getExecutionRoles(hero.name);
+  const template    = ARCHETYPE_EXECUTION_TEMPLATE[archetype];
+  const fillsCore   = execRoles.some((r) => template.corePair.includes(r));
+  const fillsSupport = execRoles.some((r) => template.supportNeeds.includes(r));
+  const execBonus   = fillsCore ? 0.14 : fillsSupport ? 0.07 : 0;
+
+  // Combined formula:
+  //   blended archetype fit (35%) + tier (35%) + win rate (10%)
+  //   + speciality tags (≤18%) + exec role bonus (≤14%) + flex bonus (6%)
+  //   × lane weight × role subtypes × tier multiplier × spike multiplier
   return clamp(
-    (archFit * 0.35 + tierFit * 0.35 + wrFit * 0.10 + specBonus + flexBonus)
+    (blendedArchFit * 0.35 + tierFit * 0.35 + wrFit * 0.10 + specBonus + execBonus + flexBonus)
     * laneW * roamMul * expMul * tierMul * spikeMul,
     0, 2.5,
   );
@@ -677,12 +703,74 @@ function buildWinCondition(archetype: DraftArchetype, slots: GeneratedDraftSlot[
   const find = (lane: string) => slots.find((s) => s.lane === lane)?.hero.name ?? '?';
   const gold = find('Gold'); const roam = find('Roam');
   const jgl  = find('Jungle'); const mid = find('Mid'); const exp = find('EXP');
+
+  // Detect the 2-hero execution core to describe the specific play sequence
+  const heroNames = slots.map((s) => s.hero.name);
+  const core = detectCorePair(heroNames, archetype);
+
+  // Build an execution-aware description using the actual heroes in this composition
+  if (core?.isComplete) {
+    const coreA = core.heroA; const coreB = core.heroB;
+    const roleDescriptions: Record<string, string> = {
+      isolation_cc:      'crée l\'isolation CC mono-cible',
+      aoe_cc_initiator:  'initie le AoE CC (Flash recommandé)',
+      mono_burst:        'burst la cible isolée en < 2 secondes',
+      aoe_burst:         'suit avec l\'AoE burst sur le groupe CC',
+      global_presence:   'join depuis n\'importe où avec son ultime',
+      anti_dash:         'bloque tous les Flicker/dashes ennemis',
+      hypercarry:        'est la win condition — survivre = gagner',
+      hard_peel:         'construit un mur autour du carry',
+      split_threat:      'force une réponse side lane obligatoire',
+      execution_finisher:'chasse et finit tous les fuyards',
+      sustained_dps:     'maintain la pression DPS sur la durée',
+      sustain_heal:      'tient le groupe en vie pendant l\'attrition',
+      objective_rusher:  'convertit chaque kill en objectif immédiat',
+      vision_assassin:   'crée les conditions de pick en vision denial',
+    };
+    const descA = roleDescriptions[core.roleA] ?? core.roleA;
+    const descB = roleDescriptions[core.roleB] ?? core.roleB;
+
+    const secondaryArchetype = ARCHETYPE_EXECUTION_TEMPLATE[archetype].naturalSecondary;
+    const secondaryLabel = secondaryArchetype.charAt(0).toUpperCase() + secondaryArchetype.slice(1);
+
+    switch (archetype) {
+      case 'catch':
+        return `Core pick-off : ${coreA} ${descA} → ${coreB} ${descB}. ` +
+               `${jgl !== coreA && jgl !== coreB ? jgl + ' ouvre' : roam !== coreA && roam !== coreB ? roam + ' crée' : exp + ' nettoie'} la fenêtre. ` +
+               `Attendre une cible isolée — ne jamais initier en plein champ. Après le pick : objectif immédiat. ` +
+               `(Identité secondaire ${secondaryLabel} : si l'ennemi reste groupé, ce comp peut aussi engager.)`;
+      case 'engage':
+        return `Core teamfight : ${coreA} ${descA} → ${coreB} ${descB} dans la seconde qui suit. ` +
+               `${jgl !== coreA && jgl !== coreB ? jgl : exp} s\'assure que personne n\'échappe via Flicker. ` +
+               `Convergence < 2s après le CC — diverger = perdre le fight. Objectif Lord après chaque fight. ` +
+               `(Identité secondaire ${secondaryLabel} : si l'ennemi se sépare, ${coreA} peut pick-off isolément.)`;
+      case 'protect':
+        return `Win condition : ${coreA} à 4-5 items est imbattable si vivant. ` +
+               `${coreB} ${descB} — aucun héros ennemi n\'atteint ${coreA}. ` +
+               `${jgl} couvre les flancs, ${mid} deal depuis la sécurité. ` +
+               `Perdre les early fights est acceptable — gagner le game à items complets. ` +
+               `(Identité secondaire ${secondaryLabel} : harcèle l'ennemi pour ralentir leur scaling.)`;
+      case 'poke':
+        return `Attrition forcée : ${coreA} ${descA} + ${coreB} ${descB} avant chaque objectif. ` +
+               `${jgl} sécurise les buffs pendant la poke. Règle absolue : engager seulement si l\'ennemi est < 60% de vie. ` +
+               `${roam !== coreA && roam !== coreB ? roam + ' punit les rushes avec CC' : exp + ' contre en side lane'}. ` +
+               `(Identité secondaire ${secondaryLabel} : ce comp peut aussi protéger ses propres carries.)`;
+      case 'split':
+        return `Pression géographique : ${coreA} ${descA} — l\'ennemi envoie 1-2 héros en side lane. ` +
+               `Pendant ce temps, ${coreB} ${descB} côté opposé. ` +
+               `Jamais de fight 5v5 ouvert — forcer les 1v2 et 3v2 impossibles. ` +
+               `${mid} ou ${jgl} avec présence globale : peuvent rejoindre les deux scenarios. ` +
+               `(Identité secondaire ${secondaryLabel} : pick off les défenseurs isolés envoyés en réponse.)`;
+    }
+  }
+
+  // Fallback: generic but lane-specific description
   const cond: Record<DraftArchetype, string> = {
     engage:  `${roam} initie, ${jgl} plonge immédiatement. ${mid} + ${gold} finissent le fight. Convergence < 2 secondes — objectif Lord après chaque fight gagné.`,
-    poke:    `${mid} + ${gold} harcèlent avant chaque objectif. ${jgl} sécurise les buffs et les objectifs. Engagez seulement quand l'ennemi est < 60% de vie.`,
-    protect: `Mur défensif autour de ${gold} : ${roam} peel, ${jgl} couvre les flancs. ${mid} deal depuis la sécurité. Ne cherchez pas le fight ouvert — attendez le late game.`,
-    split:   `${exp} force une réponse side lane. ${jgl} conteste les objectifs en même temps. Ne jamais 5v5 — forcez les choix impossibles 1v2 et 3v2.`,
-    catch:   `${jgl} + ${roam} isolent une cible déplacée. ${mid} burst, ${exp} nettoie. Jamais de fight en plein champ — toujours initier sur une cible seule.`,
+    poke:    `${mid} + ${gold} harcèlent avant chaque objectif. ${jgl} sécurise les buffs. Engagez seulement si l'ennemi est < 60% de vie.`,
+    protect: `Mur défensif autour de ${gold} : ${roam} peel, ${jgl} couvre les flancs. ${mid} deal depuis la sécurité. Attendez le late game.`,
+    split:   `${exp} force une réponse side lane. ${jgl} conteste les objectifs en même temps. Ne jamais 5v5 — forcez les 1v2 et 3v2.`,
+    catch:   `${jgl} + ${roam} isolent une cible déplacée. ${mid} burst, ${exp} nettoie. Toujours initier sur une cible seule.`,
   };
   return cond[archetype];
 }
@@ -814,21 +902,24 @@ export function generateArchetypeDrafts(
                 slots.reduce((s, sl) => s + scoreHeroForSlot(sl.hero, sl.lane, archetype, side), 0) / 5 * 100
               ), 0, 100
             );
-            const synergy      = computeTeamSynergy(slots);
-            const topCombos    = computeTopCombos(slots);
-            const phaseScore   = computePhaseControl(slots, archetype);
-            const coverageScore = computeThreatCoverage(slots);
+            const synergy        = computeTeamSynergy(slots);
+            const topCombos      = computeTopCombos(slots);
+            const phaseScore     = computePhaseControl(slots, archetype);
+            const coverageScore  = computeThreatCoverage(slots);
+            // Execution coverage: does this comp have the 2-hero execution core + support roles?
+            const executionScore = computeExecutionCoverage(slots.map((s) => s.hero.name), archetype);
             // Red side gets stronger counter weight (reacts to enemy picks with full info)
             const counterWeight = side === 'red' ? 14 : 10;
             const counterAdj = enemyPicks.length > 0
               ? counterScoreVsEnemy(slots, enemyPicks) * counterWeight
               : 0;
-            // Multidimensional team score:
-            //   No enemy data  → tier+archFit 32% + synergy 13% + phase 28% + coverage 27%
-            //   Enemy known    → tier+archFit 28% + synergy 10% + phase 20% + coverage 15% + counter adj
+            // Multidimensional team score — execution coverage replaces raw threat coverage
+            // as primary signal (how well can we EXECUTE the win condition):
+            //   No enemy data  → indiv 28% + synergy 10% + phase 22% + coverage 15% + execution 25%
+            //   Enemy known    → indiv 24% + synergy  8% + phase 18% + coverage 12% + execution 20% + counter adj
             const teamScore = enemyPicks.length > 0
-              ? clamp(Math.round(indivScore * 0.28 + synergy * 0.10 + phaseScore * 0.20 + coverageScore * 0.15 + counterAdj), 0, 100)
-              : clamp(Math.round(indivScore * 0.32 + synergy * 0.13 + phaseScore * 0.28 + coverageScore * 0.27), 0, 100);
+              ? clamp(Math.round(indivScore * 0.24 + synergy * 0.08 + phaseScore * 0.18 + coverageScore * 0.12 + executionScore * 0.20 + counterAdj), 0, 100)
+              : clamp(Math.round(indivScore * 0.28 + synergy * 0.10 + phaseScore * 0.22 + coverageScore * 0.15 + executionScore * 0.25), 0, 100);
 
             const healthCheck = checkCompositionHealth(slots, archetype);
 
