@@ -133,7 +133,7 @@ export const HERO_STATS: Record<number, HeroStats> = {
   123: { roles:['Fighter'],               early:7,  mid:8,  late:8,  damage:7,  tankiness:7, cc:5,  mobility:7, push:5,  pressure:7 }, // Cici
   126: { roles:['Assassin','Fighter'],     early:8,  mid:8,  late:7,  damage:9,  tankiness:4, cc:3,  mobility:8, push:3,  pressure:8 }, // Suyou
   127: { roles:['Fighter'],               early:7,  mid:8,  late:8,  damage:8,  tankiness:7, cc:4,  mobility:6, push:5,  pressure:7 }, // Lukas
-  130: { roles:['Mage','Fighter'],         early:5,  mid:8,  late:9,  damage:9,  tankiness:5, cc:6,  mobility:5, push:4,  pressure:6 }, // Obsidia
+  130: { roles:['Marksman'],               early:5,  mid:8,  late:9,  damage:9,  tankiness:4, cc:4,  mobility:5, push:4,  pressure:6 }, // Obsidia — Marksman, finisher/execute Gold lane
   131: { roles:['Assassin','Fighter'],     early:8,  mid:8,  late:7,  damage:9,  tankiness:4, cc:3,  mobility:8, push:3,  pressure:8 }, // Sora
 
   // ── ASSASSINS ─────────────────────────────────────────────────────────────

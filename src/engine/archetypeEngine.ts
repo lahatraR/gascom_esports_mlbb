@@ -221,6 +221,62 @@ export function heroArchetypeFit(hero: HeroData, archetype: DraftArchetype): num
   return heroScores(hero)[archetype] / 10; // 0–1  (scores now 0–10)
 }
 
+// ─── Enemy archetype counter recommendations ──────────────────────────────────
+// Given the detected enemy archetype, returns which archetypes beat it and WHY.
+// Used by draft panel to guide composition selection against a known enemy.
+
+export interface CounterRecommendation {
+  archetype:     DraftArchetype;
+  label:         string;
+  effectiveness: number;    // 0–100
+  reason:        string;    // French: why this archetype counters the enemy
+  keyMechanics:  string[];  // Hero types / executions that exploit the weakness
+}
+
+export function getCounterRecommendations(enemyArchetype: DraftArchetype): CounterRecommendation[] {
+  const counters = ARCHETYPE_LOSES_TO[enemyArchetype];
+
+  const reasonMap: Record<DraftArchetype, Partial<Record<DraftArchetype, string>>> = {
+    poke:    {
+      split:   'Le split push force des réponses side lane — impossible de poke quelqu\'un qui n\'est pas en face.',
+      engage:  'L\'engage burst annule la poke : une fois à portée mêlée, les mages poke perdent leur avantage de distance.',
+    },
+    engage:  {
+      catch:   'La catch intercepte les initiateurs avant qu\'ils n\'engagent — l\'initiateur isolé devient une cible facile.',
+      protect: 'Le protect absorbe l\'engage avec des shields/heals et contre-attaque avec un carry intouchable.',
+    },
+    protect: {
+      poke:    'La poke dégrade lentement même les comps protect : shields/heals ne régénèrent pas assez vite sur la durée.',
+      split:   'Le split ne peut pas être "protégé" globalement — on force des 1v1 et 2v2 que le protect ne peut pas suivre.',
+    },
+    split:   {
+      catch:   'La catch élimine le splitpusher isolé avant qu\'il ne soit dangereux — il ne peut pas toujours avoir un backup.',
+      engage:  'L\'engage force les fights 5v5 que le split veut éviter — si l\'engage arrive assez vite, le split est pris de cours.',
+    },
+    catch:   {
+      protect: 'Le protect met un mur entre la catch et sa cible — impossible d\'isoler quelqu\'un entouré de heals et de shields.',
+      poke:    'La poke tient à distance les héros de catch qui ont besoin d\'approcher — leur mobilité ne compense pas la portée.',
+    },
+  };
+
+  const mechanicsMap: Record<DraftArchetype, string[]> = {
+    poke:    ['Héros à grande portée', 'Zone denial / murs', 'CC long-distance'],
+    engage:  ['Initiateurs AoE avec Flash', 'Tanks glorious launcher', 'Dive + burst synchronized'],
+    protect: ['Enchanteurs / healers', 'Tanks de peel', 'Hypercarry late game'],
+    split:   ['Splitpushers mobiles', 'Présence globale (YSS, Khaleed)', 'Objectif rusher rapide'],
+    catch:   ['CC mono-cible (Kaja, Franco)', 'Burst sur cible isolée', 'Anti-dash / silence (Helcurt)'],
+  };
+
+  return counters.map((counterArch, idx) => ({
+    archetype:     counterArch,
+    label:         ARCHETYPE_LABELS[counterArch],
+    effectiveness: idx === 0 ? 85 : 70,
+    reason:        reasonMap[enemyArchetype]?.[counterArch]
+                     ?? `${ARCHETYPE_LABELS[counterArch]} est la réponse naturelle à ${ARCHETYPE_LABELS[enemyArchetype]}.`,
+    keyMechanics:  mechanicsMap[counterArch] ?? [],
+  }));
+}
+
 // ─── Helper ───────────────────────────────────────────────────────────────────
 
 function clamp(v: number, min: number, max: number): number {

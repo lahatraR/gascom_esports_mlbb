@@ -10,10 +10,12 @@ import {
   detectCorePair,
   ARCHETYPE_EXECUTION_TEMPLATE,
 } from '@/data/executionRoles';
+import { getBattleSpell } from '@/data/battleSpells';
+import type { BattleSpellRec } from '@/data/battleSpells';
 
 // ─── Pick order per archetype ─────────────────────────────────────────────────
-// Defines which role to draft at each pick slot (1st → 5th) based on archetype.
-// Early picks establish intent or flex picks; late picks confirm counters.
+// Blue side: reveals intent early → flex picks first, win condition last.
+// Red side: reacts to enemy reveal → lock win condition early once threats are clear.
 
 export interface PickOrderStep {
   order:  number; // 1–5
@@ -21,43 +23,85 @@ export interface PickOrderStep {
   reason: string;
 }
 
-const ARCHETYPE_PICK_ORDER: Record<DraftArchetype, PickOrderStep[]> = {
+// Blue side: must pick first — prioritise flex picks and flex lanes early.
+const ARCHETYPE_PICK_ORDER_BLUE: Record<DraftArchetype, PickOrderStep[]> = {
   engage: [
-    { order: 1, lane: 'Roam',   reason: 'Établit l\'intention engage — force l\'ennemi à réagir' },
-    { order: 2, lane: 'Jungle', reason: 'Duo d\'initiation avec le Roam Tank — plongeur confirmé' },
-    { order: 3, lane: 'EXP',    reason: 'Pick flex selon les réactions ennemies' },
-    { order: 4, lane: 'Mid',    reason: 'Damage burst après l\'initiation du Roam+Jungle' },
-    { order: 5, lane: 'Gold',   reason: 'Carry final — dernier pick pour counter l\'ennemi' },
+    { order: 1, lane: 'Roam',   reason: 'Flex initiateur (Atlas/Khufra) — hard to counter, establishes engage threat' },
+    { order: 2, lane: 'Jungle', reason: 'Dive jungler après avoir vu P1 ennemi — complète le duo initiation' },
+    { order: 3, lane: 'EXP',    reason: 'Flex fighter selon les réactions ennemies (pick 3–4 enemy revealed)' },
+    { order: 4, lane: 'Mid',    reason: 'Damage burst après initiation Roam+Jungle — confirme la threat' },
+    { order: 5, lane: 'Gold',   reason: 'Carry dernier pick — counter direct le Gold ennemi révélé' },
   ],
   poke: [
-    { order: 1, lane: 'Mid',    reason: 'Cœur de la poke — oriente tout le draft' },
-    { order: 2, lane: 'Gold',   reason: 'Second DPS à distance — double pression de zone' },
-    { order: 3, lane: 'Roam',   reason: 'Support adapté à la poke (Diggie, Mathilda)' },
-    { order: 4, lane: 'Jungle', reason: 'Sécurise objectifs pendant que la poke force la respawn' },
-    { order: 5, lane: 'EXP',    reason: 'Dernier pick flex — s\'adapte aux menaces restantes' },
+    { order: 1, lane: 'Mid',    reason: 'Flex mage poke (Zhuxin/Yve) — difficile à directement counter' },
+    { order: 2, lane: 'Gold',   reason: 'Marksman DPS à distance — double pression de zone confirme l\'identité' },
+    { order: 3, lane: 'Roam',   reason: 'Support adapté à la poke (Diggie anti-CC, Mathilda roam) — flex position' },
+    { order: 4, lane: 'Jungle', reason: 'Secure objectifs pendant que la poke prive la vision ennemie' },
+    { order: 5, lane: 'EXP',    reason: 'Dernier pick flex — s\'adapte aux menaces restantes vues au pick 4' },
   ],
   protect: [
-    { order: 1, lane: 'Gold',   reason: 'Win condition centrale — construire toute la comp autour' },
-    { order: 2, lane: 'Mid',    reason: 'Second carry à protéger avec le Gold' },
-    { order: 3, lane: 'Jungle', reason: 'Flex peel ou dive selon les menaces confirmées' },
-    { order: 4, lane: 'Roam',   reason: 'Support peel — confirme après avoir vu le draft ennemi' },
-    { order: 5, lane: 'EXP',    reason: 'Comble les faiblesses finales de la composition' },
+    { order: 1, lane: 'Gold',   reason: 'Win condition centrale — construire toute la comp autour de lui' },
+    { order: 2, lane: 'Mid',    reason: 'Second carry — draft les deux win conditions avant que l\'ennemi réagisse' },
+    { order: 3, lane: 'Jungle', reason: 'Flex peel ou dive selon les menaces ennemies confirmées à ce stade' },
+    { order: 4, lane: 'Roam',   reason: 'Support peel — confirme après avoir vu le roster ennemi complet' },
+    { order: 5, lane: 'EXP',    reason: 'Comble les faiblesses finales (manque CC/tankiness/engage)' },
   ],
   split: [
-    { order: 1, lane: 'EXP',    reason: 'Menace side lane dès le début — force une réponse ennemie' },
-    { order: 2, lane: 'Jungle', reason: 'Conteste les objectifs pendant que l\'EXP pousse' },
-    { order: 3, lane: 'Mid',    reason: 'Flex roam ou push selon la pression ennemie' },
+    { order: 1, lane: 'EXP',    reason: 'Flex splitpusher (Ling/YSS) — force une réponse ennemie immédiate' },
+    { order: 2, lane: 'Jungle', reason: 'Conteste objectifs pendant que l\'EXP pousse — double menace' },
+    { order: 3, lane: 'Mid',    reason: 'Flex roam ou push selon la pression — s\'adapte si ennemi counter split' },
     { order: 4, lane: 'Gold',   reason: 'Late game insurance si le split ne clôt pas assez vite' },
-    { order: 5, lane: 'Roam',   reason: 'Dernier pick — comble les faiblesses identifiées' },
+    { order: 5, lane: 'Roam',   reason: 'Dernier pick — comble les faiblesses vues sur tout le draft ennemi' },
   ],
   catch: [
-    { order: 1, lane: 'Jungle', reason: 'Assassin principal — annonce l\'intention pick-off' },
-    { order: 2, lane: 'Roam',   reason: 'Tank initiateur — crée l\'isolation sur la cible' },
-    { order: 3, lane: 'Mid',    reason: 'Burst de confirmation après l\'isolation' },
-    { order: 4, lane: 'EXP',    reason: 'Second isolateur ou nettoyeur de teamfight' },
-    { order: 5, lane: 'Gold',   reason: 'Carry final — capitalise les avantages créés' },
+    { order: 1, lane: 'Jungle', reason: 'Flex assassin (Suyou/Karina) — annonce pick-off sans révéler le core exact' },
+    { order: 2, lane: 'Roam',   reason: 'Tank initiateur isolation — crée le core CC après voir pick 1 ennemi' },
+    { order: 3, lane: 'Mid',    reason: 'Burst de confirmation — choisir selon la cible prioritaire ennemie' },
+    { order: 4, lane: 'EXP',    reason: 'Second isolateur ou nettoyeur de teamfight — confirme la complétion' },
+    { order: 5, lane: 'Gold',   reason: 'Carry dernier pick — capitalise sur les ouvertures créées par le core' },
   ],
 };
+
+// Red side: picks 2nd in each phase → can directly counter enemy reveals.
+const ARCHETYPE_PICK_ORDER_RED: Record<DraftArchetype, PickOrderStep[]> = {
+  engage: [
+    { order: 1, lane: 'Jungle', reason: 'Réponse immédiate au Jungle ennemi — plongeur confirmé ou counter direct' },
+    { order: 2, lane: 'Roam',   reason: 'Initiateur connu après avoir vu P1+P2 blue — contre leur roam ciblé' },
+    { order: 3, lane: 'Mid',    reason: 'Damage AoE — contre le Gold ennemi révélé, confirme le suivi d\'initiation' },
+    { order: 4, lane: 'EXP',    reason: 'Fighter selon les gaps identifiés (manque de CC/tankiness) dans le draft' },
+    { order: 5, lane: 'Gold',   reason: 'Carry dernier pick — counter hard le Gold ennemi avec connaissance complète' },
+  ],
+  poke: [
+    { order: 1, lane: 'Gold',   reason: 'Marksman counter le Gold ennemi P1 — établit double menace à distance' },
+    { order: 2, lane: 'Mid',    reason: 'Mage poke selon les picks ennemis — exploite les espaces identifiés' },
+    { order: 3, lane: 'Jungle', reason: 'Objectif rusher — contre la menace jungle ennemie vue en P1-P4' },
+    { order: 4, lane: 'Roam',   reason: 'Support selon le profil ennemi complet — anti-CC ou engage roam' },
+    { order: 5, lane: 'EXP',    reason: 'Dernier pick avec info complète — counter la menace EXP/Jungle restante' },
+  ],
+  protect: [
+    { order: 1, lane: 'Mid',    reason: 'Mage vs mage counter — sécurise mid avant Gold win condition' },
+    { order: 2, lane: 'Gold',   reason: 'Win condition après voir l\'initiation ennemie — choisit le carry qui survive' },
+    { order: 3, lane: 'Roam',   reason: 'Support peel selon les assassins/divers ennemis confirmés' },
+    { order: 4, lane: 'Jungle', reason: 'Flex jungle selon les besoins (peel/flanc/early dominance)' },
+    { order: 5, lane: 'EXP',    reason: 'Dernier pick — hard counter la menace EXP ennemie avec info complète' },
+  ],
+  split: [
+    { order: 1, lane: 'Jungle', reason: 'Objective rusher counter — répond à la menace objectif ennemie P1' },
+    { order: 2, lane: 'EXP',    reason: 'Splitpusher ciblé selon la side lane ennemie révélée en P1-P2 blue' },
+    { order: 3, lane: 'Gold',   reason: 'Late game insurance — sécurise le late si le split échoue' },
+    { order: 4, lane: 'Mid',    reason: 'Flex selon gap identifié — roam global ou poke/control' },
+    { order: 5, lane: 'Roam',   reason: 'Dernier pick avec info complète — anti-engage ou peeler selon besoin' },
+  ],
+  catch: [
+    { order: 1, lane: 'Roam',   reason: 'Tank isolateur — counter direct le Roam ennemi avec connaissance P1-P2' },
+    { order: 2, lane: 'Jungle', reason: 'Assassin pick-off — contre la menace jungle ennemie confirmée' },
+    { order: 3, lane: 'EXP',    reason: 'Second isolateur selon les cibles prioritaires ennemies révélées' },
+    { order: 4, lane: 'Mid',    reason: 'Burst confirme selon la cible — choisit le burst approprié au Gold ennemi' },
+    { order: 5, lane: 'Gold',   reason: 'Carry dernier pick — capitalise avec info ennemie complète' },
+  ],
+};
+
+const ARCHETYPE_PICK_ORDER = ARCHETYPE_PICK_ORDER_BLUE; // default export (blue)
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -96,6 +140,7 @@ export interface GeneratedDraftSlot {
   alternatives:    HeroData[];       // backup picks if this hero is banned
   isFlexPick:      boolean;          // scores ≥5/10 in 2+ archetypes → safe first pick
   flexArchetypes:  DraftArchetype[]; // which archetypes this hero fits
+  battleSpell:     BattleSpellRec | null; // recommended battle spell for this hero
 }
 
 // ─── Composition health check types ──────────────────────────────────────────
@@ -260,6 +305,20 @@ function clamp(v: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, v));
 }
 
+// ─── Dynamic tier score ───────────────────────────────────────────────────────
+// Blends static tier list (60%) with live win/pick rate data (40%).
+// Reflects meta evolution: a B-tier hero with 55% WR is stronger than static tier suggests.
+// win rate bracket: 45% = 0, 59% = 10 (real meta range)
+// pick rate bracket:  3% = 0, 15% = 10 (high pick = high meta confidence)
+
+function dynamicTierScore(hero: HeroData): number {
+  const wr = hero.winRate  ?? 0.50;
+  const pr = hero.pickRate ?? 0.05;
+  const wrScore = clamp((wr - 0.45) / 0.14 * 10, 0, 10);
+  const prScore = clamp((pr - 0.03) / 0.12 * 10, 0, 10);
+  return wrScore * 0.65 + prScore * 0.35;
+}
+
 // ─── Speciality → archetype bonus ────────────────────────────────────────────
 // Maps official MLBB speciality tags (from /api/heroes/{name}) to composition
 // archetype contributions. These are additive bonuses on top of stat-based archFit.
@@ -341,6 +400,36 @@ function computePhaseControl(slots: GeneratedDraftSlot[], archetype: DraftArchet
   return clamp(Math.round(20 + dominated * 13 + wantedScore * 3.5), 0, 100);
 }
 
+// ─── Timeline consistency ─────────────────────────────────────────────────────
+// 0–100: how consistently ALL heroes in the comp peak at the archetype's wanted phase.
+// A catch comp with 4 early-spike heroes and 1 late-scaling carry is consistent.
+// A catch comp with 2 early + 2 late + 1 mid is inconsistent — no unified power spike.
+
+function computeTimelineConsistency(slots: GeneratedDraftSlot[], archetype: DraftArchetype): number {
+  const wanted = ARCHETYPE_PEAK_WINDOW[archetype];
+  const heroes = slots.map((s) => s.hero);
+
+  const getPhaseScore = (h: HeroData, phase: 'early' | 'mid' | 'late') => {
+    if (h.powerCurve) return h.powerCurve[phase];
+    return phase === 'early' ? h.early : phase === 'mid' ? h.mid : h.late;
+  };
+
+  // Each hero: does their wanted phase score exceed the threshold (6.5)?
+  const consistent = heroes.filter((h) => getPhaseScore(h, wanted) >= 6.5).length;
+
+  // Count heroes that spike at the WRONG phase relative to archetype
+  const wrongPhase: Record<DraftArchetype, 'early' | 'mid' | 'late'> = {
+    engage: 'late', catch: 'late', poke: 'early', split: 'early', protect: 'early',
+  };
+  const wrong = heroes.filter((h) => {
+    const wp = wrongPhase[archetype];
+    return getPhaseScore(h, wp) > getPhaseScore(h, wanted) + 1.5;
+  }).length;
+
+  // Scoring: 20 base + 14 per consistent hero − 10 per wrong-phase hero
+  return clamp(Math.round(20 + consistent * 14 - wrong * 10), 0, 100);
+}
+
 // ─── Universal threat coverage ────────────────────────────────────────────────
 // 0–100: can this composition answer the 6 universal threat profiles?
 // Independent of enemy picks — tests if the comp is self-sufficient.
@@ -389,10 +478,12 @@ function scoreHeroForSlot(
   archetype: DraftArchetype,
   side:      'blue' | 'red' = 'blue',
 ): number {
-  const archFit   = clamp((heroArchetypeScores(hero)[archetype] ?? 0) / 10, 0, 1);
-  // Use lane-specific tier score when available (e.g. Chou is S+ Roam, A+ EXP → use S+ when scoring Roam)
-  const tierScore = getHeroTierScoreForLane(hero.name, lane) ?? getHeroTierScore(hero.name, hero.roles);
-  const tierFit   = clamp(tierScore / 10, 0, 1);
+  const archFit    = clamp((heroArchetypeScores(hero)[archetype] ?? 0) / 10, 0, 1);
+  // Blend static tier list (60%) with live WR/PR data (40%) for meta-adaptive scoring.
+  // Lane-specific tier score used when available (Chou S+ Roam vs A+ EXP → use S+ for Roam).
+  const staticTier = getHeroTierScoreForLane(hero.name, lane) ?? getHeroTierScore(hero.name, hero.roles);
+  const tierScore  = staticTier * 0.60 + dynamicTierScore(hero) * 0.40;
+  const tierFit    = clamp(tierScore / 10, 0, 1);
   const wrFit     = clamp(((hero.winRate ?? 0.50) - 0.45) / 0.15, 0, 1);
   const laneW     = LANE_ARCH_WEIGHT[archetype][lane] ?? 1.0;
   const roamMul   = lane === 'Roam' ? roamSubtypeMultiplier(hero, archetype) : 1.0;
@@ -806,20 +897,89 @@ export function generateArchetypeDrafts(
       .slice(0, 20);
   }
 
-  // ── 2. Global ban pool ──────────────────────────────────────────────────
+  // ── 2. Three-phase ban pool ──────────────────────────────────────────────
+  // Phase 1 (must-ban 2): Heroes that directly counter our execution core.
+  //   → Kills the win condition before it can be established.
+  // Phase 2 (high 2): S+ flex picks — high-impact heroes that work in any comp.
+  //   → Denies powerful versatile threats regardless of enemy comp.
+  // Phase 3 (situational 2): Carry threats specific to our composition's weaknesses.
+  //   → Targets heroes that exploit the natural holes in our archetype.
+
   const beatsUs = Object.entries(ARCHETYPE_BEATS)
     .filter(([, beats]) => beats.includes(archetype))
     .map(([a]) => a as DraftArchetype);
 
-  const banPool = pool
+  // Phase 1: heroes whose execution roles neutralize our core pair
+  // e.g. for catch: heroes with 'hard_peel' block isolation CC; 'sustain_heal' saves the target
+  const executionCounterRoles: Record<DraftArchetype, string[]> = {
+    catch:   ['hard_peel', 'sustain_heal'],       // peelers/healers protect the isolated target
+    engage:  ['anti_dash', 'hard_peel'],           // anti-dash stops the dive; peel counters AoE initiation
+    protect: ['vision_assassin', 'mono_burst'],    // assassins that bypass peel and burst the carry
+    poke:    ['execution_finisher', 'anti_dash'],  // gap closers that punish poke positioning
+    split:   ['objective_rusher', 'global_presence'], // heroes that match split speed
+  };
+  const coreCounterRoles = executionCounterRoles[archetype] ?? [];
+
+  const phase1Heroes = pool
+    .filter((h) => {
+      const execRoles = getExecutionRoles(h.name);
+      return execRoles.some((r) => coreCounterRoles.includes(r));
+    })
     .map((h) => {
-      const scores     = heroArchetypeScores(h);
+      const scores = heroArchetypeScores(h);
+      // Prefer heroes that are both execution counters AND good in archetypes that beat us
       const counterStr = beatsUs.reduce((s, a) => s + (scores[a] ?? 0), 0) / Math.max(beatsUs.length, 1);
-      const metaBonus  = clamp((h.winRate ?? 0.50) - 0.50, 0, 0.10) * 20;
-      return { hero: h, score: counterStr + metaBonus };
+      const staticTier = getHeroTierScore(h.name, h.roles);
+      return { hero: h, score: counterStr * 0.60 + staticTier * 0.40 };
     })
     .sort((a, b) => b.score - a.score)
-    .slice(0, 12);
+    .slice(0, 4);
+
+  // Phase 2: S+ flex picks (high tier across multiple archetypes — pick denial)
+  const phase2Heroes = pool
+    .filter((h) => {
+      const tierScore = getHeroTierScore(h.name, h.roles);
+      if (tierScore < 8.5) return false; // S- minimum
+      // Not already in phase 1
+      return !phase1Heroes.some((p) => p.hero.id === h.id);
+    })
+    .map((h) => {
+      const scores = heroArchetypeScores(h);
+      const flexCount = (Object.values(scores) as number[]).filter((s) => s >= 7.0).length;
+      return { hero: h, score: getHeroTierScore(h.name, h.roles) + flexCount * 0.5 };
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 4);
+
+  // Phase 3: situational carries that specifically exploit our archetype holes
+  const archetypeHoleRoles: Record<DraftArchetype, string[]> = {
+    catch:   ['hypercarry', 'hard_peel'],         // protect carries survive our isolation attempts
+    engage:  ['split_threat', 'vision_assassin'], // splitpushers avoid our 5v5, assassins pick our backlane
+    protect: ['sustained_dps', 'aoe_burst'],      // sustained poke/burst bypasses shields over time
+    poke:    ['hypercarry', 'sustain_heal'],       // sustain negates attrition; hypercarry survives to late
+    split:   ['aoe_cc_initiator', 'mono_burst'],  // engage answers split with forced 5v5
+  };
+  const holeRoles = archetypeHoleRoles[archetype] ?? [];
+  const phase3Heroes = pool
+    .filter((h) => {
+      const execRoles = getExecutionRoles(h.name);
+      const alreadyBanned = phase1Heroes.some((p) => p.hero.id === h.id) ||
+                            phase2Heroes.some((p) => p.hero.id === h.id);
+      return !alreadyBanned && execRoles.some((r) => holeRoles.includes(r));
+    })
+    .map((h) => ({
+      hero:  h,
+      score: getHeroTierScore(h.name, h.roles) + (h.winRate ?? 0.50) * 5,
+    }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 4);
+
+  // Assemble ban pool: best 2 from each phase = 6 total
+  const banPool = [
+    ...phase1Heroes.slice(0, 4),
+    ...phase2Heroes.slice(0, 4),
+    ...phase3Heroes.slice(0, 4),
+  ];
 
   // ── 3. Generate compositions via diagonal index sweep ──────────────────
   // Instead of sequential nested loops (a=0 appears in all first 15^4 combos),
@@ -863,17 +1023,24 @@ export function generateArchetypeDrafts(
 
             const compIds = new Set(ids);
 
+            // 3-phase ban reasons: Phase 1 = core counter, Phase 2 = S+ flex, Phase 3 = carry threat
+            const phase1Size = phase1Heroes.filter((p) => !compIds.has(p.hero.id)).length;
+            const phase1Count = Math.min(phase1Size, 2);
+            const phase2Count = Math.min(phase2Heroes.filter((p) => !compIds.has(p.hero.id)).length, 2);
             const compBans: GeneratedBan[] = banPool
               .filter((c) => !compIds.has(c.hero.id))
               .slice(0, 6)
-              .map((c, i) => ({
-                hero:     c.hero,
-                priority: (i < 2 ? 'must-ban' : i < 4 ? 'high' : 'situational') as GeneratedBan['priority'],
-                reason:   i < 2
-                  ? `Contre directement votre ${ARCHETYPE_LABELS[archetype]}`
-                  : i < 4 ? `Méta fort pouvant perturber votre stratégie`
-                  : `Situationnel — bannir si l'ennemi semble le viser`,
-              }));
+              .map((c, i) => {
+                const isPhase1 = i < phase1Count;
+                const isPhase2 = !isPhase1 && i < phase1Count + phase2Count;
+                const priority: GeneratedBan['priority'] = isPhase1 ? 'must-ban' : isPhase2 ? 'high' : 'situational';
+                const reason = isPhase1
+                  ? `Phase 1 — Neutralise votre core ${ARCHETYPE_LABELS[archetype]} : contre directement l'exécution`
+                  : isPhase2
+                  ? `Phase 2 — Pick S+ flex : trop polyvalent pour laisser passer`
+                  : `Phase 3 — Menace situationnelle : exploite les failles naturelles de votre composition`;
+                return { hero: c.hero, priority, reason };
+              });
 
             const buildSlot = (hero: HeroData, lane: LaneKey): GeneratedDraftSlot => {
               const { isFlexPick, flexArchetypes } = getFlexInfo(hero);
@@ -886,6 +1053,7 @@ export function generateArchetypeDrafts(
                 alternatives:   candidates[lane].filter((h) => !compIds.has(h.id)).slice(0, 2),
                 isFlexPick,
                 flexArchetypes,
+                battleSpell:    getBattleSpell(hero.name),
               };
             };
 
@@ -902,26 +1070,37 @@ export function generateArchetypeDrafts(
                 slots.reduce((s, sl) => s + scoreHeroForSlot(sl.hero, sl.lane, archetype, side), 0) / 5 * 100
               ), 0, 100
             );
-            const synergy        = computeTeamSynergy(slots);
-            const topCombos      = computeTopCombos(slots);
-            const phaseScore     = computePhaseControl(slots, archetype);
-            const coverageScore  = computeThreatCoverage(slots);
+            const synergy           = computeTeamSynergy(slots);
+            const topCombos         = computeTopCombos(slots);
+            const phaseScore        = computePhaseControl(slots, archetype);
+            const coverageScore     = computeThreatCoverage(slots);
+            // Timeline consistency: all heroes peak at the right game phase
+            const timelineScore     = computeTimelineConsistency(slots, archetype);
             // Execution coverage: does this comp have the 2-hero execution core + support roles?
-            const executionScore = computeExecutionCoverage(slots.map((s) => s.hero.name), archetype);
+            const executionScore    = computeExecutionCoverage(slots.map((s) => s.hero.name), archetype);
             // Red side gets stronger counter weight (reacts to enemy picks with full info)
             const counterWeight = side === 'red' ? 14 : 10;
             const counterAdj = enemyPicks.length > 0
               ? counterScoreVsEnemy(slots, enemyPicks) * counterWeight
               : 0;
-            // Multidimensional team score — execution coverage replaces raw threat coverage
-            // as primary signal (how well can we EXECUTE the win condition):
-            //   No enemy data  → indiv 28% + synergy 10% + phase 22% + coverage 15% + execution 25%
-            //   Enemy known    → indiv 24% + synergy  8% + phase 18% + coverage 12% + execution 20% + counter adj
+            // Multidimensional team score — execution + timeline consistency are primary signals:
+            //   No enemy data  → indiv 25% + synergy 8% + phase 18% + coverage 10% + exec 22% + timeline 17%
+            //   Enemy known    → indiv 20% + synergy 7% + phase 14% + coverage  9% + exec 18% + timeline 14% + counter adj
             const teamScore = enemyPicks.length > 0
-              ? clamp(Math.round(indivScore * 0.24 + synergy * 0.08 + phaseScore * 0.18 + coverageScore * 0.12 + executionScore * 0.20 + counterAdj), 0, 100)
-              : clamp(Math.round(indivScore * 0.28 + synergy * 0.10 + phaseScore * 0.22 + coverageScore * 0.15 + executionScore * 0.25), 0, 100);
+              ? clamp(Math.round(
+                  indivScore * 0.20 + synergy * 0.07 + phaseScore * 0.14 +
+                  coverageScore * 0.09 + executionScore * 0.18 + timelineScore * 0.14 + counterAdj
+                ), 0, 100)
+              : clamp(Math.round(
+                  indivScore * 0.25 + synergy * 0.08 + phaseScore * 0.18 +
+                  coverageScore * 0.10 + executionScore * 0.22 + timelineScore * 0.17
+                ), 0, 100);
 
             const healthCheck = checkCompositionHealth(slots, archetype);
+            // Adaptive pick order: red side reacts to enemy reveals, blue side picks flex-first
+            const pickOrder = side === 'red'
+              ? ARCHETYPE_PICK_ORDER_RED[archetype]
+              : ARCHETYPE_PICK_ORDER_BLUE[archetype];
 
             allDrafts.push({
               rank: 0,
@@ -930,7 +1109,7 @@ export function generateArchetypeDrafts(
               teamScore,
               synergyScore: synergy,
               topCombos,
-              pickOrder:    ARCHETYPE_PICK_ORDER[archetype],
+              pickOrder,
               winCondition: buildWinCondition(archetype, slots),
               archetype,
               healthCheck,

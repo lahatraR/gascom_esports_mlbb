@@ -152,6 +152,7 @@ const HERO_EXECUTION_ROLES_RAW: [string, ExecutionRole[]][] = [
   ['wanwan',      ['hypercarry', 'anti_dash']],                     // ult pierce dash + carry
   ['granger',     ['mono_burst', 'execution_finisher']],            // last bullet burst + finisher
   ['melissa',     ['hard_peel', 'sustained_dps']],                  // S3 cage = anti-dive peel
+  ['obsidia',     ['mono_burst', 'execution_finisher']],            // chain damage = picks off isolées + finisher
   ['kimmy',       ['sustained_dps', 'aoe_burst']],                  // already above
 
   // ── Supports ────────────────────────────────────────────────────────────────

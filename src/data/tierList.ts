@@ -45,7 +45,7 @@ export const LANE_TIERS: Record<LaneKey, Partial<Record<TierRank, string[]>>> = 
   Gold: {
     'S+': ['Claude', 'Brody', 'Beatrix', 'Yi Sun-Shin'],
     'S-': ['Wanwan', 'Melissa', 'Irithel', 'Granger'],
-    'A+': ['Karrie', 'Natan', 'Moskov', 'Popol and Kupa', 'Kimmy', 'Clint', 'Miya'],
+    'A+': ['Karrie', 'Natan', 'Moskov', 'Popol and Kupa', 'Kimmy', 'Clint', 'Miya', 'Obsidia'],
     'A':  ['Layla', 'Lesley', 'Hanabi', 'Bruno'],
     'B':  ['Ixia', 'Zilong', 'Thamuz', 'Lunox', 'Harith'],
     'C':  [],
