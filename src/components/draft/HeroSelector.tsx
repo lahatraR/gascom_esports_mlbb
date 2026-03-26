@@ -348,9 +348,11 @@ export function HeroSelector() {
     return ids;
   }, [blueBans, redBans, bluePicks, redPicks]);
 
-  // Ban suggestions — computed from plannedArchetype, refreshed as heroes get banned
+  // Ban suggestions — works with or without a planned archetype.
+  // With archetype: 3-phase strategic bans targeting our execution counter.
+  // Without archetype: top meta threats by ban rate + tier score.
   const banSuggestions = useMemo((): GeneratedBan[] => {
-    if (!plannedArchetype || heroPool.length === 0) return [];
+    if (heroPool.length === 0) return [];
     const excluded = new Set<string>(
       [...blueBans, ...redBans].filter(Boolean).map((h) => String(h!.id))
     );
@@ -497,7 +499,7 @@ export function HeroSelector() {
       )}
 
       {/* ── Inline ban suggestion bar — visible during ban phase ── */}
-      {isBan && activeStep && plannedArchetype && (
+      {isBan && activeStep && banSuggestions.length > 0 && (
         <InlineBanSuggestionBar
           bans={banSuggestions}
           team={activeStep.team}

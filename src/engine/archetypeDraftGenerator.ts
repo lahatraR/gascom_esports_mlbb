@@ -1164,11 +1164,39 @@ export function generateArchetypeDrafts(
 // running the full 400-composition sweep. Used by the InlineBanSuggestionBar.
 
 export function computeBanSuggestions(
-  archetype:   DraftArchetype,
+  archetype:   DraftArchetype | null,
   heroPool:    HeroData[],
   excludedIds: Set<string> = new Set(),
 ): GeneratedBan[] {
   const pool = heroPool.filter((h) => !excludedIds.has(String(h.id)));
+
+  // ── Generic meta bans (no archetype) ────────────────────────────────────────
+  // Sort by: ban rate (already reflects meta priority) × tier score × win rate.
+  // Shows the top meta threats that every team should consider banning.
+  if (!archetype) {
+    return pool
+      .map((h) => {
+        const tierScore = getHeroTierScore(h.name, h.roles);
+        const banRate   = h.banRate  ?? 0.01;
+        const winRate   = h.winRate  ?? 0.50;
+        const pickRate  = h.pickRate ?? 0.03;
+        // meta score: ban rate most important (community already identifies threats),
+        // boosted by tier and winrate
+        const metaScore = banRate * 50 + tierScore * 3 + (winRate - 0.45) * 20 + pickRate * 10;
+        return { hero: h, score: metaScore };
+      })
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 6)
+      .map((p, i) => ({
+        hero:     p.hero,
+        priority: (i < 2 ? 'must-ban' : i < 4 ? 'high' : 'situational') as GeneratedBan['priority'],
+        reason:   i < 2
+          ? `Taux de ban élevé — menace méta incontournable`
+          : i < 4
+          ? `Pick S+ très performant — trop polyvalent à laisser`
+          : `Fort en méta — à surveiller selon la comp ennemie`,
+      }));
+  }
 
   const beatsUs = Object.entries(ARCHETYPE_BEATS)
     .filter(([, beats]) => beats.includes(archetype))

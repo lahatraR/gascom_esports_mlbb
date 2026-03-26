@@ -385,6 +385,36 @@ export function getSuggestions(
 
   scored.sort((a, b) => b.bd.total - a.bd.total);
 
+  // ── Lane-coverage filter ────────────────────────────────────────────────────
+  // Only suggest heroes that fill a lane not yet covered by the allied team.
+  // Prevents recommending a 2nd Roam (Khufra) when Atlas is already picked,
+  // a 2nd Marksman when Brody is already Gold, etc.
+  // Fallback: if no hero fills a missing lane (shouldn't happen), return top-N.
+  if (alliedTeam.length > 0 && alliedTeam.length < 5) {
+    const ALL_LANES: LaneKey[] = ['EXP', 'Gold', 'Jungle', 'Mid', 'Roam'];
+    const coveredLanes = new Set<LaneKey>();
+    for (const ally of alliedTeam) {
+      for (const lane of getHeroLanes(ally.name, ally.roles)) coveredLanes.add(lane);
+    }
+    const neededLanes = ALL_LANES.filter((l) => !coveredLanes.has(l));
+
+    if (neededLanes.length > 0) {
+      const fillsNeeded = scored.filter(({ hero }) => {
+        const heroLanes = getHeroLanes(hero.name, hero.roles);
+        return heroLanes.some((l) => neededLanes.includes(l));
+      });
+      // Only apply the filter when it produces enough candidates
+      if (fillsNeeded.length >= topN) {
+        return fillsNeeded.slice(0, topN).map(({ hero, bd }) => ({
+          hero,
+          score:     Math.round(normalizeScore(bd.total) * 100),
+          breakdown: bd,
+          reason:    buildReason(hero, bd, alliedTeam, enemyTeam),
+        }));
+      }
+    }
+  }
+
   return scored.slice(0, topN).map(({ hero, bd }) => ({
     hero,
     score: Math.round(normalizeScore(bd.total) * 100),
