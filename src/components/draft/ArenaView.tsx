@@ -67,21 +67,22 @@ function heroSynergy(a: HeroData, b: HeroData): number {
   ));
 }
 
-// ─── Mini-map positions (viewBox 0 0 700 186) ────────────────────────────────
+// ─── Mini-map positions (viewBox 0 0 699 314 — matches Sanctum_Island_Map) ───
+// Calibrated on the real MLBB map image (blue base bottom-left, red top-right)
 
 const BLUE_MAP: Record<LaneKey, [number, number]> = {
-  EXP:    [108, 36],
-  Jungle: [185, 95],
-  Mid:    [248, 93],
-  Gold:   [165, 150],
-  Roam:   [122, 128],
+  EXP:    [118,  92],   // top lane, blue side (upper-left path)
+  Jungle: [198, 178],   // blue jungle center
+  Mid:    [258, 190],   // mid lane, blue half
+  Gold:   [185, 255],   // bot lane, blue side (lower-left)
+  Roam:   [142, 228],   // near gold
 };
 const RED_MAP: Record<LaneKey, [number, number]> = {
-  Gold:   [592, 36],
-  Jungle: [515, 90],
-  Mid:    [452, 93],
-  EXP:    [535, 150],
-  Roam:   [578, 128],
+  Gold:   [568,  72],   // top lane, red side (upper-right)
+  Jungle: [488, 152],   // red jungle center
+  Mid:    [432, 158],   // mid lane, red half
+  EXP:    [514, 250],   // bot lane, red side (lower-right)
+  Roam:   [542, 108],   // near red gold
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -326,141 +327,130 @@ export function ArenaMiniMap({ bluePicks, redPicks, winProbability }: MiniMapPro
 
   const blueAdv = winProbability - 50;
 
+  // Container height derived from real map ratio: 699×314 → ratio ≈ 2.226
+  // We fix the height and let width be 100% → positions stay proportionally correct
+  const MAP_W = 699;
+  const MAP_H = 314;
+
   return (
     <div
       className="w-full rounded-xl overflow-hidden relative flex-shrink-0"
-      style={{ height: 186, background: 'rgba(5,7,16,0.96)', border: '1px solid rgba(40,50,80,0.4)' }}
+      style={{ border: '1px solid rgba(40,60,100,0.5)', background: '#0a0e1a' }}
     >
-      {/* Win-prob atmosphere */}
+      {/* ── Real MLBB map image ── */}
       <div
-        className="absolute inset-0 pointer-events-none transition-all duration-1000"
-        style={{
-          background: blueAdv > 6
-            ? `radial-gradient(ellipse 45% 100% at 15% 50%, rgba(30,111,255,${Math.min(0.10, blueAdv/450)}) 0%, transparent 70%)`
-            : blueAdv < -6
-            ? `radial-gradient(ellipse 45% 100% at 85% 50%, rgba(232,53,53,${Math.min(0.10, Math.abs(blueAdv)/450)}) 0%, transparent 70%)`
-            : 'none',
-          zIndex: 1,
-        }}
-      />
-
-      <svg
-        viewBox="0 0 700 186"
-        className="w-full h-full"
-        preserveAspectRatio="xMidYMid meet"
-        style={{ position: 'relative', zIndex: 2 }}
+        className="relative w-full"
+        style={{ paddingBottom: `${(MAP_H / MAP_W) * 100}%` }}
       >
-        <defs>
-          {/* Hero portrait clip paths */}
-          {(Object.entries(BLUE_MAP) as [LaneKey, [number,number]][]).map(([lane, [x,y]]) => (
-            <clipPath key={`cbm-${lane}`} id={`cbm-${lane}`}>
-              <circle cx={x} cy={y} r={17} />
-            </clipPath>
+        {/* Map background */}
+        <img
+          src="/mlbb-map.webp"
+          alt="MLBB Arena Map"
+          className="absolute inset-0 w-full h-full object-cover"
+          style={{ opacity: 0.82 }}
+          draggable={false}
+        />
+
+        {/* Dark vignette to push hero nodes forward */}
+        <div
+          className="absolute inset-0"
+          style={{
+            background: 'radial-gradient(ellipse 90% 90% at 50% 50%, transparent 40%, rgba(0,0,0,0.55) 100%)',
+          }}
+        />
+
+        {/* Win-prob atmosphere tint */}
+        <div
+          className="absolute inset-0 pointer-events-none transition-all duration-1000"
+          style={{
+            background: blueAdv > 6
+              ? `radial-gradient(ellipse 50% 100% at 12% 50%, rgba(30,111,255,${Math.min(0.18, blueAdv / 320)}) 0%, transparent 65%)`
+              : blueAdv < -6
+              ? `radial-gradient(ellipse 50% 100% at 88% 50%, rgba(232,53,53,${Math.min(0.18, Math.abs(blueAdv) / 320)}) 0%, transparent 65%)`
+              : 'none',
+          }}
+        />
+
+        {/* ── SVG overlay — same coordinate space as the image (699×314) ── */}
+        <svg
+          viewBox={`0 0 ${MAP_W} ${MAP_H}`}
+          className="absolute inset-0 w-full h-full"
+          preserveAspectRatio="xMidYMid meet"
+        >
+          <defs>
+            {/* Clip paths for hero portraits */}
+            {(Object.entries(BLUE_MAP) as [LaneKey, [number,number]][]).map(([lane, [x,y]]) => (
+              <clipPath key={`cbm-${lane}`} id={`cbm-${lane}`}>
+                <circle cx={x} cy={y} r={18} />
+              </clipPath>
+            ))}
+            {(Object.entries(RED_MAP) as [LaneKey, [number,number]][]).map(([lane, [x,y]]) => (
+              <clipPath key={`crm-${lane}`} id={`crm-${lane}`}>
+                <circle cx={x} cy={y} r={18} />
+              </clipPath>
+            ))}
+            {/* Node glow filter */}
+            <filter id="node-glow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="3" result="glow" />
+              <feMerge>
+                <feMergeNode in="glow" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
+
+          {/* ── Synergy lines ── */}
+          {synLines.map((sl, i) => (
+            <line key={i}
+              x1={sl.x1} y1={sl.y1} x2={sl.x2} y2={sl.y2}
+              stroke={sl.team === 'blue'
+                ? `rgba(30,111,255,${sl.strength * 0.55})`
+                : `rgba(232,53,53,${sl.strength * 0.55})`
+              }
+              strokeWidth={1 + sl.strength * 2.2}
+              strokeDasharray={sl.strength < 0.55 ? '5,6' : undefined}
+              strokeLinecap="round"
+            />
           ))}
-          {(Object.entries(RED_MAP) as [LaneKey, [number,number]][]).map(([lane, [x,y]]) => (
-            <clipPath key={`crm-${lane}`} id={`crm-${lane}`}>
-              <circle cx={x} cy={y} r={17} />
-            </clipPath>
-          ))}
-          {/* Glow filter */}
-          <filter id="mm-glow" x="-60%" y="-60%" width="220%" height="220%">
-            <feGaussianBlur stdDeviation="2.5" result="blur" />
-            <feComposite in="SourceGraphic" in2="blur" operator="over" />
-          </filter>
-        </defs>
 
-        {/* Background */}
-        <rect width="700" height="186" fill="rgba(5,7,16,0)" />
+          {/* ── Blue hero nodes ── */}
+          {(Object.keys(BLUE_MAP) as LaneKey[]).map((lane) => {
+            const hero = blueAssign[lane];
+            const [x, y] = BLUE_MAP[lane];
+            return hero
+              ? <MapHeroNode key={`bm-${lane}`} hero={hero} x={x} y={y} team="blue" lane={lane} clipId={`cbm-${lane}`} />
+              : <MapEmptyNode key={`bme-${lane}`} x={x} y={y} team="blue" lane={lane} />;
+          })}
 
-        {/* Dot grid */}
-        <pattern id="mm-dots" x="0" y="0" width="22" height="22" patternUnits="userSpaceOnUse">
-          <circle cx="11" cy="11" r="0.7" fill="rgba(255,255,255,0.022)" />
-        </pattern>
-        <rect width="700" height="186" fill="url(#mm-dots)" />
+          {/* ── Red hero nodes ── */}
+          {(Object.keys(RED_MAP) as LaneKey[]).map((lane) => {
+            const hero = redAssign[lane];
+            const [x, y] = RED_MAP[lane];
+            return hero
+              ? <MapHeroNode key={`rm-${lane}`} hero={hero} x={x} y={y} team="red" lane={lane} clipId={`crm-${lane}`} />
+              : <MapEmptyNode key={`rme-${lane}`} x={x} y={y} team="red" lane={lane} />;
+          })}
+        </svg>
+      </div>
 
-        {/* Map border */}
-        <rect x="30" y="10" width="640" height="166" rx="12"
-          fill="rgba(10,14,28,0.6)" stroke="rgba(50,65,110,0.3)" strokeWidth="1" />
-
-        {/* ── Lane paths ── */}
-        {/* Top lane */}
-        <path d="M 60,170 C 60,80 340,18 640,28"
-          fill="none" stroke="rgba(255,255,255,0.055)" strokeWidth="10" />
-        <path d="M 60,170 C 60,80 340,18 640,28"
-          fill="none" stroke="rgba(255,255,255,0.11)" strokeWidth="1.5" strokeDasharray="5,4" />
-
-        {/* Mid lane */}
-        <line x1="60" y1="170" x2="640" y2="22"
-          stroke="rgba(255,255,255,0.055)" strokeWidth="10" />
-        <line x1="60" y1="170" x2="640" y2="22"
-          stroke="rgba(255,255,255,0.13)" strokeWidth="1.5" strokeDasharray="5,4" />
-
-        {/* Bottom lane */}
-        <path d="M 60,170 C 310,175 620,100 640,22"
-          fill="none" stroke="rgba(255,255,255,0.055)" strokeWidth="10" />
-        <path d="M 60,170 C 310,175 620,100 640,22"
-          fill="none" stroke="rgba(255,255,255,0.11)" strokeWidth="1.5" strokeDasharray="5,4" />
-
-        {/* River hint */}
-        <line x1="330" y1="10" x2="375" y2="180"
-          stroke="rgba(30,80,180,0.10)" strokeWidth="14" />
-
-        {/* Blue base */}
-        <circle cx="58" cy="168" r="14"
-          fill="rgba(10,20,50,0.9)" stroke="rgba(30,111,255,0.55)" strokeWidth="1.5" />
-        <text x="58" y="172" textAnchor="middle" fontSize="10">🔵</text>
-
-        {/* Red base */}
-        <circle cx="642" cy="20" r="14"
-          fill="rgba(40,8,12,0.9)" stroke="rgba(232,53,53,0.55)" strokeWidth="1.5" />
-        <text x="642" y="24" textAnchor="middle" fontSize="10">🔴</text>
-
-        {/* ── Synergy lines ── */}
-        {synLines.map((sl, i) => (
-          <line key={i}
-            x1={sl.x1} y1={sl.y1} x2={sl.x2} y2={sl.y2}
-            stroke={sl.team === 'blue' ? `rgba(30,111,255,${sl.strength * 0.38})` : `rgba(232,53,53,${sl.strength * 0.38})`}
-            strokeWidth={0.8 + sl.strength * 1.6}
-            strokeDasharray={sl.strength < 0.6 ? '4,5' : undefined}
+      {/* ── Win probability bar — below the map ── */}
+      <div
+        className="flex items-center gap-2 px-3 py-1.5"
+        style={{ background: 'rgba(4,6,14,0.95)', borderTop: '1px solid rgba(40,60,100,0.4)' }}
+      >
+        <span className="text-[11px] font-black text-blue-400 tabular-nums">🔵 {winProbability.toFixed(0)}%</span>
+        <div className="flex-1 h-1.5 rounded-full overflow-hidden relative" style={{ background: 'rgba(30,30,50,0.8)' }}>
+          <div
+            className="h-full transition-all duration-700 rounded-l-full"
+            style={{ width: `${winProbability}%`, background: 'linear-gradient(to right, #1e4fff, #3b82f6)' }}
           />
-        ))}
-
-        {/* ── Blue hero nodes ── */}
-        {(Object.keys(BLUE_MAP) as LaneKey[]).map((lane) => {
-          const hero = blueAssign[lane];
-          const [x, y] = BLUE_MAP[lane];
-          return hero
-            ? <MapHeroNode key={`bm-${lane}`} hero={hero} x={x} y={y} team="blue" lane={lane} clipId={`cbm-${lane}`} />
-            : <MapEmptyNode key={`bme-${lane}`} x={x} y={y} team="blue" lane={lane} />;
-        })}
-
-        {/* ── Red hero nodes ── */}
-        {(Object.keys(RED_MAP) as LaneKey[]).map((lane) => {
-          const hero = redAssign[lane];
-          const [x, y] = RED_MAP[lane];
-          return hero
-            ? <MapHeroNode key={`rm-${lane}`} hero={hero} x={x} y={y} team="red" lane={lane} clipId={`crm-${lane}`} />
-            : <MapEmptyNode key={`rme-${lane}`} x={x} y={y} team="red" lane={lane} />;
-        })}
-
-        {/* Center label */}
-        <text x="350" y="100" textAnchor="middle" fontSize="8"
-          fill="rgba(255,255,255,0.12)" fontFamily="monospace" letterSpacing="2">
-          MLBB MAP
-        </text>
-      </svg>
-
-      {/* Win prob overlay */}
-      <div className="absolute bottom-0 left-0 right-0 h-5 flex items-center gap-2 px-3" style={{ zIndex: 3 }}>
-        <span className="text-[10px] font-black text-blue-400 tabular-nums">{winProbability.toFixed(0)}%</span>
-        <div className="flex-1 h-1 rounded-full overflow-hidden bg-slate-800/80 relative">
-          <div className="h-full rounded-l-full transition-all duration-700"
-            style={{ width: `${winProbability}%`, background: 'linear-gradient(to right, #1e6fff, #3b82f6aa)' }} />
-          <div className="absolute top-0 right-0 bottom-0 rounded-r-full transition-all duration-700"
-            style={{ left: `${winProbability}%`, background: 'linear-gradient(to right, #ef444488, #e83535)' }} />
-          <div className="absolute top-0 bottom-0 w-px bg-white/25" style={{ left: '50%' }} />
+          <div
+            className="absolute inset-y-0 rounded-r-full transition-all duration-700"
+            style={{ left: `${winProbability}%`, right: 0, background: 'linear-gradient(to right, #ef444490, #e83535)' }}
+          />
+          <div className="absolute inset-y-0 w-px bg-white/30" style={{ left: '50%' }} />
         </div>
-        <span className="text-[10px] font-black text-red-400 tabular-nums">{(100 - winProbability).toFixed(0)}%</span>
+        <span className="text-[11px] font-black text-red-400 tabular-nums">{(100 - winProbability).toFixed(0)}% 🔴</span>
       </div>
     </div>
   );
