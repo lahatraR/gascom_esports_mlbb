@@ -12,6 +12,8 @@ import type { GeneratedBan } from '@/engine/archetypeDraftGenerator';
 import { difficultyColor } from '@/data/executionDifficulty';
 import { simulateWhatIf } from '@/engine/whatIfEngine';
 import type { WhatIfTree } from '@/engine/whatIfEngine';
+import { MiniOnboarding } from '@/components/onboarding/MiniOnboarding';
+import { InfoTooltip } from '@/components/ui/InfoTooltip';
 
 const ARCH_LABEL: Record<string, string> = {
   engage: 'Engage', poke: 'Poke', protect: 'Protect', split: 'Split Push', catch: 'Catch',
@@ -88,6 +90,12 @@ function InlineBanSuggestionBar({
         <span className="text-[9px] font-black tracking-widest text-slate-300 uppercase shrink-0">
           Meilleurs bans
         </span>
+        <InfoTooltip
+          content="Héros prioritaires à bannir selon votre archétype et les picks déjà posés. Bannissez d'abord les héros qui contrent directement votre stratégie."
+          position="bottom"
+        >
+          <span className="text-[9px] text-slate-600 cursor-help leading-none">ⓘ</span>
+        </InfoTooltip>
         <span className="ml-auto text-[8px] text-slate-600 shrink-0">cliquer pour bannir</span>
       </div>
 
@@ -199,6 +207,12 @@ function InlineSuggestionBar({
         <span className="text-[9px] font-black tracking-widest text-slate-300 uppercase shrink-0">
           Meilleurs picks
         </span>
+        <InfoTooltip
+          content="Les 3 meilleurs héros pour votre situation actuelle. Le score 0–100 tient compte de votre archétype, des picks ennemis, des synergies et des rôles manquants. Cliquez pour picker directement."
+          position="bottom"
+        >
+          <span className="text-[9px] text-slate-600 cursor-help leading-none">ⓘ</span>
+        </InfoTooltip>
         {/* Inline enemy archetype badge */}
         {enemyArchetype && (
           <>
@@ -314,7 +328,7 @@ function InlineSuggestionBar({
   );
 }
 // ─── What-If simulation panel ─────────────────────────────────────────────────
-function WhatIfPanel({ tree, team }: { tree: WhatIfTree; team: 'blue' | 'red' }) {
+function WhatIfPanel({ tree, team, onClose }: { tree: WhatIfTree; team: 'blue' | 'red'; onClose: () => void }) {
   const isBlue     = team === 'blue';
   const teamBorder = isBlue ? 'rgba(59,130,246,0.30)' : 'rgba(239,68,68,0.30)';
   const teamGlow   = isBlue ? 'rgba(59,130,246,0.08)' : 'rgba(239,68,68,0.08)';
@@ -333,9 +347,22 @@ function WhatIfPanel({ tree, team }: { tree: WhatIfTree; team: 'blue' | 'red' })
         <span className="text-[9px] font-black tracking-widest text-yellow-300 uppercase">
           Simulation What-If
         </span>
-        <span className="text-[8px] text-slate-500 ml-1 truncate">
+        <span className="text-[8px] text-slate-500 ml-1 truncate flex-1">
           si vous pickez {tree.candidate.name}…
         </span>
+        <InfoTooltip
+          content="Simule les 3 réponses ennemies les plus probables à ce pick, puis calcule le meilleur counter-pick allié pour chacune. Basé sur les archetypes, le tier et les styles de jeu."
+          position="bottom"
+        >
+          <span className="text-[9px] text-slate-600 hover:text-slate-400 cursor-help shrink-0">?</span>
+        </InfoTooltip>
+        <button
+          onClick={onClose}
+          className="text-slate-600 hover:text-slate-300 transition-colors text-[10px] shrink-0 ml-1"
+          title="Fermer"
+        >
+          ✕
+        </button>
       </div>
 
       {/* Branches */}
@@ -463,7 +490,8 @@ export function HeroSelector() {
   const mySide           = useDraftStore((s) => s.mySide);
   const plannedArchetype = useDraftStore((s) => s.plannedArchetype);
 
-  const [hoveredHero, setHoveredHero] = useState<HeroData | null>(null);
+  const [hoveredHero,  setHoveredHero]  = useState<HeroData | null>(null);
+  const [pinnedWhatIf, setPinnedWhatIf] = useState<HeroData | null>(null);
   const setSearch       = useDraftStore((s) => s.setSearch);
   const setRoleFilter   = useDraftStore((s) => s.setRoleFilter);
   const selectHero      = useDraftStore((s) => s.selectHero);
@@ -517,13 +545,14 @@ export function HeroSelector() {
     : null;
   const pickTip = pickTipKey ? PICK_ORDER_TIPS[pickTipKey] : null;
 
-  // What-If simulation — computed on hover during pick phase
+  // What-If simulation — computed on hover or pin during pick phase
+  const whatIfHero = hoveredHero ?? pinnedWhatIf;
   const whatIfTree = useMemo((): WhatIfTree | null => {
-    if (!hoveredHero || !isPickPhase || !activeStep || !plannedArchetype) return null;
+    if (!whatIfHero || !isPickPhase || !activeStep || !plannedArchetype) return null;
     const alliedTeam = (activeStep.team === 'blue' ? bluePicks : redPicks).filter(Boolean) as HeroData[];
     const enemyTeam  = (activeStep.team === 'blue' ? redPicks  : bluePicks).filter(Boolean) as HeroData[];
-    return simulateWhatIf(hoveredHero, alliedTeam, enemyTeam, heroPool, plannedArchetype, activeStep.team);
-  }, [hoveredHero, isPickPhase, activeStep, plannedArchetype, bluePicks, redPicks, heroPool]);
+    return simulateWhatIf(whatIfHero, alliedTeam, enemyTeam, heroPool, plannedArchetype, activeStep.team);
+  }, [whatIfHero, isPickPhase, activeStep, plannedArchetype, bluePicks, redPicks, heroPool]);
 
   // Suppress unused variable warning when mySide is read but not directly rendered
   void mySide;
@@ -549,6 +578,9 @@ export function HeroSelector() {
       className="flex flex-col gap-2.5 rounded-xl border p-3 h-full transition-all duration-300"
       style={{ background: 'rgba(8,8,12,0.85)', ...containerStyle }}
     >
+      {/* ── Mini-onboarding guide (first visit only) ── */}
+      <MiniOnboarding currentStep={currentStep} />
+
       {/* ── Action banner + undo button ── */}
       {!isDone && activeStep && (
         <div className="flex items-center gap-2">
@@ -581,8 +613,45 @@ export function HeroSelector() {
       )}
 
       {isDone && (
-        <div className="flex items-center justify-center py-2 rounded-lg border border-yellow-500/30 bg-yellow-950/30 text-yellow-300 font-bold tracking-widest text-sm">
-          ✓ DRAFT TERMINÉ
+        <div
+          className="rounded-xl border p-3 flex flex-col gap-2"
+          style={{ background: 'rgba(10,10,18,0.96)', borderColor: 'rgba(250,204,21,0.30)', boxShadow: '0 0 20px rgba(250,204,21,0.08)' }}
+        >
+          <div className="flex items-center justify-center gap-2">
+            <span className="text-yellow-400 font-black tracking-widest text-sm">🏆 DRAFT TERMINÉ</span>
+          </div>
+          {/* Team portraits */}
+          <div className="flex flex-col gap-1.5">
+            {([['🔵 Bleue', bluePicks], ['🔴 Rouge', redPicks]] as const).map(([label, picks]) => (
+              <div key={label} className="flex items-center gap-1.5">
+                <span className="text-[9px] text-slate-500 shrink-0 w-14">{label}</span>
+                <div className="flex gap-1">
+                  {(picks as (HeroData | null)[]).map((h, i) =>
+                    h ? (
+                      <div key={i} className="rounded overflow-hidden border border-slate-700/40" style={{ width: 28, height: 32 }}>
+                        {h.image
+                          ? <img src={h.image} alt={h.name} className="w-full h-full object-cover object-top" />
+                          : <div className="w-full h-full flex items-center justify-center text-[8px] font-black text-slate-400 bg-slate-800">{h.name.charAt(0)}</div>
+                        }
+                      </div>
+                    ) : (
+                      <div key={i} className="rounded border border-dashed border-slate-700/40" style={{ width: 28, height: 32 }} />
+                    )
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+          {/* Actions */}
+          <div className="flex gap-2">
+            <button
+              onClick={undoLastAction}
+              className="flex-1 text-[10px] font-bold py-1.5 rounded-lg border text-slate-400 hover:text-white transition-all"
+              style={{ background: 'rgba(20,20,35,0.8)', borderColor: 'rgba(80,80,110,0.40)' }}
+            >
+              ↩ Annuler dernier pick
+            </button>
+          </div>
         </div>
       )}
 
@@ -665,7 +734,11 @@ export function HeroSelector() {
 
       {/* ── What-If simulation panel — appears when hovering a hero during pick phase ── */}
       {whatIfTree && activeStep && (
-        <WhatIfPanel tree={whatIfTree} team={activeStep.team} />
+        <WhatIfPanel
+          tree={whatIfTree}
+          team={activeStep.team}
+          onClose={() => { setHoveredHero(null); setPinnedWhatIf(null); }}
+        />
       )}
 
       {/* ── Search ── */}
@@ -710,24 +783,95 @@ export function HeroSelector() {
         })}
       </div>
 
+      {/* ── Item 9: Missing role warning banner ── */}
+      {suggestedRole && roleFilter === 'All' && !search && isPickPhase && (
+        <div
+          className="flex items-center gap-2 rounded-lg px-3 py-2"
+          style={{ background: 'rgba(250,204,21,0.07)', border: '1px solid rgba(250,204,21,0.30)' }}
+        >
+          <span className="text-yellow-400 text-sm shrink-0">⚠</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] font-bold text-yellow-300 leading-none mb-0.5">
+              Rôle manquant : {suggestedRole}
+            </p>
+            <p className="text-[10px] text-slate-400 leading-none">
+              Votre équipe n'a pas encore de {suggestedRole}.
+            </p>
+          </div>
+          <button
+            onClick={() => setRoleFilter(suggestedRole)}
+            className="text-[9px] font-bold px-2 py-1 rounded shrink-0 transition-all"
+            style={{ background: 'rgba(250,204,21,0.18)', color: '#facc15' }}
+          >
+            Filtrer
+          </button>
+        </div>
+      )}
+
       {/* ── Hero grid ── */}
       <div className="flex-1 overflow-y-auto min-h-0">
         {heroPool.length === 0 ? (
-          <div className="flex items-center justify-center h-24 text-slate-400 text-sm">Loading heroes…</div>
+          <div className="flex items-center justify-center h-24 text-slate-400 text-sm">Chargement des héros…</div>
         ) : filteredHeroes.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-24 gap-2">
-            <span className="text-slate-500 text-sm">No heroes found</span>
-            {roleFilter !== 'All' && (
-              <button onClick={() => setRoleFilter('All')} className="text-xs text-slate-600 hover:text-slate-400 underline">Clear filter</button>
+          /* Item 11: Better empty state */
+          <div className="flex flex-col items-center justify-center min-h-20 gap-2 py-4 text-center">
+            <span className="text-2xl">🔍</span>
+            <p className="text-[12px] font-bold text-slate-400">Aucun héros trouvé</p>
+            {search && roleFilter !== 'All' ? (
+              <>
+                <p className="text-[10px] text-slate-600">
+                  <span className="px-1 py-0.5 rounded bg-white/5 font-mono">{search}</span>
+                  {' '}· filtre : {roleFilter}
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setSearch('')}
+                    className="text-[10px] px-2.5 py-1 rounded border border-slate-600 text-slate-400 hover:text-white transition-colors"
+                  >
+                    ✕ Effacer la recherche
+                  </button>
+                  <button
+                    onClick={() => setRoleFilter('All')}
+                    className="text-[10px] px-2.5 py-1 rounded border border-slate-600 text-slate-400 hover:text-white transition-colors"
+                  >
+                    Tous les rôles
+                  </button>
+                </div>
+              </>
+            ) : search ? (
+              <>
+                <p className="text-[10px] text-slate-600">
+                  Aucun héros correspondant à{' '}
+                  <span className="px-1 py-0.5 rounded bg-white/5 font-mono">{search}</span>
+                </p>
+                <button
+                  onClick={() => setSearch('')}
+                  className="text-[10px] px-2.5 py-1 rounded border border-slate-600 text-slate-400 hover:text-white transition-colors"
+                >
+                  ✕ Effacer
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="text-[10px] text-slate-600">Aucun héros disponible pour le rôle {roleFilter}</p>
+                <button
+                  onClick={() => setRoleFilter('All')}
+                  className="text-[10px] px-2.5 py-1 rounded border border-slate-600 text-slate-400 hover:text-white transition-colors"
+                >
+                  Voir tous les rôles
+                </button>
+              </>
             )}
           </div>
         ) : (
           <div className="grid grid-cols-4 sm:grid-cols-5 gap-1.5 sm:gap-2 pb-2">
             {filteredHeroes.map((hero) => {
-              const isUsed = usedIds.has(hero.id);
+              const isUsed         = usedIds.has(hero.id);
+              const canSimulate    = isPickPhase && !isUsed && !!plannedArchetype;
               return (
                 <div
                   key={hero.id}
+                  className="relative group"
                   onMouseEnter={() => isPickPhase && !isUsed && setHoveredHero(hero)}
                   onMouseLeave={() => setHoveredHero(null)}
                 >
@@ -739,6 +883,24 @@ export function HeroSelector() {
                     showTooltip
                     size="md"
                   />
+                  {/* Item 5: Bouton Simuler What-If visible au hover */}
+                  {canSimulate && (
+                    <button
+                      onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); setPinnedWhatIf(hero); }}
+                      className="absolute bottom-0 left-0 right-0 flex items-center justify-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150"
+                      style={{
+                        height:     13,
+                        background: 'rgba(250,204,21,0.88)',
+                        fontSize:   8,
+                        fontWeight: 900,
+                        color:      '#1a1a00',
+                        letterSpacing: '0.05em',
+                      }}
+                      title="Simuler les réponses ennemies (What-If)"
+                    >
+                      🌳 SIM
+                    </button>
+                  )}
                 </div>
               );
             })}

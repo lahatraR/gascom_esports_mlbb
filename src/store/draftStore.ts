@@ -230,26 +230,41 @@ function reanalyze(
 
 // ─── Store ────────────────────────────────────────────────────────────────────
 
+// ─── Lightweight localStorage helpers (SSR-safe) ─────────────────────────────
+
+function lsGet<T>(key: string, fallback: T): T {
+  if (typeof window === 'undefined') return fallback;
+  try {
+    const v = localStorage.getItem(key);
+    return v !== null ? (JSON.parse(v) as T) : fallback;
+  } catch { return fallback; }
+}
+
+function lsSet(key: string, value: unknown): void {
+  if (typeof window === 'undefined') return;
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* ignore */ }
+}
+
 export const useDraftStore = create<DraftStore>((set, get) => ({
   heroPool:       [],
   isLoadingPool:  false,
   poolError:      null,
   dataFreshness:  'build',
 
-  blueBans:    makeSlots(getBanCount('ranked')),
-  redBans:     makeSlots(getBanCount('ranked')),
+  blueBans:    makeSlots(getBanCount(lsGet<GameMode>('ges_gameMode', 'ranked'))),
+  redBans:     makeSlots(getBanCount(lsGet<GameMode>('ges_gameMode', 'ranked'))),
   bluePicks:   makeSlots(5),
   redPicks:    makeSlots(5),
   currentStep: 0,
-  gameMode:    'ranked',
+  gameMode:    lsGet<GameMode>('ges_gameMode', 'ranked'),
 
   analysis:    null,
   search:      '',
   roleFilter:  'All',
 
   mySide:           null,
-  plannedArchetype: null,
-  uiMode:           'simple',
+  plannedArchetype: lsGet<DraftArchetype | null>('ges_plannedArchetype', null),
+  uiMode:           lsGet<'simple' | 'advanced'>('ges_uiMode', 'simple'),
 
   // ── Load hero pool ────────────────────────────────────────────────────────
   // Fetches heroes.json (generated at prebuild time by scripts/fetch-heroes.ts).
@@ -406,15 +421,16 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
   // ── Reset ─────────────────────────────────────────────────────────────────
   resetDraft: () => {
     const bans = getBanCount(get().gameMode);
+    lsSet('ges_plannedArchetype', null);
     set({ blueBans: makeSlots(bans), redBans: makeSlots(bans), bluePicks: makeSlots(5), redPicks: makeSlots(5), currentStep: 0, analysis: null, mySide: null, plannedArchetype: null });
   },
 
-  setGameMode:         (mode) => set({ gameMode: mode }),
+  setGameMode:         (mode) => { lsSet('ges_gameMode', mode);            set({ gameMode: mode }); },
   setSearch:           (q)    => set({ search: q }),
   setRoleFilter:       (role) => set({ roleFilter: role }),
   setMySide:           (side) => set({ mySide: side }),
-  setPlannedArchetype: (arch) => set({ plannedArchetype: arch }),
-  setUiMode:           (mode) => set({ uiMode: mode }),
+  setPlannedArchetype: (arch) => { lsSet('ges_plannedArchetype', arch);    set({ plannedArchetype: arch }); },
+  setUiMode:           (mode) => { lsSet('ges_uiMode', mode);              set({ uiMode: mode }); },
 }));
 
 // ─── Derived selectors ────────────────────────────────────────────────────────

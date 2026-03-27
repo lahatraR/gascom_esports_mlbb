@@ -31,8 +31,8 @@ export function RadarChart({
 
   const cx     = size / 2;
   const cy     = size / 2;
-  const radius = size * 0.36;          // polygon outer radius
-  const labelR = size * 0.48;          // label distance from center
+  const radius = size * 0.34;          // polygon outer radius
+  const labelR = size * 0.50;          // label distance from center
 
   // Angle of axis i: start at top (−π/2), go clockwise
   const angle = (i: number) => (i / n) * 2 * Math.PI - Math.PI / 2;
@@ -125,8 +125,8 @@ export function RadarChart({
               y={l.y - 3}
               textAnchor="middle"
               dominantBaseline="auto"
-              fontSize="8.5"
-              fill="rgba(148,163,184,0.85)"
+              fontSize="10"
+              fill="rgba(148,163,184,0.90)"
               fontFamily="inherit"
             >
               {l.label}
@@ -136,7 +136,7 @@ export function RadarChart({
               y={l.y + 7}
               textAnchor="middle"
               dominantBaseline="auto"
-              fontSize="8"
+              fontSize="9"
               fill={valColor}
               fontWeight="700"
               fontFamily="inherit"

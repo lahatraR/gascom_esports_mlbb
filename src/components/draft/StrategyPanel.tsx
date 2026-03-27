@@ -12,6 +12,7 @@ import {
   ARCHETYPE_CLASSES,
   ARCHETYPE_DESCRIPTION,
 } from '@/engine/archetypeEngine';
+import type { DraftArchetype } from '@/types/draft';
 import { generateArchetypeDrafts, COMBO_ICONS, COMBO_LABELS } from '@/engine/archetypeDraftGenerator';
 import { InfoTooltip } from '@/components/ui/InfoTooltip';
 import { RadarChart } from '@/components/ui/RadarChart';
@@ -795,6 +796,28 @@ function GeneratedDraftCard({
   const s = ARCHETYPE_STYLE[draft.archetype];
   const scoreColor = draft.teamScore >= 70 ? '#4ade80' : draft.teamScore >= 50 ? '#facc15' : '#f87171';
 
+  const [copied, setCopied] = useState(false);
+  const handleExport = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const lines: string[] = [
+      `=== GASCOM ESPORTS — Composition #${draft.rank} (${ARCHETYPE_LABELS[draft.archetype]}) ===`,
+      `Score: ${draft.teamScore}/100`,
+      ``,
+      `PICKS:`,
+      ...draft.slots.map((sl) => `  [${sl.lane.toUpperCase()}] ${sl.hero.name}${sl.isFlexPick ? ' (flex)' : ''}`),
+      ``,
+      `BANS:`,
+      ...draft.bans.filter((b) => b.priority === 'must-ban').map((b) => `  ✕ ${b.hero.name}`),
+      ``,
+      `CONDITION DE VICTOIRE:`,
+      `  ${draft.winCondition}`,
+    ];
+    navigator.clipboard.writeText(lines.join('\n')).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
   return (
     <div
       className="rounded-xl border overflow-hidden transition-all duration-300"
@@ -919,6 +942,21 @@ function GeneratedDraftCard({
             )}
           </div>
         </div>
+
+        {/* Export icon — stopPropagation prevents card toggle */}
+        <button
+          onClick={handleExport}
+          className="shrink-0 flex items-center justify-center rounded transition-all"
+          style={{
+            width: 22, height: 22,
+            background: copied ? 'rgba(74,222,128,0.20)' : 'rgba(60,60,90,0.40)',
+            border: `1px solid ${copied ? 'rgba(74,222,128,0.45)' : 'rgba(80,80,110,0.40)'}`,
+            color: copied ? '#4ade80' : '#64748b',
+          }}
+          title="Copier la composition"
+        >
+          <span className="text-[10px] leading-none">{copied ? '✓' : '📋'}</span>
+        </button>
 
         <span
           className="shrink-0 text-slate-500 text-xs transition-transform duration-200"
@@ -1259,6 +1297,96 @@ function GeneratedDraftCard({
   );
 }
 
+// ─── Comparative view (top 3 side-by-side) ────────────────────────────────────
+
+function ComparativeView({
+  drafts,
+  heroMap,
+}: {
+  drafts:  GeneratedDraft[];
+  heroMap: Map<string, HeroData>;
+}) {
+  const top3 = drafts.slice(0, 3);
+  return (
+    <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${top3.length}, 1fr)` }}>
+      {top3.map((draft) => {
+        const s = ARCHETYPE_STYLE[draft.archetype] ?? ARCHETYPE_STYLE['engage'];
+        const scoreColor =
+          draft.teamScore >= 75 ? '#4ade80' : draft.teamScore >= 55 ? '#facc15' : '#f87171';
+
+        const avg = (key: keyof typeof draft.slots[0]['hero']) =>
+          draft.slots.reduce((sum, sl) => sum + ((sl.hero[key] as number) ?? 0), 0) / draft.slots.length;
+        const radarAxes: RadarAxis[] = [
+          { key: 'early',     label: 'Early',   value: avg('early')     },
+          { key: 'mid',       label: 'Mid',     value: avg('mid')       },
+          { key: 'late',      label: 'Late',    value: avg('late')      },
+          { key: 'damage',    label: 'Dégâts',  value: avg('damage')    },
+          { key: 'tankiness', label: 'Tank',    value: avg('tankiness') },
+          { key: 'cc',        label: 'CC',      value: avg('cc')        },
+          { key: 'mobility',  label: 'Mobilité',value: avg('mobility')  },
+        ];
+
+        return (
+          <div
+            key={draft.rank}
+            className="rounded-xl border flex flex-col gap-2 p-2.5"
+            style={{ background: 'rgba(8,8,18,0.92)', borderColor: s.border }}
+          >
+            {/* Rank + score */}
+            <div className="flex items-center justify-between gap-1">
+              <span
+                className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded"
+                style={{ background: s.bg, color: s.text }}
+              >
+                #{draft.rank}
+              </span>
+              <span className="text-[10px] font-bold" style={{ color: scoreColor }}>
+                {draft.teamScore}/100
+              </span>
+            </div>
+
+            {/* Hero portraits */}
+            <div className="flex flex-wrap gap-0.5">
+              {draft.slots.map((sl) => {
+                const k = sl.hero.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+                const h = heroMap.get(k);
+                return (
+                  <div
+                    key={sl.lane}
+                    className="rounded overflow-hidden shrink-0 border"
+                    style={{ width: 28, height: 32, borderColor: 'rgba(80,80,110,0.55)' }}
+                    title={`${sl.lane}: ${sl.hero.name}`}
+                  >
+                    {h?.image
+                      ? <img src={h.image} alt={sl.hero.name} className="w-full h-full object-cover object-top" />
+                      : <div className="w-full h-full flex items-center justify-center text-[7px] font-bold text-slate-400 bg-slate-800/80">{sl.hero.name.charAt(0)}</div>
+                    }
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Mini radar */}
+            <div className="flex justify-center">
+              <RadarChart axes={radarAxes} size={110} color={s.text} showLabels={true} />
+            </div>
+
+            {/* Win condition */}
+            <div
+              className="rounded-lg px-2 py-1.5"
+              style={{ background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.20)' }}
+            >
+              <p className="text-[10px] font-semibold text-emerald-300 leading-snug">
+                ✓ {draft.winCondition}
+              </p>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function GeneratedDraftView({
   drafts,
   heroMap,
@@ -1269,6 +1397,7 @@ function GeneratedDraftView({
   uiMode:  'simple' | 'advanced';
 }) {
   const [expandedRank, setExpandedRank] = useState<number>(1);
+  const [viewMode,     setViewMode]     = useState<'list' | 'compare'>('list');
 
   if (drafts.length === 0) {
     return (
@@ -1289,17 +1418,42 @@ function GeneratedDraftView({
           Top {drafts.length} compositions générées
         </span>
         <div className="flex-1 h-px" style={{ background: 'rgba(60,60,80,0.45)' }} />
+        {/* View mode toggle */}
+        <div
+          className="flex rounded-full overflow-hidden shrink-0"
+          style={{ border: '1px solid rgba(80,80,110,0.45)' }}
+        >
+          {(['list', 'compare'] as const).map((mode) => (
+            <button
+              key={mode}
+              onClick={() => setViewMode(mode)}
+              className="flex items-center gap-1 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider transition-all"
+              style={{
+                background: viewMode === mode ? 'rgba(139,92,246,0.22)' : 'transparent',
+                color:      viewMode === mode ? '#a78bfa' : '#475569',
+                borderRight: mode === 'list' ? '1px solid rgba(80,80,110,0.45)' : undefined,
+              }}
+            >
+              {mode === 'list' ? '☰ Liste' : '⊞ Top 3'}
+            </button>
+          ))}
+        </div>
       </div>
-      {drafts.map((draft) => (
-        <GeneratedDraftCard
-          key={draft.rank}
-          draft={draft}
-          isExpanded={expandedRank === draft.rank}
-          onToggle={() => setExpandedRank(expandedRank === draft.rank ? -1 : draft.rank)}
-          heroMap={heroMap}
-          uiMode={uiMode}
-        />
-      ))}
+
+      {viewMode === 'compare' ? (
+        <ComparativeView drafts={drafts} heroMap={heroMap} />
+      ) : (
+        drafts.map((draft) => (
+          <GeneratedDraftCard
+            key={draft.rank}
+            draft={draft}
+            isExpanded={expandedRank === draft.rank}
+            onToggle={() => setExpandedRank(expandedRank === draft.rank ? -1 : draft.rank)}
+            heroMap={heroMap}
+            uiMode={uiMode}
+          />
+        ))
+      )}
     </div>
   );
 }
@@ -1317,7 +1471,8 @@ export function StrategyPanel() {
   const currentStep      = useDraftStore((s) => s.currentStep);
   const gameMode         = useDraftStore((s) => s.gameMode);
   const uiMode           = useDraftStore((s) => s.uiMode);
-  const setUiMode        = useDraftStore((s) => s.setUiMode);
+  const setUiMode           = useDraftStore((s) => s.setUiMode);
+  const setPlannedArchetype = useDraftStore((s) => s.setPlannedArchetype);
   const [expandedId,    setExpandedId]    = useState<string | null>(null);
   const [showTemplates, setShowTemplates] = useState(false);
 
@@ -1382,21 +1537,28 @@ export function StrategyPanel() {
   return (
     <div className="flex flex-col gap-3">
 
-      {/* ── Mode toggle ── */}
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-[9px] text-slate-600 uppercase tracking-widest">Panneau Stratégie</span>
-        <button
-          onClick={() => setUiMode(uiMode === 'simple' ? 'advanced' : 'simple')}
-          className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full transition-all duration-200"
-          style={{
-            background:  uiMode === 'advanced' ? 'rgba(139,92,246,0.18)' : 'rgba(30,30,50,0.70)',
-            border:      `1px solid ${uiMode === 'advanced' ? 'rgba(139,92,246,0.45)' : 'rgba(80,80,110,0.40)'}`,
-            color:       uiMode === 'advanced' ? '#a78bfa' : '#64748b',
-          }}
-          title={uiMode === 'simple' ? 'Passer en mode Avancé — affiche toutes les données tactiques' : 'Passer en mode Simple — affichage épuré'}
+      {/* ── Mode toggle — prominent two-segment pill ── */}
+      <div className="flex flex-col items-center gap-1.5">
+        <span className="text-[8px] text-slate-600 uppercase tracking-widest">Affichage</span>
+        <div
+          className="flex rounded-full overflow-hidden"
+          style={{ border: '1px solid rgba(80,80,110,0.45)' }}
         >
-          {uiMode === 'simple' ? '⚙ Mode Avancé' : '◎ Mode Simple'}
-        </button>
+          {(['simple', 'advanced'] as const).map((mode) => (
+            <button
+              key={mode}
+              onClick={() => setUiMode(mode)}
+              className="flex items-center gap-1.5 px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider transition-all duration-200"
+              style={{
+                background: uiMode === mode ? 'rgba(139,92,246,0.25)' : 'transparent',
+                color:      uiMode === mode ? '#a78bfa' : '#475569',
+                borderRight: mode === 'simple' ? '1px solid rgba(80,80,110,0.45)' : undefined,
+              }}
+            >
+              {mode === 'simple' ? '◎ Simple' : '⚙ Avancé'}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* ── LIVE STRATEGY (top — always visible) ── */}
@@ -1440,7 +1602,33 @@ export function StrategyPanel() {
           </div>
         </div>
       ) : (
-        <div>
+        <div className="flex flex-col gap-2">
+          {/* Item 7: CTA when no archetype selected */}
+          <div
+            className="rounded-xl border p-3"
+            style={{ border: '1px solid rgba(139,92,246,0.30)', background: 'rgba(10,10,25,0.88)' }}
+          >
+            <p className="text-[11px] font-bold text-violet-300 mb-1">📋 Aucun archétype planifié</p>
+            <p className="text-[10px] text-slate-400 mb-2.5">
+              Choisissez un archétype pour générer des compositions personnalisées adaptées à votre style de jeu.
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {(['engage', 'poke', 'protect', 'split', 'catch'] as DraftArchetype[]).map((arch) => {
+                const st = ARCHETYPE_STYLE[arch];
+                return (
+                  <button
+                    key={arch}
+                    onClick={() => setPlannedArchetype(arch)}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all hover:opacity-90 active:scale-95"
+                    style={{ background: st.bg, border: `1px solid ${st.border}`, color: st.text }}
+                  >
+                    {ARCHETYPE_ICON[arch]} {ARCHETYPE_LABELS[arch]}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           <button
             onClick={() => setShowTemplates((v) => !v)}
             className="w-full flex items-center gap-2 px-3 py-2 rounded-xl border transition-all"
