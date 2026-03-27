@@ -1,46 +1,31 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import clsx from 'clsx';
 import type { HeroData, DraftStep } from '@/types/draft';
 import { getHeroArchetypeTags } from '@/data/tierList';
+import { ARCHETYPE_ICON } from '@/engine/archetypeEngine';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Lane config ──────────────────────────────────────────────────────────────
 
 type LaneKey = 'EXP' | 'Gold' | 'Jungle' | 'Mid' | 'Roam';
 
-const LANE_LABEL: Record<LaneKey, string> = {
-  EXP: 'EXP', Gold: 'Gold', Jungle: 'JG', Mid: 'Mid', Roam: 'Roam',
-};
-const LANE_ICON: Record<LaneKey, string> = {
-  EXP: '⚡', Gold: '💰', Jungle: '🌿', Mid: '🔮', Roam: '🛡',
-};
+const LANE_ORDER: LaneKey[] = ['EXP', 'Jungle', 'Mid', 'Gold', 'Roam'];
 
-// ─── Map positions (SVG viewBox 0 0 700 500) ─────────────────────────────────
-//
-//  Blue base = bottom-left (90, 440)
-//  Red  base = top-right   (610, 60)
-//
-//  Top lane    : curves along top edge  (Blue EXP ↔ Red Gold)
-//  Mid lane    : diagonal straight line (Blue Mid ↔ Red Mid)
-//  Bottom lane : curves along bottom    (Blue Gold ↔ Red EXP)
-
-const BLUE_POS: Record<LaneKey, [number, number]> = {
-  EXP:    [132, 192],   // top lane, blue side (left vertical portion)
-  Jungle: [218, 308],   // blue jungle
-  Mid:    [272, 318],   // mid lane, blue half
-  Gold:   [228, 418],   // bottom lane, blue side
-  Roam:   [180, 378],   // near gold lane
+const LANE_CFG: Record<LaneKey, { icon: string; label: string; color: string; bg: string }> = {
+  EXP:    { icon: '⚡', label: 'EXP',  color: '#fb923c', bg: 'rgba(251,146,60,0.18)'  },
+  Gold:   { icon: '💰', label: 'Gold', color: '#facc15', bg: 'rgba(250,204,21,0.18)'  },
+  Jungle: { icon: '🌿', label: 'JG',   color: '#4ade80', bg: 'rgba(74,222,128,0.18)'  },
+  Mid:    { icon: '🔮', label: 'Mid',  color: '#c084fc', bg: 'rgba(192,132,252,0.18)' },
+  Roam:   { icon: '🛡', label: 'Roam', color: '#60a5fa', bg: 'rgba(96,165,250,0.18)'  },
 };
 
-const RED_POS: Record<LaneKey, [number, number]> = {
-  Gold:   [568, 178],   // top lane, red side (they mirror: gold goes top)
-  Jungle: [482, 202],   // red jungle
-  Mid:    [428, 192],   // mid lane, red half
-  EXP:    [472, 372],   // bottom lane, red side
-  Roam:   [518, 138],   // near red gold lane
+const ROLE_COLOR: Record<string, string> = {
+  Fighter: '#fb923c', Assassin: '#a78bfa', Mage:     '#c084fc',
+  Marksman:'#facc15', Tank:     '#60a5fa', Support:  '#2dd4bf',
 };
 
-// ─── Hero → lane mapping ──────────────────────────────────────────────────────
+// ─── Lane assignment helpers ──────────────────────────────────────────────────
 
 function heroToLane(hero: HeroData): LaneKey {
   const r = hero.roles;
@@ -52,15 +37,15 @@ function heroToLane(hero: HeroData): LaneKey {
   return 'EXP';
 }
 
-function assignHeroesToLanes(
+export function assignHeroesToLanes(
   picks: (HeroData | null)[],
 ): Partial<Record<LaneKey, HeroData>> {
   const result: Partial<Record<LaneKey, HeroData>> = {};
   const ALL: LaneKey[] = ['EXP', 'Gold', 'Mid', 'Jungle', 'Roam'];
   for (const hero of picks) {
     if (!hero) continue;
-    const preferred = heroToLane(hero);
-    if (!result[preferred]) { result[preferred] = hero; continue; }
+    const pref = heroToLane(hero);
+    if (!result[pref]) { result[pref] = hero; continue; }
     for (const lane of ALL) {
       if (!result[lane]) { result[lane] = hero; break; }
     }
@@ -68,557 +53,500 @@ function assignHeroesToLanes(
   return result;
 }
 
-// ─── Synergy score between two heroes (0–1) ──────────────────────────────────
+// ─── Synergy score (0–1) ──────────────────────────────────────────────────────
 
 function heroSynergy(a: HeroData, b: HeroData): number {
-  const tagsA = getHeroArchetypeTags(a.name);
-  const tagsB = getHeroArchetypeTags(b.name);
-  if (!tagsA.length || !tagsB.length) return 0.22;
-  const shared     = tagsA.filter(t => tagsB.includes(t)).length;
-  const roleDiv    = a.roles.filter(r => b.roles.includes(r)).length === 0 ? 1 : 0.4;
-  const pairBoost  = (a.synergyPairs?.[b.id] ?? 0) + (b.synergyPairs?.[a.id] ?? 0);
-  const base       = Math.max(0.05, 1 - shared / Math.max(tagsA.length, tagsB.length));
-  return Math.min(0.95, base * 0.5 + roleDiv * 0.3 + Math.min(pairBoost / 20, 0.2));
+  const tA = getHeroArchetypeTags(a.name);
+  const tB = getHeroArchetypeTags(b.name);
+  if (!tA.length || !tB.length) return 0.2;
+  const shared  = tA.filter(t => tB.includes(t)).length;
+  const roleDiv = a.roles.filter(r => b.roles.includes(r)).length === 0 ? 1 : 0.4;
+  const pair    = Math.min(0.3, ((a.synergyPairs?.[b.id] ?? 0) + (b.synergyPairs?.[a.id] ?? 0)) / 20);
+  return Math.min(0.95, Math.max(0.05,
+    (1 - shared / Math.max(tA.length, tB.length)) * 0.5 + roleDiv * 0.3 + pair,
+  ));
 }
 
-// ─── Props ────────────────────────────────────────────────────────────────────
+// ─── Mini-map positions (viewBox 0 0 700 186) ────────────────────────────────
 
-interface ArenaViewProps {
-  bluePicks:       (HeroData | null)[];
-  redPicks:        (HeroData | null)[];
-  blueBans:        (HeroData | null)[];
-  redBans:         (HeroData | null)[];
-  winProbability:  number; // 0–100, 50 = balanced
-  currentStep:     number;
-  sequence:        DraftStep[];
+const BLUE_MAP: Record<LaneKey, [number, number]> = {
+  EXP:    [108, 36],
+  Jungle: [185, 95],
+  Mid:    [248, 93],
+  Gold:   [165, 150],
+  Roam:   [122, 128],
+};
+const RED_MAP: Record<LaneKey, [number, number]> = {
+  Gold:   [592, 36],
+  Jungle: [515, 90],
+  Mid:    [452, 93],
+  EXP:    [535, 150],
+  Roam:   [578, 128],
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ── ArenaFormationPanel  (replaces TeamColumn in arena mode) ──────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+
+interface FormationPanelProps {
+  team:    'blue' | 'red';
+  picks:   (HeroData | null)[];
+  bans:    (HeroData | null)[];
+  rating?: number;
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
-
-export function ArenaView({
-  bluePicks, redPicks,
-  blueBans,  redBans,
-  winProbability,
-  currentStep, sequence,
-}: ArenaViewProps) {
-  const [hoveredHero, setHoveredHero] = useState<HeroData | null>(null);
-
-  const blueAssign = useMemo(() => assignHeroesToLanes(bluePicks), [bluePicks]);
-  const redAssign  = useMemo(() => assignHeroesToLanes(redPicks),  [redPicks]);
-
-  // All pairwise synergy connections per team
-  const blueSynLines = useMemo(() => buildSynLines(blueAssign, BLUE_POS), [blueAssign]);
-  const redSynLines  = useMemo(() => buildSynLines(redAssign,  RED_POS),  [redAssign]);
-
-  const isDone     = currentStep >= sequence.length;
-  const activeStep = isDone ? null : sequence[currentStep];
-  const blueAdv    = winProbability - 50; // positive = blue winning
+export function ArenaFormationPanel({ team, picks, bans, rating }: FormationPanelProps) {
+  const assign      = useMemo(() => assignHeroesToLanes(picks), [picks]);
+  const isBlue      = team === 'blue';
+  const teamRgb     = isBlue ? '30,111,255' : '232,53,53';
+  const teamColor   = isBlue ? '#3b82f6' : '#ef4444';
+  const borderColor = `rgba(${teamRgb},0.35)`;
 
   return (
-    <div className="flex flex-col gap-2 h-full select-none">
-
-      {/* ── Ban strip ── */}
-      <div className="flex items-center gap-2 px-1">
-        {/* Blue bans */}
-        <div className="flex gap-1 flex-1">
-          {blueBans.map((hero, i) => (
-            <BanBadge key={i} hero={hero} team="blue" />
-          ))}
-        </div>
-        {/* Center label */}
-        <div className="flex flex-col items-center shrink-0">
-          <span className="text-[9px] font-black tracking-widest text-slate-500 uppercase">
-            {isDone ? '🏆 Draft terminé' : activeStep
-              ? `${activeStep.action === 'ban' ? '🚫 Ban' : '⚔️ Pick'} — Équipe ${activeStep.team === 'blue' ? 'Bleue' : 'Rouge'}`
-              : '—'
-            }
+    <div
+      className="flex flex-col h-full rounded-xl overflow-hidden"
+      style={{ background: 'rgba(8,10,20,0.92)', border: `1px solid ${borderColor}` }}
+    >
+      {/* ── Header ── */}
+      <div
+        className="flex items-center justify-between px-3 py-2 flex-shrink-0"
+        style={{
+          background: `linear-gradient(135deg, rgba(${teamRgb},0.22) 0%, rgba(${teamRgb},0.06) 100%)`,
+          borderBottom: `1px solid rgba(${teamRgb},0.2)`,
+        }}
+      >
+        <div className="flex items-center gap-2">
+          <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: teamColor, boxShadow: `0 0 6px ${teamColor}` }} />
+          <span
+            className="font-display text-base tracking-widest uppercase"
+            style={{ color: teamColor }}
+          >
+            {isBlue ? 'Bleue' : 'Rouge'}
           </span>
         </div>
-        {/* Red bans */}
-        <div className="flex gap-1 flex-1 justify-end">
-          {redBans.map((hero, i) => (
-            <BanBadge key={i} hero={hero} team="red" />
-          ))}
-        </div>
-      </div>
-
-      {/* ── Arena SVG map ── */}
-      <div className="flex-1 relative rounded-2xl overflow-hidden" style={{ minHeight: 260 }}>
-
-        {/* Win-prob atmosphere */}
-        <div
-          className="absolute inset-0 pointer-events-none transition-all duration-1500"
-          style={{
-            background: blueAdv > 6
-              ? `radial-gradient(ellipse 55% 90% at 18% 50%, rgba(30,111,255,${Math.min(0.13, blueAdv / 380)}) 0%, transparent 70%)`
-              : blueAdv < -6
-              ? `radial-gradient(ellipse 55% 90% at 82% 50%, rgba(232,53,53,${Math.min(0.13, Math.abs(blueAdv) / 380)}) 0%, transparent 70%)`
-              : 'none',
-            zIndex: 10,
-          }}
-        />
-
-        <svg
-          viewBox="0 0 700 500"
-          className="w-full h-full"
-          preserveAspectRatio="xMidYMid meet"
-          style={{ display: 'block' }}
-        >
-          <defs>
-            {/* Glow filter */}
-            <filter id="glow-blue" x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur stdDeviation="3" result="blur" />
-              <feComposite in="SourceGraphic" in2="blur" operator="over" />
-            </filter>
-            <filter id="glow-red" x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur stdDeviation="3" result="blur" />
-              <feComposite in="SourceGraphic" in2="blur" operator="over" />
-            </filter>
-            <filter id="glow-soft" x="-80%" y="-80%" width="260%" height="260%">
-              <feGaussianBlur stdDeviation="6" result="blur" />
-              <feComposite in="SourceGraphic" in2="blur" operator="over" />
-            </filter>
-            {/* Hero portrait clip paths */}
-            {Object.entries(BLUE_POS).map(([lane, [x, y]]) => (
-              <clipPath key={`clip-blue-${lane}`} id={`clip-blue-${lane}`}>
-                <circle cx={x} cy={y} r={22} />
-              </clipPath>
-            ))}
-            {Object.entries(RED_POS).map(([lane, [x, y]]) => (
-              <clipPath key={`clip-red-${lane}`} id={`clip-red-${lane}`}>
-                <circle cx={x} cy={y} r={22} />
-              </clipPath>
-            ))}
-          </defs>
-
-          {/* ── Map background ── */}
-          <rect width="700" height="500" fill="rgba(6,8,16,1)" />
-
-          {/* Subtle dot grid */}
-          <pattern id="dots" x="0" y="0" width="28" height="28" patternUnits="userSpaceOnUse">
-            <circle cx="14" cy="14" r="0.8" fill="rgba(255,255,255,0.025)" />
-          </pattern>
-          <rect width="700" height="500" fill="url(#dots)" />
-
-          {/* Map boundary — outer arena walls */}
-          <rect
-            x="42" y="28" width="616" height="444" rx="18"
-            fill="rgba(12,16,28,0.9)"
-            stroke="rgba(60,80,120,0.25)"
-            strokeWidth="1.5"
-          />
-
-          {/* ── Jungle areas (darker zones) ── */}
-          {/* Blue jungle */}
-          <ellipse cx="218" cy="295" rx="80" ry="68"
-            fill="rgba(15,25,45,0.7)" stroke="rgba(30,60,100,0.3)" strokeWidth="1" />
-          <ellipse cx="218" cy="295" rx="58" ry="48"
-            fill="rgba(10,18,32,0.5)" stroke="rgba(20,50,90,0.2)" strokeWidth="0.5" />
-
-          {/* Red jungle */}
-          <ellipse cx="482" cy="205" rx="80" ry="68"
-            fill="rgba(30,15,20,0.7)" stroke="rgba(100,30,40,0.3)" strokeWidth="1" />
-          <ellipse cx="482" cy="205" rx="58" ry="48"
-            fill="rgba(22,10,14,0.5)" stroke="rgba(90,20,30,0.2)" strokeWidth="0.5" />
-
-          {/* ── River (diagonal strip) ── */}
-          <polygon
-            points="295,30 355,30 405,470 345,470"
-            fill="rgba(20,35,80,0.18)"
-          />
-          <line
-            x1="325" y1="30" x2="375" y2="470"
-            stroke="rgba(60,100,200,0.12)" strokeWidth="14"
-          />
-
-          {/* ── Lane paths ── */}
-          {/* Top lane (blue EXP ↔ red Gold) */}
-          <path
-            d="M 90,440 C 90,180 380,55 610,65"
-            fill="none"
-            stroke="rgba(255,255,255,0.06)"
-            strokeWidth="12"
-          />
-          <path
-            d="M 90,440 C 90,180 380,55 610,65"
-            fill="none"
-            stroke="rgba(255,255,255,0.12)"
-            strokeWidth="2"
-            strokeDasharray="6,4"
-          />
-
-          {/* Mid lane (diagonal) */}
-          <line x1="90" y1="440" x2="610" y2="60"
-            stroke="rgba(255,255,255,0.06)" strokeWidth="12" />
-          <line x1="90" y1="440" x2="610" y2="60"
-            stroke="rgba(255,255,255,0.14)" strokeWidth="2"
-            strokeDasharray="6,4" />
-
-          {/* Bottom lane (blue Gold ↔ red EXP) */}
-          <path
-            d="M 90,440 C 320,455 610,320 610,65"
-            fill="none"
-            stroke="rgba(255,255,255,0.06)"
-            strokeWidth="12"
-          />
-          <path
-            d="M 90,440 C 320,455 610,320 610,65"
-            fill="none"
-            stroke="rgba(255,255,255,0.12)"
-            strokeWidth="2"
-            strokeDasharray="6,4"
-          />
-
-          {/* ── Base towers ── */}
-          {/* Blue base */}
-          <circle cx="90" cy="440" r="28"
-            fill="rgba(10,20,50,0.9)"
-            stroke="rgba(30,111,255,0.5)" strokeWidth="2" />
-          <circle cx="90" cy="440" r="18"
-            fill="rgba(15,35,90,0.8)"
-            stroke="rgba(30,111,255,0.7)" strokeWidth="1.5" />
-          <text x="90" y="444" textAnchor="middle" fontSize="12" fill="rgba(100,160,255,0.9)" fontWeight="bold">🔵</text>
-
-          {/* Red base */}
-          <circle cx="610" cy="60" r="28"
-            fill="rgba(50,10,15,0.9)"
-            stroke="rgba(232,53,53,0.5)" strokeWidth="2" />
-          <circle cx="610" cy="60" r="18"
-            fill="rgba(90,15,20,0.8)"
-            stroke="rgba(232,53,53,0.7)" strokeWidth="1.5" />
-          <text x="610" y="64" textAnchor="middle" fontSize="12" fill="rgba(255,100,100,0.9)" fontWeight="bold">🔴</text>
-
-          {/* ── Synergy lines (drawn below hero nodes) ── */}
-          {blueSynLines.map((line, i) => (
-            <SynergyLine key={`bsyn-${i}`} {...line} color="30,111,255" />
-          ))}
-          {redSynLines.map((line, i) => (
-            <SynergyLine key={`rsyn-${i}`} {...line} color="232,53,53" />
-          ))}
-
-          {/* ── Hero nodes — Blue team ── */}
-          {(Object.keys(BLUE_POS) as LaneKey[]).map((lane) => {
-            const hero = blueAssign[lane];
-            const [x, y] = BLUE_POS[lane];
-            return hero ? (
-              <HeroNode
-                key={`blue-${lane}`}
-                hero={hero}
-                x={x} y={y}
-                team="blue"
-                lane={lane}
-                clipId={`clip-blue-${lane}`}
-                isHovered={hoveredHero?.id === hero.id}
-                onHover={setHoveredHero}
-              />
-            ) : (
-              <EmptyNode
-                key={`blue-empty-${lane}`}
-                x={x} y={y}
-                team="blue"
-                lane={lane}
-              />
-            );
-          })}
-
-          {/* ── Hero nodes — Red team ── */}
-          {(Object.keys(RED_POS) as LaneKey[]).map((lane) => {
-            const hero = redAssign[lane];
-            const [x, y] = RED_POS[lane];
-            return hero ? (
-              <HeroNode
-                key={`red-${lane}`}
-                hero={hero}
-                x={x} y={y}
-                team="red"
-                lane={lane}
-                clipId={`clip-red-${lane}`}
-                isHovered={hoveredHero?.id === hero.id}
-                onHover={setHoveredHero}
-              />
-            ) : (
-              <EmptyNode
-                key={`red-empty-${lane}`}
-                x={x} y={y}
-                team="red"
-                lane={lane}
-              />
-            );
-          })}
-
-          {/* ── Lane labels (subtle, center of map) ── */}
-          <text x="350" y="252" textAnchor="middle" fontSize="9" fill="rgba(255,255,255,0.18)" fontFamily="monospace" letterSpacing="2">MID</text>
-          <text x="195" y="148" textAnchor="middle" fontSize="8" fill="rgba(255,255,255,0.12)" fontFamily="monospace" letterSpacing="1.5">TOP LANE</text>
-          <text x="435" y="428" textAnchor="middle" fontSize="8" fill="rgba(255,255,255,0.12)" fontFamily="monospace" letterSpacing="1.5">BOT LANE</text>
-        </svg>
-
-        {/* Hero tooltip overlay */}
-        {hoveredHero && (
-          <HeroTooltipOverlay hero={hoveredHero} />
+        {rating !== undefined && (
+          <span
+            className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+            style={{ color: teamColor, background: `rgba(${teamRgb},0.18)`, border: `1px solid rgba(${teamRgb},0.35)` }}
+          >
+            {rating.toFixed(1)} ★
+          </span>
         )}
       </div>
 
-      {/* ── Win probability bar ── */}
-      <WinProbBar winProbability={winProbability} />
+      {/* ── Formation slots ── */}
+      <div className="flex-1 overflow-y-auto flex flex-col gap-0 divide-y" style={{ divideColor: `rgba(${teamRgb},0.08)` } as React.CSSProperties}>
+        {LANE_ORDER.map((lane) => {
+          const hero = assign[lane];
+          const lc   = LANE_CFG[lane];
+          return (
+            <FormationSlot
+              key={lane}
+              lane={lane}
+              hero={hero ?? null}
+              team={team}
+              teamRgb={teamRgb}
+            />
+          );
+        })}
+      </div>
+
+      {/* ── Bans strip ── */}
+      <div
+        className="flex-shrink-0 px-2.5 py-2"
+        style={{ borderTop: `1px solid rgba(${teamRgb},0.15)`, background: 'rgba(0,0,0,0.3)' }}
+      >
+        <p className="text-[9px] font-bold uppercase tracking-widest text-slate-600 mb-1.5">Bans</p>
+        <div className="flex gap-1.5 flex-wrap">
+          {bans.map((hero, i) => (
+            <BanPortrait key={i} hero={hero} />
+          ))}
+        </div>
+      </div>
     </div>
+  );
+}
+
+// ─── Formation slot (one lane row) ───────────────────────────────────────────
+
+function FormationSlot({
+  lane, hero, team, teamRgb,
+}: {
+  lane: LaneKey; hero: HeroData | null; team: 'blue' | 'red'; teamRgb: string;
+}) {
+  const [imgErr, setImgErr] = useState(false);
+  const lc         = LANE_CFG[lane];
+  const primaryRole = hero?.roles[0] ?? '';
+  const roleColor   = ROLE_COLOR[primaryRole] ?? '#94a3b8';
+  const archetypes  = hero ? getHeroArchetypeTags(hero.name) : [];
+
+  if (!hero) {
+    return (
+      <div className="flex items-center gap-2.5 px-2.5 py-2.5 opacity-35">
+        {/* Empty portrait */}
+        <div
+          className="w-10 h-10 rounded-lg flex-shrink-0 flex items-center justify-center border border-dashed"
+          style={{ borderColor: lc.color, background: lc.bg }}
+        >
+          <span className="text-base">{lc.icon}</span>
+        </div>
+        {/* Lane label */}
+        <div className="flex flex-col gap-0.5">
+          <span
+            className="text-[10px] font-bold uppercase tracking-wider"
+            style={{ color: lc.color }}
+          >
+            {lc.label}
+          </span>
+          <span className="text-[9px] text-slate-700">— vide —</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="flex items-center gap-2.5 px-2.5 py-2 group transition-colors duration-150 hover:bg-white/[0.03] lock-in"
+      style={{ borderLeft: `2px solid ${lc.color}` }}
+    >
+      {/* Portrait */}
+      <div className="relative flex-shrink-0 w-10 h-10">
+        <div
+          className="w-10 h-10 rounded-lg overflow-hidden"
+          style={{ border: `2px solid ${roleColor}60` }}
+        >
+          {hero.image && !imgErr ? (
+            <img
+              src={hero.image}
+              alt={hero.name}
+              className="w-full h-full object-cover object-top"
+              onError={() => setImgErr(true)}
+              loading="lazy"
+            />
+          ) : (
+            <div
+              className="w-full h-full flex items-center justify-center text-base font-black"
+              style={{ background: `${roleColor}20`, color: roleColor }}
+            >
+              {hero.name.charAt(0)}
+            </div>
+          )}
+          {/* Portrait gradient */}
+          <div className="absolute inset-0 rounded-lg pointer-events-none"
+            style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.55) 0%, transparent 55%)' }} />
+        </div>
+        {/* Lane icon badge */}
+        <div
+          className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-[8px]"
+          style={{ background: lc.color, boxShadow: `0 0 4px ${lc.color}` }}
+        >
+          {lc.icon}
+        </div>
+        {/* Archetype badge (first tag) */}
+        {archetypes[0] && (
+          <div
+            className="absolute -top-1 -left-1 w-4 h-4 rounded-full flex items-center justify-center text-[8px]"
+            style={{ background: 'rgba(10,10,20,0.95)', border: '1px solid rgba(100,100,150,0.4)' }}
+            title={archetypes[0]}
+          >
+            {ARCHETYPE_ICON[archetypes[0]]}
+          </div>
+        )}
+      </div>
+
+      {/* Info */}
+      <div className="flex-1 min-w-0">
+        <p
+          className="text-[13px] leading-none truncate font-display tracking-wide"
+          style={{ color: 'rgba(240,240,255,0.92)' }}
+        >
+          {hero.name}
+        </p>
+        <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+          <span
+            className="text-[8px] font-bold px-1 py-0.5 rounded"
+            style={{ color: roleColor, background: `${roleColor}18` }}
+          >
+            {primaryRole}
+          </span>
+          <span
+            className="text-[9px] font-black"
+            style={{ color: hero.winRate >= 0.52 ? '#4ade80' : hero.winRate >= 0.48 ? '#facc15' : '#f87171' }}
+          >
+            {(hero.winRate * 100).toFixed(1)}%
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Ban portrait ─────────────────────────────────────────────────────────────
+
+function BanPortrait({ hero }: { hero: HeroData | null }) {
+  const [imgErr, setImgErr] = useState(false);
+  if (!hero) {
+    return (
+      <div className="w-7 h-7 rounded border border-dashed border-slate-700/40 flex-shrink-0" />
+    );
+  }
+  return (
+    <div className="relative w-7 h-7 rounded overflow-hidden flex-shrink-0 grayscale opacity-55 flex-shrink-0" title={hero.name}>
+      {hero.image && !imgErr
+        ? <img src={hero.image} alt={hero.name} className="w-full h-full object-cover object-top" onError={() => setImgErr(true)} />
+        : <div className="w-full h-full bg-slate-800 flex items-center justify-center text-[8px] font-black text-slate-500">{hero.name.charAt(0)}</div>
+      }
+      <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(120,0,0,0.5)' }}>
+        <svg width="10" height="10" viewBox="0 0 10 10">
+          <line x1="1.5" y1="1.5" x2="8.5" y2="8.5" stroke="rgba(255,80,80,0.9)" strokeWidth="2" strokeLinecap="round" />
+          <line x1="8.5" y1="1.5" x2="1.5" y2="8.5" stroke="rgba(255,80,80,0.9)" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ── ArenaMiniMap  (compact strip placed BELOW the 3 columns) ─────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+
+interface MiniMapProps {
+  bluePicks:      (HeroData | null)[];
+  redPicks:       (HeroData | null)[];
+  winProbability: number;
+}
+
+export function ArenaMiniMap({ bluePicks, redPicks, winProbability }: MiniMapProps) {
+  const blueAssign = useMemo(() => assignHeroesToLanes(bluePicks), [bluePicks]);
+  const redAssign  = useMemo(() => assignHeroesToLanes(redPicks),  [redPicks]);
+  const synLines   = useMemo(() => [
+    ...buildSynLines(blueAssign, BLUE_MAP, 'blue'),
+    ...buildSynLines(redAssign,  RED_MAP,  'red'),
+  ], [blueAssign, redAssign]);
+
+  const blueAdv = winProbability - 50;
+
+  return (
+    <div
+      className="w-full rounded-xl overflow-hidden relative flex-shrink-0"
+      style={{ height: 186, background: 'rgba(5,7,16,0.96)', border: '1px solid rgba(40,50,80,0.4)' }}
+    >
+      {/* Win-prob atmosphere */}
+      <div
+        className="absolute inset-0 pointer-events-none transition-all duration-1000"
+        style={{
+          background: blueAdv > 6
+            ? `radial-gradient(ellipse 45% 100% at 15% 50%, rgba(30,111,255,${Math.min(0.10, blueAdv/450)}) 0%, transparent 70%)`
+            : blueAdv < -6
+            ? `radial-gradient(ellipse 45% 100% at 85% 50%, rgba(232,53,53,${Math.min(0.10, Math.abs(blueAdv)/450)}) 0%, transparent 70%)`
+            : 'none',
+          zIndex: 1,
+        }}
+      />
+
+      <svg
+        viewBox="0 0 700 186"
+        className="w-full h-full"
+        preserveAspectRatio="xMidYMid meet"
+        style={{ position: 'relative', zIndex: 2 }}
+      >
+        <defs>
+          {/* Hero portrait clip paths */}
+          {(Object.entries(BLUE_MAP) as [LaneKey, [number,number]][]).map(([lane, [x,y]]) => (
+            <clipPath key={`cbm-${lane}`} id={`cbm-${lane}`}>
+              <circle cx={x} cy={y} r={17} />
+            </clipPath>
+          ))}
+          {(Object.entries(RED_MAP) as [LaneKey, [number,number]][]).map(([lane, [x,y]]) => (
+            <clipPath key={`crm-${lane}`} id={`crm-${lane}`}>
+              <circle cx={x} cy={y} r={17} />
+            </clipPath>
+          ))}
+          {/* Glow filter */}
+          <filter id="mm-glow" x="-60%" y="-60%" width="220%" height="220%">
+            <feGaussianBlur stdDeviation="2.5" result="blur" />
+            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+          </filter>
+        </defs>
+
+        {/* Background */}
+        <rect width="700" height="186" fill="rgba(5,7,16,0)" />
+
+        {/* Dot grid */}
+        <pattern id="mm-dots" x="0" y="0" width="22" height="22" patternUnits="userSpaceOnUse">
+          <circle cx="11" cy="11" r="0.7" fill="rgba(255,255,255,0.022)" />
+        </pattern>
+        <rect width="700" height="186" fill="url(#mm-dots)" />
+
+        {/* Map border */}
+        <rect x="30" y="10" width="640" height="166" rx="12"
+          fill="rgba(10,14,28,0.6)" stroke="rgba(50,65,110,0.3)" strokeWidth="1" />
+
+        {/* ── Lane paths ── */}
+        {/* Top lane */}
+        <path d="M 60,170 C 60,80 340,18 640,28"
+          fill="none" stroke="rgba(255,255,255,0.055)" strokeWidth="10" />
+        <path d="M 60,170 C 60,80 340,18 640,28"
+          fill="none" stroke="rgba(255,255,255,0.11)" strokeWidth="1.5" strokeDasharray="5,4" />
+
+        {/* Mid lane */}
+        <line x1="60" y1="170" x2="640" y2="22"
+          stroke="rgba(255,255,255,0.055)" strokeWidth="10" />
+        <line x1="60" y1="170" x2="640" y2="22"
+          stroke="rgba(255,255,255,0.13)" strokeWidth="1.5" strokeDasharray="5,4" />
+
+        {/* Bottom lane */}
+        <path d="M 60,170 C 310,175 620,100 640,22"
+          fill="none" stroke="rgba(255,255,255,0.055)" strokeWidth="10" />
+        <path d="M 60,170 C 310,175 620,100 640,22"
+          fill="none" stroke="rgba(255,255,255,0.11)" strokeWidth="1.5" strokeDasharray="5,4" />
+
+        {/* River hint */}
+        <line x1="330" y1="10" x2="375" y2="180"
+          stroke="rgba(30,80,180,0.10)" strokeWidth="14" />
+
+        {/* Blue base */}
+        <circle cx="58" cy="168" r="14"
+          fill="rgba(10,20,50,0.9)" stroke="rgba(30,111,255,0.55)" strokeWidth="1.5" />
+        <text x="58" y="172" textAnchor="middle" fontSize="10">🔵</text>
+
+        {/* Red base */}
+        <circle cx="642" cy="20" r="14"
+          fill="rgba(40,8,12,0.9)" stroke="rgba(232,53,53,0.55)" strokeWidth="1.5" />
+        <text x="642" y="24" textAnchor="middle" fontSize="10">🔴</text>
+
+        {/* ── Synergy lines ── */}
+        {synLines.map((sl, i) => (
+          <line key={i}
+            x1={sl.x1} y1={sl.y1} x2={sl.x2} y2={sl.y2}
+            stroke={sl.team === 'blue' ? `rgba(30,111,255,${sl.strength * 0.38})` : `rgba(232,53,53,${sl.strength * 0.38})`}
+            strokeWidth={0.8 + sl.strength * 1.6}
+            strokeDasharray={sl.strength < 0.6 ? '4,5' : undefined}
+          />
+        ))}
+
+        {/* ── Blue hero nodes ── */}
+        {(Object.keys(BLUE_MAP) as LaneKey[]).map((lane) => {
+          const hero = blueAssign[lane];
+          const [x, y] = BLUE_MAP[lane];
+          return hero
+            ? <MapHeroNode key={`bm-${lane}`} hero={hero} x={x} y={y} team="blue" lane={lane} clipId={`cbm-${lane}`} />
+            : <MapEmptyNode key={`bme-${lane}`} x={x} y={y} team="blue" lane={lane} />;
+        })}
+
+        {/* ── Red hero nodes ── */}
+        {(Object.keys(RED_MAP) as LaneKey[]).map((lane) => {
+          const hero = redAssign[lane];
+          const [x, y] = RED_MAP[lane];
+          return hero
+            ? <MapHeroNode key={`rm-${lane}`} hero={hero} x={x} y={y} team="red" lane={lane} clipId={`crm-${lane}`} />
+            : <MapEmptyNode key={`rme-${lane}`} x={x} y={y} team="red" lane={lane} />;
+        })}
+
+        {/* Center label */}
+        <text x="350" y="100" textAnchor="middle" fontSize="8"
+          fill="rgba(255,255,255,0.12)" fontFamily="monospace" letterSpacing="2">
+          MLBB MAP
+        </text>
+      </svg>
+
+      {/* Win prob overlay */}
+      <div className="absolute bottom-0 left-0 right-0 h-5 flex items-center gap-2 px-3" style={{ zIndex: 3 }}>
+        <span className="text-[10px] font-black text-blue-400 tabular-nums">{winProbability.toFixed(0)}%</span>
+        <div className="flex-1 h-1 rounded-full overflow-hidden bg-slate-800/80 relative">
+          <div className="h-full rounded-l-full transition-all duration-700"
+            style={{ width: `${winProbability}%`, background: 'linear-gradient(to right, #1e6fff, #3b82f6aa)' }} />
+          <div className="absolute top-0 right-0 bottom-0 rounded-r-full transition-all duration-700"
+            style={{ left: `${winProbability}%`, background: 'linear-gradient(to right, #ef444488, #e83535)' }} />
+          <div className="absolute top-0 bottom-0 w-px bg-white/25" style={{ left: '50%' }} />
+        </div>
+        <span className="text-[10px] font-black text-red-400 tabular-nums">{(100 - winProbability).toFixed(0)}%</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Map hero/empty nodes ─────────────────────────────────────────────────────
+
+function MapHeroNode({
+  hero, x, y, team, lane, clipId,
+}: { hero: HeroData; x: number; y: number; team: 'blue'|'red'; lane: LaneKey; clipId: string }) {
+  const [imgErr, setImgErr] = useState(false);
+  const rgb = team === 'blue' ? '30,111,255' : '232,53,53';
+  const lc  = LANE_CFG[lane];
+
+  return (
+    <g>
+      {/* Glow ring */}
+      <circle cx={x} cy={y} r={21}
+        fill={`rgba(${rgb},0.10)`}
+        stroke={`rgba(${rgb},0.45)`}
+        strokeWidth="1.5"
+      />
+      {/* Portrait */}
+      {hero.image && !imgErr ? (
+        <image
+          href={hero.image}
+          x={x - 17} y={y - 17} width={34} height={34}
+          clipPath={`url(#${clipId})`}
+          preserveAspectRatio="xMidYMid slice"
+          onError={() => setImgErr(true)}
+        />
+      ) : (
+        <circle cx={x} cy={y} r={17}
+          fill={`rgba(${rgb},0.25)`} />
+      )}
+      {/* Portrait border */}
+      <circle cx={x} cy={y} r={17}
+        fill="none"
+        stroke={`rgba(${rgb},0.75)`}
+        strokeWidth="1.5"
+      />
+      {/* Lane icon badge */}
+      <circle cx={x + 13} cy={y + 13} r={7}
+        fill={lc.color}
+        style={{ filter: `drop-shadow(0 0 3px ${lc.color})` }}
+      />
+      <text x={x + 13} y={y + 17} textAnchor="middle" fontSize="7">{lc.icon}</text>
+    </g>
+  );
+}
+
+function MapEmptyNode({ x, y, team, lane }: { x:number; y:number; team:'blue'|'red'; lane:LaneKey }) {
+  const rgb = team === 'blue' ? '30,111,255' : '232,53,53';
+  const lc  = LANE_CFG[lane];
+  return (
+    <g>
+      <circle cx={x} cy={y} r={17}
+        fill={`rgba(${rgb},0.04)`}
+        stroke={`rgba(${rgb},0.18)`}
+        strokeWidth="1"
+        strokeDasharray="3,3"
+      />
+      <text x={x} y={y + 3} textAnchor="middle" fontSize="9" fill={lc.color}>{lc.icon}</text>
+    </g>
   );
 }
 
 // ─── Synergy line builder ─────────────────────────────────────────────────────
 
-interface SynLine { x1:number; y1:number; x2:number; y2:number; strength:number; }
+interface SynLine { x1:number; y1:number; x2:number; y2:number; strength:number; team:'blue'|'red'; }
 
 function buildSynLines(
   assign: Partial<Record<LaneKey, HeroData>>,
-  positions: Record<LaneKey, [number, number]>,
+  pos: Record<LaneKey, [number, number]>,
+  team: 'blue' | 'red',
 ): SynLine[] {
   const entries = Object.entries(assign) as [LaneKey, HeroData][];
   const lines: SynLine[] = [];
   for (let i = 0; i < entries.length; i++) {
     for (let j = i + 1; j < entries.length; j++) {
-      const [laneA, heroA] = entries[i];
-      const [laneB, heroB] = entries[j];
-      const syn = heroSynergy(heroA, heroB);
-      if (syn < 0.3) continue; // don't draw weak connections
-      const [x1, y1] = positions[laneA];
-      const [x2, y2] = positions[laneB];
-      lines.push({ x1, y1, x2, y2, strength: syn });
+      const syn = heroSynergy(entries[i][1], entries[j][1]);
+      if (syn < 0.28) continue;
+      const [x1, y1] = pos[entries[i][0]];
+      const [x2, y2] = pos[entries[j][0]];
+      lines.push({ x1, y1, x2, y2, strength: syn, team });
     }
   }
   return lines;
-}
-
-// ─── SVG sub-components ───────────────────────────────────────────────────────
-
-function SynergyLine({ x1, y1, x2, y2, strength, color }: SynLine & { color: string }) {
-  const opacity  = strength * 0.35;
-  const width    = 0.8 + strength * 1.8;
-  const isDashed = strength < 0.6;
-  return (
-    <line
-      x1={x1} y1={y1} x2={x2} y2={y2}
-      stroke={`rgba(${color},${opacity})`}
-      strokeWidth={width}
-      strokeDasharray={isDashed ? '5,6' : undefined}
-    />
-  );
-}
-
-function HeroNode({
-  hero, x, y, team, lane, clipId, isHovered, onHover,
-}: {
-  hero: HeroData; x: number; y: number;
-  team: 'blue' | 'red'; lane: LaneKey;
-  clipId: string; isHovered: boolean;
-  onHover: (h: HeroData | null) => void;
-}) {
-  const teamColor = team === 'blue' ? '30,111,255' : '232,53,53';
-  const scale = isHovered ? 'scale(1.18)' : 'scale(1)';
-
-  return (
-    <g
-      transform={`translate(${x},${y})`}
-      style={{ transition: 'transform 0.2s' }}
-      onMouseEnter={() => onHover(hero)}
-      onMouseLeave={() => onHover(null)}
-      className="cursor-pointer"
-    >
-      {/* Outer glow ring */}
-      <circle r={28} fill={`rgba(${teamColor},0.08)`} stroke={`rgba(${teamColor},0.4)`} strokeWidth="1.5" />
-
-      {/* Portrait background */}
-      <circle r={22} fill={`rgba(${teamColor},0.2)`} />
-
-      {/* Portrait image */}
-      {hero.image && (
-        <image
-          href={hero.image}
-          x={-22} y={-22} width={44} height={44}
-          clipPath={`url(#${clipId})`}
-          preserveAspectRatio="xMidYMid slice"
-          style={{ transform: scale, transformOrigin: `${x}px ${y}px`, transition: 'transform 0.2s' }}
-        />
-      )}
-
-      {/* Portrait border */}
-      <circle r={22} fill="none" stroke={`rgba(${teamColor},0.8)`} strokeWidth="2" />
-
-      {/* Gradient overlay on portrait */}
-      <circle r={22} fill={`url(#port-grad-${team})`} />
-
-      {/* Lane badge */}
-      <g transform={`translate(0, 28)`}>
-        <rect x={-18} y={-8} width={36} height={14} rx={6}
-          fill={`rgba(${teamColor},0.85)`} />
-        <text x={0} y={5} textAnchor="middle" fontSize={8}
-          fill="white" fontWeight="bold" fontFamily="monospace">
-          {LANE_ICON[lane]} {LANE_LABEL[lane]}
-        </text>
-      </g>
-
-      {/* Hero name (hover) */}
-      {isHovered && (
-        <text x={0} y={-32} textAnchor="middle" fontSize="10"
-          fill="white" fontWeight="bold"
-          style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 1 }}>
-          {hero.name}
-        </text>
-      )}
-    </g>
-  );
-}
-
-function EmptyNode({
-  x, y, team, lane,
-}: { x: number; y: number; team: 'blue' | 'red'; lane: LaneKey }) {
-  const teamColor = team === 'blue' ? '30,111,255' : '232,53,53';
-  return (
-    <g transform={`translate(${x},${y})`}>
-      {/* Pulsing empty ring */}
-      <circle r={22} fill={`rgba(${teamColor},0.04)`}
-        stroke={`rgba(${teamColor},0.2)`} strokeWidth="1.5"
-        strokeDasharray="4,3" />
-      <text x={0} y={4} textAnchor="middle" fontSize={10}
-        fill={`rgba(${teamColor},0.35)`} fontWeight="bold">
-        ?
-      </text>
-      {/* Lane label */}
-      <text x={0} y={34} textAnchor="middle" fontSize={7}
-        fill={`rgba(255,255,255,0.18)`} fontFamily="monospace">
-        {LANE_LABEL[lane]}
-      </text>
-    </g>
-  );
-}
-
-// ─── Ban badge ────────────────────────────────────────────────────────────────
-
-function BanBadge({ hero, team }: { hero: HeroData | null; team: 'blue' | 'red' }) {
-  if (!hero) {
-    return (
-      <div
-        className="w-8 h-8 rounded border border-dashed opacity-25 flex-shrink-0"
-        style={{ borderColor: team === 'blue' ? 'rgba(30,111,255,0.5)' : 'rgba(232,53,53,0.5)' }}
-      />
-    );
-  }
-  return (
-    <div className="relative w-8 h-8 rounded overflow-hidden flex-shrink-0 grayscale opacity-60">
-      {hero.image
-        ? <img src={hero.image} alt={hero.name} className="w-full h-full object-cover" title={hero.name} />
-        : <div className="w-full h-full flex items-center justify-center text-[9px] font-black bg-slate-800 text-slate-400">{hero.name.charAt(0)}</div>
-      }
-      {/* Red X overlay */}
-      <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(180,0,0,0.45)' }}>
-        <svg width="14" height="14" viewBox="0 0 14 14">
-          <line x1="2" y1="2" x2="12" y2="12" stroke="rgba(255,100,100,0.9)" strokeWidth="2.5" strokeLinecap="round" />
-          <line x1="12" y1="2" x2="2" y2="12" stroke="rgba(255,100,100,0.9)" strokeWidth="2.5" strokeLinecap="round" />
-        </svg>
-      </div>
-    </div>
-  );
-}
-
-// ─── Win probability bar ──────────────────────────────────────────────────────
-
-function WinProbBar({ winProbability }: { winProbability: number }) {
-  const blueW = winProbability.toFixed(0);
-  const redW  = (100 - winProbability).toFixed(0);
-  const diff  = Math.abs(winProbability - 50);
-  const label = diff < 5 ? 'ÉQUILIBRÉ' : winProbability > 50 ? `AVANTAGE BLEU +${diff.toFixed(0)}%` : `AVANTAGE ROUGE +${diff.toFixed(0)}%`;
-  const labelColor = diff < 5 ? '#94a3b8' : winProbability > 50 ? '#60a5fa' : '#f87171';
-
-  return (
-    <div className="flex items-center gap-2 px-1">
-      <span className="text-[11px] font-black text-blue-400 tabular-nums w-8 text-right">{blueW}%</span>
-      <div className="flex-1 h-2 rounded-full overflow-hidden bg-slate-800/80 relative">
-        <div
-          className="h-full rounded-full transition-all duration-700"
-          style={{
-            width: `${winProbability}%`,
-            background: 'linear-gradient(to right, rgba(30,111,255,0.9), rgba(30,111,255,0.4))',
-          }}
-        />
-        <div
-          className="absolute inset-0 rounded-full transition-all duration-700"
-          style={{
-            marginLeft: `${winProbability}%`,
-            background: 'linear-gradient(to right, rgba(232,53,53,0.4), rgba(232,53,53,0.9))',
-          }}
-        />
-        {/* Center marker */}
-        <div className="absolute top-0 bottom-0 w-px bg-white/30" style={{ left: '50%' }} />
-      </div>
-      <span className="text-[11px] font-black text-red-400 tabular-nums w-8">{redW}%</span>
-      <span className="text-[9px] font-bold tracking-wider" style={{ color: labelColor, minWidth: 100 }}>{label}</span>
-    </div>
-  );
-}
-
-// ─── Hero tooltip overlay ─────────────────────────────────────────────────────
-
-function HeroTooltipOverlay({ hero }: { hero: HeroData }) {
-  const role = hero.roles[0] ?? 'Fighter';
-  const ROLE_COLOR: Record<string, string> = {
-    Tank: '#60a5fa', Support: '#2dd4bf', Fighter: '#fb923c',
-    Assassin: '#a78bfa', Mage: '#c084fc', Marksman: '#facc15',
-  };
-  const rColor = ROLE_COLOR[role] ?? '#94a3b8';
-
-  return (
-    <div
-      className="absolute bottom-10 left-1/2 -translate-x-1/2 z-20 pointer-events-none"
-      style={{
-        background: 'rgba(8,10,20,0.97)',
-        border: '1px solid rgba(100,120,180,0.35)',
-        borderRadius: 12,
-        padding: '10px 14px',
-        minWidth: 200,
-        boxShadow: '0 4px 24px rgba(0,0,0,0.7)',
-      }}
-    >
-      <div className="flex items-center gap-2 mb-2">
-        <div className="w-8 h-8 rounded overflow-hidden flex-shrink-0">
-          {hero.image && <img src={hero.image} alt={hero.name} className="w-full h-full object-cover" />}
-        </div>
-        <div>
-          <p className="text-white font-black text-sm" style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 1 }}>
-            {hero.name}
-          </p>
-          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ color: rColor, background: `${rColor}20` }}>
-            {role}
-          </span>
-        </div>
-        <div className="ml-auto text-right">
-          <p className="text-[10px] text-slate-400">WR</p>
-          <p className="text-[12px] font-black" style={{ color: hero.winRate >= 0.52 ? '#4ade80' : hero.winRate >= 0.48 ? '#facc15' : '#f87171' }}>
-            {(hero.winRate * 100).toFixed(1)}%
-          </p>
-        </div>
-      </div>
-      <div className="grid grid-cols-3 gap-1">
-        {[
-          ['DMG',   hero.damage],
-          ['TANK',  hero.tankiness],
-          ['CC',    hero.cc],
-          ['EARLY', hero.early],
-          ['LATE',  hero.late],
-          ['MOB',   hero.mobility],
-        ].map(([label, val]) => (
-          <div key={label as string} className="flex flex-col items-center">
-            <span className="text-[8px] text-slate-600 font-bold">{label}</span>
-            <div className="w-full h-1 rounded-full bg-slate-800 mt-0.5">
-              <div
-                className="h-full rounded-full"
-                style={{
-                  width: `${(val as number) * 10}%`,
-                  background: (val as number) >= 7 ? '#4ade80' : (val as number) >= 4 ? '#facc15' : '#f87171',
-                }}
-              />
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
 }

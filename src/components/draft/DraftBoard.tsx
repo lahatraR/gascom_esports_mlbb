@@ -17,7 +17,7 @@ import { ArchetypePanel }           from '@/components/analysis/ArchetypePanel';
 import { CounterCompositionPanel }  from '@/components/analysis/CounterCompositionPanel';
 import { BanIntelligencePanel }     from '@/components/analysis/BanIntelligencePanel';
 import { StrategyPanel }           from './StrategyPanel';
-import { ArenaView }               from './ArenaView';
+import { ArenaFormationPanel, ArenaMiniMap } from './ArenaView';
 
 // ─── Analysis tab types ───────────────────────────────────────────────────────
 
@@ -258,35 +258,53 @@ export function DraftBoard() {
             </div>
           </>
         ) : (
-          /* ══ ARENA VIEW ══ */
-          <div className="flex-1 flex gap-3 min-h-0">
-            {/* HeroSelector stays on the left in arena mode */}
-            <div style={{ width: 'clamp(240px, 28vw, 320px)', flexShrink: 0, height: 'clamp(380px, 54vh, 580px)', overflow: 'hidden' }}>
-              <HeroSelector />
-            </div>
-            {/* Arena map fills remaining space */}
-            <div className="flex-1 min-h-0 min-w-0">
-              <ArenaView
-                bluePicks={bluePicks}
-                redPicks={redPicks}
-                blueBans={blueBans}
-                redBans={redBans}
-                winProbability={analysis?.winProbability ?? 50}
-                currentStep={currentStep}
-                sequence={sequence}
+          /* ══ ARENA MODE — même ratio colonnes que Classic ══ */
+          <>
+            {/* Colonne Bleue → Formation Panel */}
+            <div className="w-44 lg:w-48 flex-shrink-0">
+              <ArenaFormationPanel
+                team="blue"
+                picks={bluePicks}
+                bans={blueBans}
+                rating={analysis?.blueRating}
               />
             </div>
-          </div>
+
+            {/* Centre → HeroSelector inchangé */}
+            <div className="flex-1 flex flex-col gap-3 min-w-0 min-h-0">
+              <div style={{ height: 'clamp(380px, 54vh, 580px)', flexShrink: 0, overflow: 'hidden', minWidth: 0 }}>
+                <HeroSelector />
+              </div>
+            </div>
+
+            {/* Colonne Rouge → Formation Panel */}
+            <div className="w-44 lg:w-48 flex-shrink-0">
+              <ArenaFormationPanel
+                team="red"
+                picks={redPicks}
+                bans={redBans}
+                rating={analysis?.redRating}
+              />
+            </div>
+          </>
         )}
       </div>
 
-      {/* ── Fix #4 : Mini team strip — desktop only ── */}
+      {/* ── Mini team strip (classic) / Arena mini-map (arena) — desktop only ── */}
       <div className="hidden md:block">
-        <MiniTeamStrip
-          blueBans={blueBans} redBans={redBans}
-          bluePicks={bluePicks} redPicks={redPicks}
-          winProbability={analysis?.winProbability ?? 50}
-        />
+        {draftView === 'classic' ? (
+          <MiniTeamStrip
+            blueBans={blueBans} redBans={redBans}
+            bluePicks={bluePicks} redPicks={redPicks}
+            winProbability={analysis?.winProbability ?? 50}
+          />
+        ) : (
+          <ArenaMiniMap
+            bluePicks={bluePicks}
+            redPicks={redPicks}
+            winProbability={analysis?.winProbability ?? 50}
+          />
+        )}
       </div>
 
       {/* ── Fix #2 : Contextual analysis tabs — desktop ── */}
