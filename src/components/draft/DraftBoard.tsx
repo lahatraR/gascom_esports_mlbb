@@ -17,6 +17,7 @@ import { ArchetypePanel }           from '@/components/analysis/ArchetypePanel';
 import { CounterCompositionPanel }  from '@/components/analysis/CounterCompositionPanel';
 import { BanIntelligencePanel }     from '@/components/analysis/BanIntelligencePanel';
 import { StrategyPanel }           from './StrategyPanel';
+import { ArenaView }               from './ArenaView';
 
 // ─── Analysis tab types ───────────────────────────────────────────────────────
 
@@ -186,6 +187,7 @@ export function DraftBoard() {
 
   const [mobileTab,   setMobileTab]   = useState<MobileTab>('draft');
   const [analysisTab, setAnalysisTab] = useState<AnalysisTab>('picks');
+  const [draftView,   setDraftView]   = useState<'classic' | 'arena'>('classic');
 
   const sequence    = getDraftSequence(gameMode);
   const isDone      = currentStep >= sequence.length;
@@ -206,27 +208,76 @@ export function DraftBoard() {
   return (
     <div className="flex flex-col gap-3 h-full">
 
-      {/* ── Phase Indicator ── */}
-      <div className="glass p-3">
-        <PhaseIndicator currentStep={currentStep} sequence={sequence} />
+      {/* ── Phase Indicator + View Toggle ── */}
+      <div className="glass p-3 flex items-center gap-3">
+        <div className="flex-1">
+          <PhaseIndicator currentStep={currentStep} sequence={sequence} />
+        </div>
+        {/* View toggle — hidden on mobile */}
+        <div className="hidden md:flex items-center gap-1 rounded-lg p-0.5 flex-shrink-0" style={{ background: 'rgba(15,15,25,0.9)', border: '1px solid rgba(60,60,90,0.4)' }}>
+          <button
+            onClick={() => setDraftView('classic')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded text-[11px] font-bold transition-all duration-200"
+            style={draftView === 'classic'
+              ? { background: 'rgba(124,26,15,0.8)', color: 'white', boxShadow: '0 0 8px rgba(124,26,15,0.4)' }
+              : { color: 'rgba(150,150,180,0.7)' }
+            }
+          >
+            ☰ Classique
+          </button>
+          <button
+            onClick={() => setDraftView('arena')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded text-[11px] font-bold transition-all duration-200"
+            style={draftView === 'arena'
+              ? { background: 'rgba(30,111,255,0.25)', color: '#93c5fd', border: '1px solid rgba(30,111,255,0.4)', boxShadow: '0 0 8px rgba(30,111,255,0.2)' }
+              : { color: 'rgba(150,150,180,0.7)' }
+            }
+          >
+            🗺 Arène
+          </button>
+        </div>
       </div>
 
       {/* ══════════ DESKTOP LAYOUT ══════════ */}
       <div className="hidden md:flex gap-3 flex-1 min-h-0">
 
-        <div className="w-44 lg:w-48 flex-shrink-0">
-          <TeamColumn team="blue" bans={blueBans} picks={bluePicks} currentStep={currentStep} sequence={sequence} rating={analysis?.blueRating} />
-        </div>
+        {draftView === 'classic' ? (
+          <>
+            <div className="w-44 lg:w-48 flex-shrink-0">
+              <TeamColumn team="blue" bans={blueBans} picks={bluePicks} currentStep={currentStep} sequence={sequence} rating={analysis?.blueRating} />
+            </div>
 
-        <div className="flex-1 flex flex-col gap-3 min-w-0 min-h-0">
-          <div style={{ height: 'clamp(380px, 54vh, 580px)', flexShrink: 0, overflow: 'hidden', minWidth: 0 }}>
-            <HeroSelector />
+            <div className="flex-1 flex flex-col gap-3 min-w-0 min-h-0">
+              <div style={{ height: 'clamp(380px, 54vh, 580px)', flexShrink: 0, overflow: 'hidden', minWidth: 0 }}>
+                <HeroSelector />
+              </div>
+            </div>
+
+            <div className="w-44 lg:w-48 flex-shrink-0">
+              <TeamColumn team="red" bans={redBans} picks={redPicks} currentStep={currentStep} sequence={sequence} rating={analysis?.redRating} />
+            </div>
+          </>
+        ) : (
+          /* ══ ARENA VIEW ══ */
+          <div className="flex-1 flex gap-3 min-h-0">
+            {/* HeroSelector stays on the left in arena mode */}
+            <div style={{ width: 'clamp(240px, 28vw, 320px)', flexShrink: 0, height: 'clamp(380px, 54vh, 580px)', overflow: 'hidden' }}>
+              <HeroSelector />
+            </div>
+            {/* Arena map fills remaining space */}
+            <div className="flex-1 min-h-0 min-w-0">
+              <ArenaView
+                bluePicks={bluePicks}
+                redPicks={redPicks}
+                blueBans={blueBans}
+                redBans={redBans}
+                winProbability={analysis?.winProbability ?? 50}
+                currentStep={currentStep}
+                sequence={sequence}
+              />
+            </div>
           </div>
-        </div>
-
-        <div className="w-44 lg:w-48 flex-shrink-0">
-          <TeamColumn team="red" bans={redBans} picks={redPicks} currentStep={currentStep} sequence={sequence} rating={analysis?.redRating} />
-        </div>
+        )}
       </div>
 
       {/* ── Fix #4 : Mini team strip — desktop only ── */}
