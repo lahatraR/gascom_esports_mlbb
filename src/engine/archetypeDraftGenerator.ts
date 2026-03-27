@@ -211,14 +211,40 @@ const MID_TIER_NAMES = new Set(
 
 const VIABLE_TIERS: TierRank[] = ['S+', 'S-', 'A+', 'A', 'B'];
 
+// ─── Minimum role requirements per lane ──────────────────────────────────────
+// Applied AFTER tier list check as a sanity override.
+// Prevents role-mismatched heroes from appearing even if erroneously listed.
+//
+//  Mid:    needs Mage OR Assassin — Support/Tank/Marksman heroes can't burst the enemy carry
+//  Jungle: needs Fighter, Assassin OR Marksman — Tank/Support heroes can't clear camps
+//  EXP:    needs Fighter OR Assassin — Mage/Tank/Support can't 1v1 the solo lane
+//  Gold:   needs Marksman OR Mage — Fighter/Tank heroes have no sustained DPS for the carry role
+
+function passesLaneRoleGuard(hero: HeroData, lane: LaneKey): boolean {
+  const r = hero.roles;
+  switch (lane) {
+    case 'Mid':
+      return r.some((x) => x === 'Mage' || x === 'Assassin');
+    case 'Jungle':
+      return r.some((x) => x === 'Fighter' || x === 'Assassin' || x === 'Marksman');
+    case 'EXP':
+      return r.some((x) => x === 'Fighter' || x === 'Assassin');
+    case 'Gold':
+      return r.some((x) => x === 'Marksman' || x === 'Mage');
+    case 'Roam':
+      return true; // Roam is flexible (Chou, Kaja, etc.)
+    default:
+      return true;
+  }
+}
+
 function isValidCandidate(hero: HeroData, lane: LaneKey): boolean {
   // Priority 1: tier list is authoritative — explicitly listed heroes always qualify,
-  // even if their primary role doesn't match the canonical lane role
-  // (e.g. Chou Fighter/Assassin is S+ Roam, Jawhead Fighter is S- Roam).
+  // UNLESS they fail the minimum lane role guard (prevents misplaced heroes in old tier data).
   const inTierList = VIABLE_TIERS.some((tier) =>
     (LANE_TIERS[lane][tier] ?? []).some((n) => n.toLowerCase() === hero.name.toLowerCase())
   );
-  if (inTierList) return true;
+  if (inTierList) return passesLaneRoleGuard(hero, lane);
 
   // Priority 2: role-based eligibility for heroes not listed in the tier list
   const canonical = LANE_CANONICAL_ROLES[lane] ?? [];
@@ -275,20 +301,114 @@ function roamSubtypeMultiplier(hero: HeroData, archetype: DraftArchetype): numbe
   return 1.0; // mixed role without strong playstyle signal (e.g., Faramis)
 }
 
-// ─── EXP context multiplier ───────────────────────────────────────────────────
-// EXP role: zone enemy jungler during objectives (pressure + mobility)
-//           dive backline in teamfights (damage + mobility)
+// ─── Lane stat multiplier ─────────────────────────────────────────────────────
+// Each lane has specific stat requirements beyond role eligibility.
+// Applied as a multiplicative bonus/penalty on top of tier + archetype scores.
+//
+// Lane rules:
+//  EXP:    Survival (tankiness + early) to hold the 1v1 solo lane + archetype context
+//  Mid:    Damage threat to burst/threaten the enemy carry (damage ≥ 8 ideal)
+//          CC/pressure secondary — a Mage with no damage is a liability in Mid
+//  Gold:   Late-game scaling + sustained DPS — carry must win at full build
+//  Jungle: Early camp clear + mobility to gank + kill threat
+//  Roam:   CC presence + tankiness (archetype subtype handled by roamSubtypeMultiplier)
+//
+// Range per lane: roughly 0.65 → 1.30 (multiplicative, stacks with roamSubtypeMultiplier)
 
-function expContextMultiplier(hero: HeroData, archetype: DraftArchetype): number {
+function laneStatMultiplier(hero: HeroData, lane: LaneKey, archetype: DraftArchetype): number {
   const n = (v: number) => clamp(v / 10, 0, 1);
-  const zoneScore = (n(hero.pressure) + n(hero.mobility)) / 2;  // jungle contesting
-  const diveScore = (n(hero.damage)   + n(hero.mobility)) / 2;  // teamfight dive
-  const tankScore = (n(hero.tankiness) + n(hero.cc))      / 2;  // survive teamfight
 
-  if (archetype === 'split')  return 1 + zoneScore * 0.40;
-  if (archetype === 'catch')  return 1 + diveScore * 0.30;
-  if (archetype === 'engage') return 1 + tankScore * 0.20;
-  return 1.0;
+  switch (lane) {
+
+    case 'EXP': {
+      // Survival baseline: fighter must sustain the 1v1 — low tankiness = dies to jungle invades
+      const survivalScore = (n(hero.tankiness) + n(hero.early)) / 2;
+      const base = 0.80 + survivalScore * 0.25; // 0.80 → 1.05
+      // Archetype context: split needs zone pressure, catch needs dive, engage needs durability
+      const zoneScore = (n(hero.pressure) + n(hero.mobility)) / 2;
+      const diveScore = (n(hero.damage)   + n(hero.mobility)) / 2;
+      const tankScore = (n(hero.tankiness) + n(hero.cc))      / 2;
+      if (archetype === 'split')  return base * (1 + zoneScore * 0.35);
+      if (archetype === 'catch')  return base * (1 + diveScore * 0.25);
+      if (archetype === 'engage') return base * (1 + tankScore * 0.20);
+      return base;
+    }
+
+    case 'Mid': {
+      // PRIMARY rule: Mage must threaten the enemy carry with burst magic damage.
+      // A Mage that can't kill is just a free kill in mid lane.
+      // damage 55% + CC 25% + pressure 20% → weighted lane fitness
+      const midFit = n(hero.damage) * 0.55 + n(hero.cc) * 0.25 + n(hero.pressure) * 0.20;
+      // Hard threshold: below damage 6 = can't burst carry = severe penalty
+      const dmgThreshold = hero.damage >= 8 ? 1.00 : hero.damage >= 6 ? 0.85 : 0.68;
+      return (0.68 + midFit * 0.58) * dmgThreshold;
+      // Examples:
+      //   Kagura   (dmg=10, cc=7,  pres=8):  (0.68+0.88×0.58)×1.00 = 1.19
+      //   Vale     (dmg=9,  cc=8,  pres=7):  (0.68+0.84×0.58)×1.00 = 1.17
+      //   Cecilion (dmg=8,  cc=5,  pres=7):  (0.68+0.74×0.58)×1.00 = 1.11
+      //   Faramis  (dmg=5,  cc=6,  pres=4):  (0.68+0.46×0.58)×0.68 = 0.64
+      //   Diggie   (dmg=5,  cc=7,  pres=6):  (0.68+0.49×0.58)×0.68 = 0.66
+    }
+
+    case 'Gold': {
+      // PRIMARY rule: carry must scale to win late game. Late-game power is non-negotiable.
+      // DPS matters for Lord fights and sieges. Mobility = self-peel to stay safe farming.
+      const carryScore  = (n(hero.damage) + n(hero.late))  / 2; // sustained DPS + scaling
+      const safetyScore = n(hero.mobility);                      // escape / positioning
+      // Penalty for heroes that don't scale — a Gold hero that peaks at mid game loses late
+      const latePenalty = hero.late >= 8 ? 1.00 : hero.late >= 6 ? 0.88 : 0.72;
+      return (0.72 + carryScore * 0.42 + safetyScore * 0.12) * latePenalty;
+      // Examples:
+      //   Claude   (dmg=8, late=9, mob=9): (0.72+0.85×0.42+0.9×0.12)×1.00 = 1.19
+      //   Beatrix  (dmg=9, late=8, mob=6): (0.72+0.85×0.42+0.6×0.12)×1.00 = 1.15
+      //   Wanwan   (dmg=8, late=8, mob=9): (0.72+0.80×0.42+0.9×0.12)×1.00 = 1.14
+      //   Layla    (dmg=7, late=8, mob=3): (0.72+0.75×0.42+0.3×0.12)×1.00 = 1.07
+      //   Miya     (dmg=6, late=7, mob=5): (0.72+0.65×0.42+0.5×0.12)×0.88 = 0.98
+    }
+
+    case 'Jungle': {
+      // PRIMARY rule: jungler must clear camps fast (early), gank effectively (mobility + damage).
+      // No early game = can't tax lanes before enemies reach level 4.
+      // No mobility = can't surprise gank = predictable and counterable.
+      const earlyScore = n(hero.early);    // camp clear speed + pre-6 gank window
+      const mobScore   = n(hero.mobility); // gank reach + escape after kill
+      const killScore  = n(hero.damage);   // kill threat: enemies must respect the gank
+      const jungleFit  = earlyScore * 0.40 + mobScore * 0.35 + killScore * 0.25;
+      // Hard threshold: early < 5 = can't clear jungle safely before the enemy jungler
+      const earlyPenalty = hero.early >= 7 ? 1.00 : hero.early >= 5 ? 0.88 : 0.70;
+      return (0.68 + jungleFit * 0.55) * earlyPenalty;
+      // Examples:
+      //   Karina   (early=8, mob=9, dmg=9): (0.68+0.87×0.55)×1.00 = 1.16
+      //   Lancelot (early=8, mob=9, dmg=8): (0.68+0.84×0.55)×1.00 = 1.14
+      //   Suyou    (early=7, mob=8, dmg=9): (0.68+0.79×0.55)×1.00 = 1.11
+      //   Hayabusa (early=7, mob=9, dmg=8): (0.68+0.81×0.55)×1.00 = 1.13
+      //   Fredrinn (early=6, mob=5, dmg=7): (0.68+0.59×0.55)×0.88 = 0.88
+    }
+
+    case 'Roam': {
+      // PRIMARY rule: Roam must create opportunities — CC to lock enemies, tankiness to survive.
+      // A Roam with no CC can't help allies get kills (Support without CC is pure peel only).
+      // Mobility bonus: better roam presence across all lanes.
+      // Note: roamSubtypeMultiplier handles the engage/protect archetype subtype distinction.
+      const ccScore   = n(hero.cc);
+      const tankScore = n(hero.tankiness);
+      const mobScore  = n(hero.mobility);
+      const roamFit   = ccScore * 0.45 + tankScore * 0.35 + mobScore * 0.20;
+      // Penalty for very low CC — a Roam that can't lock enemies down is a wasted slot
+      const ccPenalty = hero.cc >= 6 ? 1.00 : hero.cc >= 4 ? 0.88 : 0.72;
+      return (0.72 + roamFit * 0.38) * ccPenalty;
+      // Examples:
+      //   Atlas    (cc=9, tank=8, mob=7): (0.72+0.84×0.38)×1.00 = 1.04
+      //   Khufra   (cc=8, tank=9, mob=7): (0.72+0.83×0.38)×1.00 = 1.03
+      //   Franco   (cc=8, tank=7, mob=7): (0.72+0.77×0.38)×1.00 = 1.01
+      //   Mathilda (cc=6, tank=5, mob=9): (0.72+0.64×0.38)×1.00 = 0.96
+      //   Angela   (cc=5, tank=5, mob=4): (0.72+0.47×0.38)×0.88 = 0.79 — boosted back up by roamSubtypeMultiplier×1.40 for protect
+      //   Rafaela  (cc=5, tank=5, mob=4): (0.72+0.47×0.38)×0.88 = 0.79 — same, correct
+    }
+
+    default:
+      return 1.0;
+  }
 }
 
 // ─── Per-archetype lane weight ────────────────────────────────────────────────
@@ -546,7 +666,7 @@ function scoreHeroForSlot(
   const wrFit     = clamp(((hero.winRate ?? 0.50) - 0.45) / 0.15, 0, 1);
   const laneW     = LANE_ARCH_WEIGHT[archetype][lane] ?? 1.0;
   const roamMul   = lane === 'Roam' ? roamSubtypeMultiplier(hero, archetype) : 1.0;
-  const expMul    = lane === 'EXP'  ? expContextMultiplier(hero, archetype)  : 1.0;
+  const laneStatMul = laneStatMultiplier(hero, lane, archetype);
   // Blue side: flex picks get a bonus (safer first-pick, harder to read)
   const flexBonus = side === 'blue' && getFlexInfo(hero).isFlexPick ? 0.06 : 0;
   // S+ multiplicative bonus — ensures top meta heroes always strongly preferred
@@ -578,10 +698,17 @@ function scoreHeroForSlot(
   // Combined formula:
   //   blended archetype fit (35%) + tier (35%) + win rate (10%)
   //   + speciality tags (≤18%) + exec role bonus (≤14%) + flex bonus (6%)
-  //   × lane weight × role subtypes × tier multiplier × spike multiplier
+  //   × lane weight × roam subtype × lane stat requirements × tier multiplier × spike multiplier
+  //
+  // laneStatMul encodes each lane's primary stat requirements (0.65 → 1.30):
+  //   EXP: tankiness+early (survival) + archetype context
+  //   Mid: damage threshold (burst carry threat) + CC + pressure
+  //   Gold: late scaling + sustained DPS + mobility
+  //   Jungle: early (camp clear) + mobility (gank reach) + damage (kill threat)
+  //   Roam: CC presence + tankiness (roamSubtypeMultiplier handles archetype subtype)
   return clamp(
     (blendedArchFit * 0.35 + tierFit * 0.35 + wrFit * 0.10 + specBonus + execBonus + flexBonus)
-    * laneW * roamMul * expMul * tierMul * spikeMul,
+    * laneW * roamMul * laneStatMul * tierMul * spikeMul,
     0, 2.5,
   );
 }
@@ -932,7 +1059,17 @@ function buildWhy(hero: HeroData, lane: LaneKey, archetype: DraftArchetype): str
   const roamType = lane === 'Roam'
     ? isRoamTank(hero) ? ' (Initiateur)' : isRoamSupport(hero) ? ' (Support)' : ''
     : '';
-  return `${role}${roamType} ${laneStr} — fit ${ARCHETYPE_LABELS[archetype]} : ${fit}/100`;
+
+  // Lane-specific key stats shown to explain why this hero fits here
+  const laneStats: Record<LaneKey, string> = {
+    EXP:    `résistance ${hero.tankiness}/10 · early ${hero.early}/10`,
+    Mid:    `damage ${hero.damage}/10 · CC ${hero.cc}/10 · pression ${hero.pressure}/10`,
+    Gold:   `late ${hero.late}/10 · damage ${hero.damage}/10 · mobilité ${hero.mobility}/10`,
+    Jungle: `early ${hero.early}/10 · mobilité ${hero.mobility}/10 · damage ${hero.damage}/10`,
+    Roam:   `CC ${hero.cc}/10 · résistance ${hero.tankiness}/10 · mobilité ${hero.mobility}/10`,
+  };
+
+  return `${role}${roamType} ${laneStr} — fit ${ARCHETYPE_LABELS[archetype]} : ${fit}/100 · ${laneStats[lane]}`;
 }
 
 // ─── Main generator ───────────────────────────────────────────────────────────

@@ -343,8 +343,8 @@ export const DRAFT_TEMPLATES: DraftTemplate[] = [
     description:
       'Composition qui force l\'ennemi à faire des choix impossibles : répondre à Masha en EXP ' +
       'ou défendre le Lord contre 4 joueurs. Yi Sun-Shin voit toute la map avec son ult et peut ' +
-      'aider n\'importe quelle lane en crise. Diggie permet au 4v5 de survivre sans lui grâce à son ult. ' +
-      'Le but n\'est pas de kill, c\'est de prendre des tours pendant que l\'ennemi chase dans le vide.',
+      'aider n\'importe quelle lane en crise. Diggie en Roam utilise Time Journey pour immuniser le 4v5 contre les CC ennemis. ' +
+      'Lylia assure le DPS mage depuis le Mid. Le but n\'est pas de kill, c\'est de prendre des tours pendant que l\'ennemi chase dans le vide.',
 
     lanes: {
       exp: {
@@ -360,10 +360,10 @@ export const DRAFT_TEMPLATES: DraftTemplate[] = [
         why:     'Ult global révèle TOUTE la map — peut rotate sur n\'importe quelle crisis en 2 secondes.',
       },
       mid: {
-        primary: 'Diggie',
-        backup:  ['Harith', 'Lunox'],
-        role:    'Anti-CC enabler / game pace',
-        why:     'Son ult Time Journey enlève tous les CC de l\'équipe → le 4v5 peut fight pendant Masha split.',
+        primary: 'Lylia',
+        backup:  ['Lunox', 'Luo Yi'],
+        role:    'Mage DPS / teamfight',
+        why:     'Dégâts constants et ult Angry Goo pour zoner l\'équipe ennemie pendant le 4v5. Lylia ult permet de rejoindre un fight depuis n\'importe où.',
       },
       gold: {
         primary: 'Brody',
@@ -372,10 +372,10 @@ export const DRAFT_TEMPLATES: DraftTemplate[] = [
         why:     'Peut hold la Gold lane seul grâce à ses dégâts à distance et son CC de base.',
       },
       roam: {
-        primary: 'Floryn',
-        backup:  ['Mathilda', 'Faramis'],
-        role:    'Support heal global / enabler',
-        why:     'Heal passif partout sur la map. Ult peut sauver Masha en split depuis l\'autre côté.',
+        primary: 'Diggie',
+        backup:  ['Floryn', 'Mathilda'],
+        role:    'Support anti-CC enabler',
+        why:     'Son ult Time Journey enlève tous les CC de l\'équipe → le 4v5 peut fight pendant Masha split sans craindre les CC ennemis.',
       },
     },
 
@@ -422,7 +422,7 @@ export const DRAFT_TEMPLATES: DraftTemplate[] = [
     tips: [
       'Masha : toujours garder un tiers de vie pour escape. Jamais de fights directs — elle est une tour, pas un fighter.',
       'Yi Sun-Shin : placez des wards dans les buissons adverses AVANT de lancer l\'ult global pour maximiser la vision.',
-      'Diggie : timed bomb en advance à chaque approach ennemi. Utilisez le slow dès que Masha est en danger.',
+      'Diggie : gardez Time Journey pour le moment où le 4v5 engage — ne le gaspillez pas sur un fight mineur.',
       'Brody : ne jamais quitter Gold lane sauf pour le Lord. Votre lane doit pousser constamment.',
     ],
   },

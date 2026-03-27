@@ -28,38 +28,45 @@ export const LANE_TIERS: Record<LaneKey, Partial<Record<TierRank, string[]>>> = 
 
   // ── EXP Lane (Solo/Fighter) ────────────────────────────────────────────────
   // Source: gosugamers tier list image — "Arlott, Yu Zhong, and Sora dominate"
+  // Rule: Fighter or Assassin role ONLY. Mage/Tank/Support heroes do NOT go EXP.
   EXP: {
     'S+': ['Arlott', 'Yu Zhong', 'Sora', 'Thamuz', 'Joy', 'Fredrinn', 'Khaleed', 'Ruby'],
     'S-': ['Guinevere', 'Benedetta', 'Terizla', 'Masha'],
     'A+': ['Argus', 'Aldous', 'Paquito', 'Dyrroth', 'Chou', 'X.Borg'],
     'A':  ['Zilong', 'Balmond', 'Lapu-Lapu', 'Silvanna', 'Badang', 'Roger', 'Sun'],
     'B':  ['Esmeralda', 'Hilda', 'Aulus', 'Gatotkaca', 'Bane', 'Jawhead', 'Leomord'],
-    'C':  ['Alucard', 'Alpha', 'Hanzo', 'Martis', 'Hylos', 'Cyclops'],
+    'C':  ['Alucard', 'Alpha', 'Hanzo', 'Martis'],
+    // Removed: Hylos (Tank → Roam only), Cyclops (Mage → Mid only)
   },
 
-  // ── Gold Lane (Marksman + Mage exceptions) ────────────────────────────────
+  // ── Gold Lane (Marksman + rare Mage kit exceptions) ──────────────────────
   // Source: gosugamers — "Yi Sun-Shin newly viable in gold lane"
-  // Only Marksmen are standard Gold picks.
-  // Mage exceptions (Gold-viable via kit/playstyle, NOT standard): Lunox, Harith.
-  // Valentina removed — she is a Mage and does NOT belong in Gold lane standard meta.
+  // Rule: Marksman role primary. Mage exceptions only when kit mirrors ADC playstyle
+  //       (Kimmy auto-attack mage, Lunox dual-stance burst, Harith mobility burst).
+  //       Fighter/Tank heroes (Thamuz, Zilong) do NOT belong in Gold lane.
   Gold: {
     'S+': ['Claude', 'Brody', 'Beatrix', 'Yi Sun-Shin'],
     'S-': ['Wanwan', 'Melissa', 'Irithel', 'Granger'],
     'A+': ['Karrie', 'Natan', 'Moskov', 'Popol and Kupa', 'Kimmy', 'Clint', 'Miya', 'Obsidia'],
     'A':  ['Layla', 'Lesley', 'Hanabi', 'Bruno'],
-    'B':  ['Ixia', 'Zilong', 'Thamuz', 'Lunox', 'Harith'],
+    'B':  ['Ixia', 'Lunox', 'Harith'],
+    // Removed: Zilong (Fighter → EXP primary), Thamuz (Fighter → EXP primary)
     'C':  [],
   },
 
   // ── Jungle ────────────────────────────────────────────────────────────────
   // Source: gosugamers — "Leomord, Fredrinn, and Suyou remain top jungle picks"
+  // Rule: Fighter, Assassin, or Marksman (attack-speed/crit jungler) role required.
+  //       Tank-only and Support-only heroes CANNOT jungle — no camp clear, no kill threat.
   Jungle: {
     'S+': ['Leomord', 'Fredrinn', 'Suyou', 'Julian', 'Karina', 'Aamon'],
     'S-': ['Ling', 'Fanny', 'Gusion', 'Benedetta', 'Lancelot', 'Hayabusa'],
     'A+': ['Yi Sun-Shin', 'Joy', 'Hanzo', 'Granger', 'Wanwan', 'Selena', 'Arlott'],
     'A':  ['Roger', 'Balmond', 'Jawhead', 'Harley', 'Aldous', 'Alucard'],
-    'B':  ['Alpha', 'Sun', 'Bane', 'Argus', 'Natalia', 'Cyclops', 'Dyrroth', 'Silvanna', 'Badang', 'Masha'],
-    'C':  ['Lolita', 'Gloo', 'Popol and Kupa', 'Uranus', 'Terizla', 'Hilda'],
+    'B':  ['Alpha', 'Sun', 'Bane', 'Argus', 'Natalia', 'Dyrroth', 'Silvanna', 'Badang', 'Masha'],
+    // Removed: Cyclops (Mage → Mid only, no jungle clear)
+    'C':  ['Popol and Kupa', 'Terizla', 'Hilda'],
+    // Removed: Lolita (Tank/Support → Roam S- only), Gloo (Tank → Roam A), Uranus (Tank → Roam B)
   },
 
   // ── Mid Lane (Mage) ────────────────────────────────────────────────────────
