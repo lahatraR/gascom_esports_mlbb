@@ -107,8 +107,23 @@ export function SuggestionPanel({ suggestions, currentTeam, isPickPhase }: Sugge
                         );
                       })()}
                     </div>
-                    <span className={clsx('font-black text-sm tabular-nums flex-shrink-0', scoreColor)}>
-                      {s.score}<span className="text-[10px] font-normal text-slate-600">/100</span>
+                    <span className="flex-shrink-0 flex items-baseline gap-px leading-none tabular-nums">
+                      <span
+                        className="font-display tabular-nums"
+                        style={{
+                          fontSize:   22,
+                          lineHeight: 1,
+                          color:      s.score >= 80 ? '#4ade80' : s.score >= 60 ? '#facc15' : '#f87171',
+                          textShadow: s.score >= 80
+                            ? '0 0 10px rgba(74,222,128,0.45)'
+                            : s.score >= 60
+                            ? '0 0 10px rgba(250,204,21,0.45)'
+                            : '0 0 10px rgba(248,113,113,0.45)',
+                        }}
+                      >
+                        {s.score}
+                      </span>
+                      <span className="text-[9px] text-slate-600 font-normal">/100</span>
                     </span>
                   </div>
                   <p className="text-[10px] text-slate-500 truncate">{s.reason}</p>

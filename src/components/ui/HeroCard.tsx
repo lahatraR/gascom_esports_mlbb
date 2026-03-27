@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import clsx from 'clsx';
 import type { HeroData } from '@/types/draft';
 
@@ -52,9 +52,19 @@ export function HeroCard({
   team,
   size = 'md',
 }: HeroCardProps) {
-  const [imgError, setImgError] = useState(false);
-  const [hovered, setHovered] = useState(false);
+  const [imgError,    setImgError]    = useState(false);
+  const [hovered,     setHovered]     = useState(false);
+  const [justMounted, setJustMounted] = useState(true);
   const sz = SIZE_CONFIG[size];
+
+  // Lock-in animation plays once on first mount for pick/ban cards
+  useEffect(() => {
+    if (variant === 'pick' || variant === 'ban') {
+      const t = setTimeout(() => setJustMounted(false), 400);
+      return () => clearTimeout(t);
+    }
+    setJustMounted(false);
+  }, [variant]);
   const primaryRole = hero.roles[0] ?? 'Fighter';
   const roleBorder  = ROLE_BORDER[primaryRole] ?? 'border-slate-500/50';
 
@@ -72,6 +82,7 @@ export function HeroCard({
         className={clsx(
           'relative flex flex-col items-center gap-1 rounded-lg border-2 overflow-hidden transition-all duration-200',
           sz.container,
+          justMounted && (variant === 'pick' || variant === 'ban') ? 'lock-in' : '',
           disabled
             ? 'opacity-30 cursor-not-allowed border-slate-700/30 grayscale'
             : active
@@ -80,7 +91,7 @@ export function HeroCard({
         )}
       >
         {/* Hero image or fallback */}
-        <div className={clsx('flex-shrink-0 overflow-hidden', sz.img)}>
+        <div className={clsx('flex-shrink-0 overflow-hidden relative', sz.img)}>
           {hero.image && !imgError ? (
             <img
               src={hero.image}
@@ -92,12 +103,27 @@ export function HeroCard({
           ) : (
             <HeroFallbackImage hero={hero} size={size} />
           )}
+          {/* Portrait gradient overlay — depth effect */}
+          <div className="absolute inset-0 pointer-events-none" style={{
+            background: 'linear-gradient(to top, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.18) 55%, transparent 100%)',
+          }} />
         </div>
 
-        {/* Ban overlay */}
-        {variant === 'ban' && !disabled && (
-          <div className="absolute inset-0 bg-red-900/20 flex items-center justify-center">
-            <span className="text-red-400 text-lg font-black">✕</span>
+        {/* Pick variant: hero name in Bebas Neue at bottom */}
+        {variant === 'pick' && (
+          <div className="absolute bottom-0 left-0 right-0 px-0.5 pb-0.5 pointer-events-none">
+            <p
+              className="text-center leading-none truncate"
+              style={{
+                fontFamily: "'Bebas Neue', sans-serif",
+                fontSize:   size === 'lg' ? 11 : 9,
+                color:      team === 'blue' ? '#93c5fd' : team === 'red' ? '#fca5a5' : '#e2e8f0',
+                letterSpacing: '0.04em',
+                textShadow: '0 1px 3px rgba(0,0,0,0.9)',
+              }}
+            >
+              {hero.name}
+            </p>
           </div>
         )}
       </button>

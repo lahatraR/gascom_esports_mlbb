@@ -883,6 +883,18 @@ export function HeroSelector() {
                     showTooltip
                     size="md"
                   />
+                  {/* Banned/picked overlay — red X cross over the card */}
+                  {isUsed && (
+                    <div
+                      className="absolute inset-0 rounded-lg pointer-events-none flex items-center justify-center"
+                      style={{ background: 'rgba(30,0,0,0.55)' }}
+                    >
+                      <svg width="60%" height="60%" viewBox="0 0 24 24" fill="none" stroke="rgba(248,113,113,0.75)" strokeWidth="2.5" strokeLinecap="round">
+                        <line x1="4" y1="4" x2="20" y2="20" />
+                        <line x1="20" y1="4" x2="4" y2="20" />
+                      </svg>
+                    </div>
+                  )}
                   {/* Item 5: Bouton Simuler What-If visible au hover */}
                   {canSimulate && (
                     <button
