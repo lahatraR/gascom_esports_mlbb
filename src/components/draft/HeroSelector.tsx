@@ -864,7 +864,7 @@ export function HeroSelector() {
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-4 sm:grid-cols-5 gap-1.5 sm:gap-2 pb-2">
+          <div className="grid grid-cols-4 sm:grid-cols-5 lg:grid-cols-6 gap-1.5 sm:gap-2 pb-2">
             {filteredHeroes.map((hero) => {
               const isUsed         = usedIds.has(hero.id);
               const canSimulate    = isPickPhase && !isUsed && !!plannedArchetype;
