@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import clsx from 'clsx';
-import type { HeroData, DraftStep } from '@/types/draft';
+import type { HeroData } from '@/types/draft';
 import { getHeroArchetypeTags } from '@/data/tierList';
 import { ARCHETYPE_ICON } from '@/engine/archetypeEngine';
 
@@ -67,22 +67,26 @@ function heroSynergy(a: HeroData, b: HeroData): number {
   ));
 }
 
-// ─── Mini-map positions (viewBox 0 0 699 314 — matches Sanctum_Island_Map) ───
-// Calibrated on the real MLBB map image (blue base bottom-left, red top-right)
+// ─── Mini-map positions  ──────────────────────────────────────────────────────
+// SVG viewBox 0 0 800 400.
+// Top lane:  L-shape hugging LEFT wall (x=100) then TOP wall (y=50)
+// Bot lane:  L-shape hugging BOTTOM wall (y=370) then RIGHT wall (x=700)
+// Mid lane:  diagonal from (100,375) to (700,50)
+// Blue base: bottom-left  ·  Red base: top-right
 
 const BLUE_MAP: Record<LaneKey, [number, number]> = {
-  EXP:    [118,  92],   // top lane, blue side (upper-left path)
-  Jungle: [198, 178],   // blue jungle center
-  Mid:    [258, 190],   // mid lane, blue half
-  Gold:   [185, 255],   // bot lane, blue side (lower-left)
-  Roam:   [142, 228],   // near gold
+  EXP:    [100, 190],   // left wall, upper portion (top lane - blue side)
+  Jungle: [215, 205],   // blue jungle camp (upper-left quadrant)
+  Mid:    [253, 296],   // diagonal mid, blue half
+  Gold:   [255, 370],   // bottom wall, left portion (bot lane - blue side)
+  Roam:   [168, 348],   // near gold lane / support position
 };
 const RED_MAP: Record<LaneKey, [number, number]> = {
-  Gold:   [568,  72],   // top lane, red side (upper-right)
-  Jungle: [488, 152],   // red jungle center
-  Mid:    [432, 158],   // mid lane, red half
-  EXP:    [514, 250],   // bot lane, red side (lower-right)
-  Roam:   [542, 108],   // near red gold
+  Gold:   [545,  50],   // top wall, right portion (top lane - red side)
+  Jungle: [572, 220],   // red jungle camp (lower-right quadrant)
+  Mid:    [548, 158],   // diagonal mid, red half
+  EXP:    [700, 262],   // right wall, lower portion (bot lane - red side)
+  Roam:   [638,  88],   // near red gold / support position
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -139,7 +143,6 @@ export function ArenaFormationPanel({ team, picks, bans, rating }: FormationPane
       <div className="flex-1 overflow-y-auto flex flex-col gap-0 divide-y" style={{ divideColor: `rgba(${teamRgb},0.08)` } as React.CSSProperties}>
         {LANE_ORDER.map((lane) => {
           const hero = assign[lane];
-          const lc   = LANE_CFG[lane];
           return (
             <FormationSlot
               key={lane}
@@ -184,19 +187,14 @@ function FormationSlot({
   if (!hero) {
     return (
       <div className="flex items-center gap-2.5 px-2.5 py-2.5 opacity-35">
-        {/* Empty portrait */}
         <div
           className="w-10 h-10 rounded-lg flex-shrink-0 flex items-center justify-center border border-dashed"
           style={{ borderColor: lc.color, background: lc.bg }}
         >
           <span className="text-base">{lc.icon}</span>
         </div>
-        {/* Lane label */}
         <div className="flex flex-col gap-0.5">
-          <span
-            className="text-[10px] font-bold uppercase tracking-wider"
-            style={{ color: lc.color }}
-          >
+          <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: lc.color }}>
             {lc.label}
           </span>
           <span className="text-[9px] text-slate-700">— vide —</span>
@@ -232,7 +230,6 @@ function FormationSlot({
               {hero.name.charAt(0)}
             </div>
           )}
-          {/* Portrait gradient */}
           <div className="absolute inset-0 rounded-lg pointer-events-none"
             style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.55) 0%, transparent 55%)' }} />
         </div>
@@ -243,7 +240,6 @@ function FormationSlot({
         >
           {lc.icon}
         </div>
-        {/* Archetype badge (first tag) */}
         {archetypes[0] && (
           <div
             className="absolute -top-1 -left-1 w-4 h-4 rounded-full flex items-center justify-center text-[8px]"
@@ -292,7 +288,7 @@ function BanPortrait({ hero }: { hero: HeroData | null }) {
     );
   }
   return (
-    <div className="relative w-7 h-7 rounded overflow-hidden flex-shrink-0 grayscale opacity-55 flex-shrink-0" title={hero.name}>
+    <div className="relative w-7 h-7 rounded overflow-hidden flex-shrink-0 grayscale opacity-55" title={hero.name}>
       {hero.image && !imgErr
         ? <img src={hero.image} alt={hero.name} className="w-full h-full object-cover object-top" onError={() => setImgErr(true)} />
         : <div className="w-full h-full bg-slate-800 flex items-center justify-center text-[8px] font-black text-slate-500">{hero.name.charAt(0)}</div>
@@ -317,6 +313,19 @@ interface MiniMapProps {
   winProbability: number;
 }
 
+// SVG coordinate space: 800 × 400
+// Map play area: x 80–720, y 30–390
+// Lanes:
+//   Top lane  (EXP blue / Gold red): L-shape along LEFT wall (x=100) + TOP wall (y=50)
+//   Bot lane  (Gold blue / EXP red): L-shape along BOTTOM wall (y=370) + RIGHT wall (x=700)
+//   Mid lane: diagonal (80,385) → (720,40)
+// Bases:
+//   Blue: bottom-left ~(80,320)–(150,390)
+//   Red:  top-right   ~(650,30)–(720,100)
+
+const W = 800;
+const H = 400;
+
 export function ArenaMiniMap({ bluePicks, redPicks, winProbability }: MiniMapProps) {
   const blueAssign = useMemo(() => assignHeroesToLanes(bluePicks), [bluePicks]);
   const redAssign  = useMemo(() => assignHeroesToLanes(redPicks),  [redPicks]);
@@ -325,241 +334,244 @@ export function ArenaMiniMap({ bluePicks, redPicks, winProbability }: MiniMapPro
     ...buildSynLines(redAssign,  RED_MAP,  'red'),
   ], [blueAssign, redAssign]);
 
-  // SVG viewBox — isometric map coordinate space
-  const W = 800;
-  const H = 460;
   const blueAdv = winProbability - 50;
 
   return (
     <div
       className="w-full rounded-xl overflow-hidden flex-shrink-0"
-      style={{ border: '1px solid rgba(30,60,110,0.5)', background: '#04080f' }}
+      style={{ border: '1px solid rgba(30,60,110,0.45)', background: '#040810' }}
     >
-      {/* ── Isometric SVG Map ── */}
-      <div className="relative w-full" style={{ paddingBottom: `${(H / W) * 100}%` }}>
+      {/* ── Fixed-height map container ── */}
+      <div style={{ height: 200, position: 'relative', overflow: 'hidden' }}>
         <svg
           viewBox={`0 0 ${W} ${H}`}
-          className="absolute inset-0 w-full h-full"
+          style={{ width: '100%', height: '100%' }}
           preserveAspectRatio="xMidYMid meet"
         >
           <defs>
-            {/* Terrain gradient fills */}
-            <linearGradient id="grass-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%"   stopColor="#1a3d1a" />
-              <stop offset="40%"  stopColor="#1f4a1a" />
-              <stop offset="100%" stopColor="#152f14" />
+            {/* Terrain gradients */}
+            <linearGradient id="map-terrain" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%"   stopColor="#162b16" />
+              <stop offset="50%"  stopColor="#1c3618" />
+              <stop offset="100%" stopColor="#122412" />
             </linearGradient>
-            <linearGradient id="path-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%"   stopColor="#5c4a2a" />
-              <stop offset="100%" stopColor="#4a3820" />
+            <linearGradient id="map-lane" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%"   stopColor="#5a4520" />
+              <stop offset="100%" stopColor="#6e5528" />
             </linearGradient>
-            <radialGradient id="blue-base-grad" cx="50%" cy="50%" r="50%">
-              <stop offset="0%"   stopColor="rgba(30,111,255,0.6)" />
-              <stop offset="100%" stopColor="rgba(10,40,120,0.2)" />
+
+            {/* Base gradients */}
+            <radialGradient id="blue-base" cx="50%" cy="50%" r="50%">
+              <stop offset="0%"   stopColor="rgba(30,111,255,0.75)" />
+              <stop offset="60%"  stopColor="rgba(15,60,180,0.45)" />
+              <stop offset="100%" stopColor="rgba(5,20,80,0.0)" />
             </radialGradient>
-            <radialGradient id="red-base-grad" cx="50%" cy="50%" r="50%">
-              <stop offset="0%"   stopColor="rgba(232,53,53,0.6)" />
-              <stop offset="100%" stopColor="rgba(100,15,15,0.2)" />
-            </radialGradient>
-            <radialGradient id="jungle-blue-grad" cx="50%" cy="50%" r="50%">
-              <stop offset="0%"   stopColor="rgba(40,180,200,0.35)" />
-              <stop offset="100%" stopColor="rgba(20,80,100,0.1)" />
-            </radialGradient>
-            <radialGradient id="jungle-red-grad" cx="50%" cy="50%" r="50%">
-              <stop offset="0%"   stopColor="rgba(200,100,40,0.35)" />
-              <stop offset="100%" stopColor="rgba(100,40,10,0.1)" />
+            <radialGradient id="red-base" cx="50%" cy="50%" r="50%">
+              <stop offset="0%"   stopColor="rgba(232,53,53,0.75)" />
+              <stop offset="60%"  stopColor="rgba(160,20,20,0.45)" />
+              <stop offset="100%" stopColor="rgba(60,5,5,0.0)" />
             </radialGradient>
 
-            {/* Glow filter */}
-            <filter id="iso-glow" x="-40%" y="-40%" width="180%" height="180%">
-              <feGaussianBlur stdDeviation="4" result="g" />
+            {/* Jungle camp glows */}
+            <radialGradient id="jg-blue-glow" cx="50%" cy="50%" r="50%">
+              <stop offset="0%"   stopColor="rgba(32,196,220,0.55)" />
+              <stop offset="100%" stopColor="rgba(10,80,120,0.0)" />
+            </radialGradient>
+            <radialGradient id="jg-red-glow" cx="50%" cy="50%" r="50%">
+              <stop offset="0%"   stopColor="rgba(255,140,30,0.55)" />
+              <stop offset="100%" stopColor="rgba(120,40,0,0.0)" />
+            </radialGradient>
+
+            {/* Glow filters */}
+            <filter id="glow-sm" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="3.5" result="g" />
               <feMerge><feMergeNode in="g" /><feMergeNode in="SourceGraphic" /></feMerge>
             </filter>
-            <filter id="soft-glow" x="-60%" y="-60%" width="220%" height="220%">
-              <feGaussianBlur stdDeviation="7" result="g" />
+            <filter id="glow-lg" x="-80%" y="-80%" width="260%" height="260%">
+              <feGaussianBlur stdDeviation="8" result="g" />
               <feMerge><feMergeNode in="g" /><feMergeNode in="SourceGraphic" /></feMerge>
             </filter>
 
-            {/* Hero portrait clips */}
+            {/* Portrait clip circles — Blue heroes */}
             {(Object.entries(BLUE_MAP) as [LaneKey,[number,number]][]).map(([l,[x,y]])=>(
-              <clipPath key={`iso-cb-${l}`} id={`iso-cb-${l}`}><circle cx={x} cy={y} r={19}/></clipPath>
+              <clipPath key={`cb-${l}`} id={`cb-${l}`}><circle cx={x} cy={y} r={17}/></clipPath>
             ))}
+            {/* Portrait clip circles — Red heroes */}
             {(Object.entries(RED_MAP) as [LaneKey,[number,number]][]).map(([l,[x,y]])=>(
-              <clipPath key={`iso-cr-${l}`} id={`iso-cr-${l}`}><circle cx={x} cy={y} r={19}/></clipPath>
+              <clipPath key={`cr-${l}`} id={`cr-${l}`}><circle cx={x} cy={y} r={17}/></clipPath>
             ))}
           </defs>
 
-          {/* ── Sky / outer background ── */}
-          <rect width={W} height={H} fill="#04080f" />
+          {/* ── Background ── */}
+          <rect width={W} height={H} fill="#030608" />
 
-          {/* ── Outer border / walls (isometric perspective trapezoidal shape) ── */}
-          {/* Main map boundary — slightly tilted rectangle to suggest perspective */}
-          <polygon
-            points="55,28 745,28 745,432 55,432"
-            fill="#0c1824"
-            stroke="#1e3a5a"
-            strokeWidth="2"
+          {/* ── Outer border — map wall ── */}
+          <rect x={75} y={28} width={650} height={344}
+            rx={4} fill="#0a1020"
+            stroke="#1e3050" strokeWidth="2"
           />
 
-          {/* ── Terrain — grass base ── */}
-          <polygon
-            points="80,52 720,52 720,408 80,408"
-            fill="url(#grass-grad)"
+          {/* ── Terrain fill ── */}
+          <rect x={82} y={35} width={636} height={330}
+            fill="url(#map-terrain)"
           />
 
-          {/* Grass texture overlay (subtle) */}
-          {[...Array(18)].map((_,i) => (
-            <line key={`gt-${i}`}
-              x1={80 + i * 36} y1={52} x2={80 + i * 36} y2={408}
-              stroke="rgba(255,255,255,0.014)" strokeWidth="1"
+          {/* ── Subtle grid overlay ── */}
+          {[...Array(13)].map((_,i) => (
+            <line key={`gv-${i}`}
+              x1={82 + i * 53} y1={35} x2={82 + i * 53} y2={365}
+              stroke="rgba(255,255,255,0.012)" strokeWidth="1"
             />
           ))}
-          {[...Array(10)].map((_,i) => (
-            <line key={`gth-${i}`}
-              x1={80} y1={52 + i * 36} x2={720} y2={52 + i * 36}
-              stroke="rgba(255,255,255,0.014)" strokeWidth="1"
+          {[...Array(7)].map((_,i) => (
+            <line key={`gh-${i}`}
+              x1={82} y1={35 + i * 55} x2={718} y2={35 + i * 55}
+              stroke="rgba(255,255,255,0.012)" strokeWidth="1"
             />
           ))}
 
-          {/* ── Stone wall border (inner) ── */}
-          <polygon
-            points="80,52 720,52 720,408 80,408"
-            fill="none"
-            stroke="#3a2e18"
-            strokeWidth="8"
-          />
-          <polygon
-            points="80,52 720,52 720,408 80,408"
-            fill="none"
-            stroke="#5c4a28"
-            strokeWidth="2"
-          />
+          {/* ══ LANES ══ */}
 
-          {/* ── Wall corner ornaments ── */}
-          {[[80,52],[720,52],[720,408],[80,408]].map(([cx,cy],i) => (
-            <g key={`corner-${i}`}>
-              <rect x={cx-12} y={cy-12} width={24} height={24} rx={3}
-                fill="#2a2010" stroke="#6b5530" strokeWidth="1.5" />
-              <rect x={cx-6} y={cy-6} width={12} height={12} rx={1}
-                fill="#3d3018" stroke="#8a6e3a" strokeWidth="1" />
-            </g>
-          ))}
+          {/* ── Top lane: LEFT wall (x≈100) + TOP wall (y≈50)  ── */}
+          {/* Shadow */}
+          <path d="M 100,385 L 100,50 L 720,50"
+            fill="none" stroke="rgba(40,28,10,0.7)" strokeWidth="28" strokeLinecap="round" strokeLinejoin="round" />
+          {/* Stone surface */}
+          <path d="M 100,385 L 100,50 L 720,50"
+            fill="none" stroke="#5a4520" strokeWidth="18" strokeLinecap="round" strokeLinejoin="round" />
+          {/* Lighter center */}
+          <path d="M 100,385 L 100,50 L 720,50"
+            fill="none" stroke="#7a6030" strokeWidth="10" strokeLinecap="round" strokeLinejoin="round" />
+          {/* Center highlight */}
+          <path d="M 100,385 L 100,50 L 720,50"
+            fill="none" stroke="rgba(200,165,90,0.18)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
 
-          {/* ── LANES (stone paths) ── */}
+          {/* ── Bot lane: BOTTOM wall (y≈370) + RIGHT wall (x≈700) ── */}
+          <path d="M 80,370 L 700,370 L 700,50"
+            fill="none" stroke="rgba(40,28,10,0.7)" strokeWidth="28" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M 80,370 L 700,370 L 700,50"
+            fill="none" stroke="#5a4520" strokeWidth="18" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M 80,370 L 700,370 L 700,50"
+            fill="none" stroke="#7a6030" strokeWidth="10" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M 80,370 L 700,370 L 700,50"
+            fill="none" stroke="rgba(200,165,90,0.18)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
 
-          {/* Top lane — along top edge */}
-          <path d="M 80,52 L 80,230 Q 80,260 110,275 L 400,275 Q 430,275 430,245 L 430,52"
-            fill="none" stroke="rgba(92,74,42,0.5)" strokeWidth="28" />
-          <path d="M 80,52 L 80,230 Q 80,260 110,275 L 400,275 Q 430,275 430,245 L 430,52"
-            fill="none" stroke="#6b5530" strokeWidth="16" />
-          <path d="M 80,52 L 80,230 Q 80,260 110,275 L 400,275 Q 430,275 430,245 L 430,52"
-            fill="none" stroke="#7a6238" strokeWidth="10" />
-          <path d="M 80,52 L 80,230 Q 80,260 110,275 L 400,275 Q 430,275 430,245 L 430,52"
-            fill="none" stroke="rgba(180,150,80,0.15)" strokeWidth="4" />
+          {/* ── Mid lane: diagonal ── */}
+          <line x1="100" y1="380" x2="700" y2="45"
+            stroke="rgba(40,28,10,0.7)" strokeWidth="28" strokeLinecap="round" />
+          <line x1="100" y1="380" x2="700" y2="45"
+            stroke="#5a4520" strokeWidth="18" strokeLinecap="round" />
+          <line x1="100" y1="380" x2="700" y2="45"
+            stroke="#7a6030" strokeWidth="10" strokeLinecap="round" />
+          <line x1="100" y1="380" x2="700" y2="45"
+            stroke="rgba(200,165,90,0.18)" strokeWidth="3" strokeLinecap="round" />
 
-          {/* Bottom lane — along bottom edge */}
-          <path d="M 720,408 L 720,230 Q 720,200 690,185 L 400,185 Q 370,185 370,215 L 370,408"
-            fill="none" stroke="rgba(92,74,42,0.5)" strokeWidth="28" />
-          <path d="M 720,408 L 720,230 Q 720,200 690,185 L 400,185 Q 370,185 370,215 L 370,408"
-            fill="none" stroke="#6b5530" strokeWidth="16" />
-          <path d="M 720,408 L 720,230 Q 720,200 690,185 L 400,185 Q 370,185 370,215 L 370,408"
-            fill="none" stroke="#7a6238" strokeWidth="10" />
-          <path d="M 720,408 L 720,230 Q 720,200 690,185 L 400,185 Q 370,185 370,215 L 370,408"
-            fill="none" stroke="rgba(180,150,80,0.15)" strokeWidth="4" />
-
-          {/* Mid lane — diagonal */}
-          <line x1="80" y1="408" x2="720" y2="52"
-            stroke="rgba(92,74,42,0.5)" strokeWidth="28" />
-          <line x1="80" y1="408" x2="720" y2="52"
-            stroke="#6b5530" strokeWidth="16" />
-          <line x1="80" y1="408" x2="720" y2="52"
-            stroke="#7a6238" strokeWidth="10" />
-          <line x1="80" y1="408" x2="720" y2="52"
-            stroke="rgba(180,150,80,0.15)" strokeWidth="4" />
-
-          {/* ── River (diagonal water strip) ── */}
-          <line x1="340" y1="52" x2="460" y2="408"
-            stroke="rgba(20,80,160,0.18)" strokeWidth="22" />
-          <line x1="340" y1="52" x2="460" y2="408"
-            stroke="rgba(40,120,220,0.12)" strokeWidth="10" />
+          {/* ── River (diagonal strip, perpendicular to mid) ── */}
+          <line x1="330" y1="28" x2="470" y2="372"
+            stroke="rgba(10,70,180,0.22)" strokeWidth="24" strokeLinecap="round" />
+          <line x1="330" y1="28" x2="470" y2="372"
+            stroke="rgba(30,120,255,0.10)" strokeWidth="12" strokeLinecap="round" />
+          <line x1="330" y1="28" x2="470" y2="372"
+            stroke="rgba(80,160,255,0.07)" strokeWidth="4" strokeLinecap="round" />
 
           {/* ── Jungle areas ── */}
-          {/* Blue jungle (upper-left) */}
-          <ellipse cx="195" cy="195" rx="72" ry="55"
-            fill="rgba(8,30,18,0.7)" stroke="rgba(30,90,50,0.4)" strokeWidth="1.5" />
-          <circle cx="195" cy="195" r="20"
-            fill="url(#jungle-blue-grad)" filter="url(#soft-glow)" />
-          <text x="195" y="199" textAnchor="middle" fontSize="16">🌀</text>
-          {/* Camp rock decorations */}
-          {[[168,178],[218,175],[185,215],[210,210]].map(([rx,ry],i)=>(
-            <ellipse key={`bjc-${i}`} cx={rx} cy={ry} rx={9} ry={6}
-              fill="#1a2a14" stroke="#2a4020" strokeWidth="1" />
-          ))}
 
-          {/* Red jungle (lower-right) */}
-          <ellipse cx="605" cy="265" rx="72" ry="55"
-            fill="rgba(25,10,8,0.7)" stroke="rgba(90,30,20,0.4)" strokeWidth="1.5" />
-          <circle cx="605" cy="265" r="20"
-            fill="url(#jungle-red-grad)" filter="url(#soft-glow)" />
-          <text x="605" y="269" textAnchor="middle" fontSize="16">🔥</text>
-          {[[578,248],[628,245],[595,285],[620,280]].map(([rx,ry],i)=>(
-            <ellipse key={`rjc-${i}`} cx={rx} cy={ry} rx={9} ry={6}
-              fill="#2a1408" stroke="#3a2010" strokeWidth="1" />
+          {/* Blue jungle — upper-left quadrant */}
+          <ellipse cx="215" cy="208" rx="68" ry="50"
+            fill="rgba(5,22,14,0.75)" stroke="rgba(20,80,45,0.5)" strokeWidth="1.5" />
+          <circle cx="215" cy="208" r="28"
+            fill="url(#jg-blue-glow)" filter="url(#glow-lg)" />
+          {/* Blue camp rocks */}
+          {[[190,195],[238,192],[202,225],[232,220]].map(([rx,ry],i)=>(
+            <ellipse key={`bjr-${i}`} cx={rx} cy={ry} rx={8} ry={5}
+              fill="#12251a" stroke="#1e4028" strokeWidth="1" />
           ))}
+          {/* Blue buff icon */}
+          <circle cx="215" cy="208" r="11"
+            fill="rgba(20,180,210,0.3)" stroke="rgba(30,200,240,0.6)" strokeWidth="1.5" />
+          <text x="215" y="213" textAnchor="middle" fontSize="10">🌀</text>
 
-          {/* ── Rock/bush decorations scattered on terrain ── */}
+          {/* Red jungle — lower-right quadrant */}
+          <ellipse cx="578" cy="222" rx="68" ry="50"
+            fill="rgba(22,8,5,0.75)" stroke="rgba(80,25,15,0.5)" strokeWidth="1.5" />
+          <circle cx="578" cy="222" r="28"
+            fill="url(#jg-red-glow)" filter="url(#glow-lg)" />
+          {[[554,208],[600,205],[566,240],[594,236]].map(([rx,ry],i)=>(
+            <ellipse key={`rjr-${i}`} cx={rx} cy={ry} rx={8} ry={5}
+              fill="#251212" stroke="#402018" strokeWidth="1" />
+          ))}
+          <circle cx="578" cy="222" r="11"
+            fill="rgba(220,100,20,0.3)" stroke="rgba(255,140,30,0.6)" strokeWidth="1.5" />
+          <text x="578" y="227" textAnchor="middle" fontSize="10">🔥</text>
+
+          {/* ── Decorative bushes / rocks on terrain ── */}
           {[
-            [160,110],[240,340],[480,90],[560,360],
-            [310,150],[490,320],[150,300],[640,160],
-          ].map(([rx,ry],i)=>(
-            <ellipse key={`rock-${i}`} cx={rx} cy={ry} rx={12} ry={8}
-              fill="rgba(40,35,20,0.6)" stroke="rgba(60,50,28,0.4)" strokeWidth="1" />
+            [155,115,10,6],[300,160,8,5],[490,245,10,6],[620,318,9,5],
+            [165,285,8,5],[340,320,10,6],[455,115,9,5],[620,145,8,5],
+          ].map(([cx,cy,rx,ry],i)=>(
+            <ellipse key={`bush-${i}`} cx={cx} cy={cy} rx={rx} ry={ry}
+              fill="rgba(15,35,18,0.8)" stroke="rgba(22,50,25,0.5)" strokeWidth="1" />
           ))}
 
-          {/* ── Bases ── */}
-          {/* Blue base (bottom-left) */}
-          <polygon points="80,408 140,408 140,348 80,348"
-            fill="rgba(5,15,40,0.85)" stroke="rgba(30,111,255,0.4)" strokeWidth="1.5" />
-          <circle cx="110" cy="378" r="26"
-            fill="url(#blue-base-grad)" filter="url(#iso-glow)" />
-          <circle cx="110" cy="378" r="18"
-            fill="rgba(10,30,100,0.9)" stroke="rgba(60,160,255,0.7)" strokeWidth="2" />
-          <text x="110" y="384" textAnchor="middle" fontSize="14">🔵</text>
+          {/* ══ BASES ══ */}
 
-          {/* Red base (top-right) */}
-          <polygon points="660,52 720,52 720,112 660,112"
-            fill="rgba(40,5,5,0.85)" stroke="rgba(232,53,53,0.4)" strokeWidth="1.5" />
-          <circle cx="690" cy="82" r="26"
-            fill="url(#red-base-grad)" filter="url(#iso-glow)" />
-          <circle cx="690" cy="82" r="18"
-            fill="rgba(80,10,10,0.9)" stroke="rgba(255,80,80,0.7)" strokeWidth="2" />
-          <text x="690" y="88" textAnchor="middle" fontSize="14">🔴</text>
+          {/* Blue base — bottom-left */}
+          <circle cx="100" cy="365" r="38"
+            fill="url(#blue-base)" filter="url(#glow-lg)" />
+          <polygon points="80,340 140,340 140,390 80,390"
+            fill="rgba(5,15,45,0.88)" stroke="rgba(30,111,255,0.5)" strokeWidth="1.5" rx={3} />
+          <circle cx="110" cy="365" r="22"
+            fill="rgba(8,25,90,0.9)" stroke="rgba(60,150,255,0.8)" strokeWidth="2" />
+          <circle cx="110" cy="365" r="14"
+            fill="rgba(15,50,170,0.7)" stroke="rgba(100,180,255,0.6)" strokeWidth="1.5" />
+          <text x="110" y="370" textAnchor="middle" fontSize="10" fill="rgba(120,180,255,0.9)" fontFamily="monospace" fontWeight="bold">B</text>
+
+          {/* Red base — top-right */}
+          <circle cx="698" cy="60" r="38"
+            fill="url(#red-base)" filter="url(#glow-lg)" />
+          <polygon points="658,35 718,35 718,85 658,85"
+            fill="rgba(45,5,5,0.88)" stroke="rgba(232,53,53,0.5)" strokeWidth="1.5" rx={3} />
+          <circle cx="688" cy="60" r="22"
+            fill="rgba(80,10,10,0.9)" stroke="rgba(255,80,80,0.8)" strokeWidth="2" />
+          <circle cx="688" cy="60" r="14"
+            fill="rgba(160,20,20,0.7)" stroke="rgba(255,120,120,0.6)" strokeWidth="1.5" />
+          <text x="688" y="65" textAnchor="middle" fontSize="10" fill="rgba(255,140,140,0.9)" fontFamily="monospace" fontWeight="bold">R</text>
 
           {/* ── Towers on lanes ── */}
           {[
-            // Blue towers
-            [108, 290], [108, 330],
-            [145, 260], [178, 260],
-            // Red towers
-            [692, 170], [692, 210],
-            [622, 200], [655, 200],
-          ].map(([tx,ty],i) => (
-            <g key={`tower-${i}`}>
-              <rect x={tx-5} y={ty-5} width={10} height={10} rx={2}
-                fill={i < 4 ? 'rgba(30,80,200,0.6)' : 'rgba(200,40,40,0.6)'}
-                stroke={i < 4 ? 'rgba(80,160,255,0.5)' : 'rgba(255,80,80,0.5)'}
-                strokeWidth="1" />
+            // Blue towers (top lane - left wall)
+            [100, 148, 'blue'], [100, 265, 'blue'],
+            // Blue towers (bot lane - bottom wall)
+            [200, 370, 'blue'], [350, 370, 'blue'],
+            // Red towers (top lane - top wall)
+            [450, 50, 'red'], [580, 50, 'red'],
+            // Red towers (bot lane - right wall)
+            [700, 165, 'red'], [700, 290, 'red'],
+          ].map(([tx,ty,team],i) => (
+            <g key={`tw-${i}`}>
+              <rect x={Number(tx)-5} y={Number(ty)-5} width={10} height={10} rx={2}
+                fill={team === 'blue' ? 'rgba(20,70,200,0.7)' : 'rgba(200,30,30,0.7)'}
+                stroke={team === 'blue' ? 'rgba(70,150,255,0.65)' : 'rgba(255,80,80,0.65)'}
+                strokeWidth="1.2"
+              />
+              <rect x={Number(tx)-2} y={Number(ty)-2} width={4} height={4}
+                fill={team === 'blue' ? 'rgba(100,180,255,0.8)' : 'rgba(255,140,140,0.8)'}
+              />
             </g>
           ))}
 
-          {/* ── Win-prob atmosphere overlay ── */}
-          {blueAdv > 6 && (
-            <rect width={W} height={H}
-              fill={`rgba(30,111,255,${Math.min(0.08, blueAdv/580)})`} />
+          {/* ── Win-probability atmosphere overlay ── */}
+          {blueAdv > 8 && (
+            <rect x={82} y={35} width={636} height={330}
+              fill={`rgba(30,111,255,${Math.min(0.07, blueAdv / 600)})`}
+              style={{ pointerEvents: 'none' }}
+            />
           )}
-          {blueAdv < -6 && (
-            <rect width={W} height={H}
-              fill={`rgba(232,53,53,${Math.min(0.08, Math.abs(blueAdv)/580)})`} />
+          {blueAdv < -8 && (
+            <rect x={82} y={35} width={636} height={330}
+              fill={`rgba(232,53,53,${Math.min(0.07, Math.abs(blueAdv) / 600)})`}
+              style={{ pointerEvents: 'none' }}
+            />
           )}
 
           {/* ── Synergy lines ── */}
@@ -567,12 +579,12 @@ export function ArenaMiniMap({ bluePicks, redPicks, winProbability }: MiniMapPro
             <line key={i}
               x1={sl.x1} y1={sl.y1} x2={sl.x2} y2={sl.y2}
               stroke={sl.team === 'blue'
-                ? `rgba(60,140,255,${sl.strength * 0.6})`
-                : `rgba(255,80,80,${sl.strength * 0.6})`}
-              strokeWidth={1.2 + sl.strength * 2.4}
-              strokeDasharray={sl.strength < 0.55 ? '6,7' : undefined}
+                ? `rgba(50,130,255,${sl.strength * 0.55})`
+                : `rgba(255,70,70,${sl.strength * 0.55})`}
+              strokeWidth={1 + sl.strength * 2.2}
+              strokeDasharray={sl.strength < 0.55 ? '5,6' : undefined}
               strokeLinecap="round"
-              filter="url(#iso-glow)"
+              filter="url(#glow-sm)"
             />
           ))}
 
@@ -581,7 +593,7 @@ export function ArenaMiniMap({ bluePicks, redPicks, winProbability }: MiniMapPro
             const hero = blueAssign[lane];
             const [x, y] = BLUE_MAP[lane];
             return hero
-              ? <MapHeroNode key={`bm-${lane}`} hero={hero} x={x} y={y} team="blue" lane={lane} clipId={`iso-cb-${lane}`} />
+              ? <MapHeroNode key={`bm-${lane}`} hero={hero} x={x} y={y} team="blue" lane={lane} clipId={`cb-${lane}`} />
               : <MapEmptyNode key={`bme-${lane}`} x={x} y={y} team="blue" lane={lane} />;
           })}
 
@@ -590,38 +602,53 @@ export function ArenaMiniMap({ bluePicks, redPicks, winProbability }: MiniMapPro
             const hero = redAssign[lane];
             const [x, y] = RED_MAP[lane];
             return hero
-              ? <MapHeroNode key={`rm-${lane}`} hero={hero} x={x} y={y} team="red" lane={lane} clipId={`iso-cr-${lane}`} />
+              ? <MapHeroNode key={`rm-${lane}`} hero={hero} x={x} y={y} team="red" lane={lane} clipId={`cr-${lane}`} />
               : <MapEmptyNode key={`rme-${lane}`} x={x} y={y} team="red" lane={lane} />;
           })}
 
-          {/* ── Lane labels ── */}
-          <text x="135" y="150" textAnchor="middle" fontSize="9"
-            fill="rgba(255,255,255,0.22)" fontFamily="monospace" letterSpacing="1.5" transform="rotate(-45,135,150)">
-            TOP LANE
+          {/* ── Lane labels (subtle watermarks) ── */}
+          <text x="100" y="147" textAnchor="middle" fontSize="7.5"
+            fill="rgba(255,255,255,0.18)" fontFamily="monospace" letterSpacing="1" transform="rotate(-90,100,147)">
+            TOP
           </text>
-          <text x="400" y="235" textAnchor="middle" fontSize="9"
-            fill="rgba(255,255,255,0.22)" fontFamily="monospace" letterSpacing="1.5">
+          <text x="390" y="218" textAnchor="middle" fontSize="7.5"
+            fill="rgba(255,255,255,0.18)" fontFamily="monospace" letterSpacing="1" transform="rotate(-33,390,218)">
             MID
           </text>
-          <text x="665" y="320" textAnchor="middle" fontSize="9"
-            fill="rgba(255,255,255,0.22)" fontFamily="monospace" letterSpacing="1.5" transform="rotate(-45,665,320)">
-            BOT LANE
+          <text x="400" y="371" textAnchor="middle" fontSize="7.5"
+            fill="rgba(255,255,255,0.18)" fontFamily="monospace" letterSpacing="1">
+            BOT
           </text>
         </svg>
       </div>
 
       {/* ── Win probability bar ── */}
       <div className="flex items-center gap-2 px-3 py-1.5"
-        style={{ background: 'rgba(4,6,14,0.97)', borderTop: '1px solid rgba(30,50,90,0.5)' }}>
-        <span className="text-[11px] font-black text-blue-400 tabular-nums">🔵 {winProbability.toFixed(0)}%</span>
-        <div className="flex-1 h-1.5 rounded-full overflow-hidden relative" style={{ background: 'rgba(20,25,45,0.9)' }}>
+        style={{ background: 'rgba(3,5,12,0.97)', borderTop: '1px solid rgba(25,45,85,0.6)' }}
+      >
+        <span className="text-[11px] font-black text-blue-400 tabular-nums w-10 shrink-0">
+          🔵 {winProbability.toFixed(0)}%
+        </span>
+        <div className="flex-1 h-2 rounded-full overflow-hidden relative" style={{ background: 'rgba(15,20,40,0.9)' }}>
           <div className="h-full transition-all duration-700 rounded-l-full"
-            style={{ width: `${winProbability}%`, background: 'linear-gradient(to right,#1e4fff,#3b82f6)' }} />
+            style={{
+              width: `${winProbability}%`,
+              background: 'linear-gradient(to right, #1a3de0, #3b82f6)',
+              boxShadow: '2px 0 8px rgba(59,130,246,0.5)',
+            }}
+          />
           <div className="absolute inset-y-0 rounded-r-full transition-all duration-700"
-            style={{ left: `${winProbability}%`, right: 0, background: 'linear-gradient(to right,#ef444490,#e83535)' }} />
-          <div className="absolute inset-y-0 w-px bg-white/25" style={{ left: '50%' }} />
+            style={{
+              left: `${winProbability}%`,
+              right: 0,
+              background: 'linear-gradient(to right, rgba(232,53,53,0.6), #e83535)',
+            }}
+          />
+          <div className="absolute inset-y-0 w-0.5 bg-white/20" style={{ left: '50%' }} />
         </div>
-        <span className="text-[11px] font-black text-red-400 tabular-nums">{(100 - winProbability).toFixed(0)}% 🔴</span>
+        <span className="text-[11px] font-black text-red-400 tabular-nums w-10 shrink-0 text-right">
+          {(100 - winProbability).toFixed(0)}% 🔴
+        </span>
       </div>
     </div>
   );
@@ -638,37 +665,39 @@ function MapHeroNode({
 
   return (
     <g>
-      {/* Glow ring */}
-      <circle cx={x} cy={y} r={21}
-        fill={`rgba(${rgb},0.10)`}
-        stroke={`rgba(${rgb},0.45)`}
-        strokeWidth="1.5"
+      {/* Outer glow */}
+      <circle cx={x} cy={y} r={23}
+        fill={`rgba(${rgb},0.08)`}
+        stroke={`rgba(${rgb},0.25)`}
+        strokeWidth="1"
+        filter="url(#glow-sm)"
       />
       {/* Portrait */}
       {hero.image && !imgErr ? (
         <image
           href={hero.image}
-          x={x - 17} y={y - 17} width={34} height={34}
+          x={x - 15} y={y - 15} width={30} height={30}
           clipPath={`url(#${clipId})`}
           preserveAspectRatio="xMidYMid slice"
           onError={() => setImgErr(true)}
         />
       ) : (
-        <circle cx={x} cy={y} r={17}
-          fill={`rgba(${rgb},0.25)`} />
+        <circle cx={x} cy={y} r={15}
+          fill={`rgba(${rgb},0.3)`} />
       )}
-      {/* Portrait border */}
+      {/* Portrait border ring */}
       <circle cx={x} cy={y} r={17}
         fill="none"
-        stroke={`rgba(${rgb},0.75)`}
-        strokeWidth="1.5"
+        stroke={`rgba(${rgb},0.85)`}
+        strokeWidth="1.8"
       />
       {/* Lane icon badge */}
-      <circle cx={x + 13} cy={y + 13} r={7}
-        fill={lc.color}
-        style={{ filter: `drop-shadow(0 0 3px ${lc.color})` }}
+      <circle cx={x + 12} cy={y + 12} r={7}
+        fill="#080c1a"
+        stroke={lc.color}
+        strokeWidth="1.2"
       />
-      <text x={x + 13} y={y + 17} textAnchor="middle" fontSize="7">{lc.icon}</text>
+      <text x={x + 12} y={y + 16} textAnchor="middle" fontSize="7">{lc.icon}</text>
     </g>
   );
 }
@@ -678,13 +707,13 @@ function MapEmptyNode({ x, y, team, lane }: { x:number; y:number; team:'blue'|'r
   const lc  = LANE_CFG[lane];
   return (
     <g>
-      <circle cx={x} cy={y} r={17}
+      <circle cx={x} cy={y} r={15}
         fill={`rgba(${rgb},0.04)`}
-        stroke={`rgba(${rgb},0.18)`}
-        strokeWidth="1"
+        stroke={`rgba(${rgb},0.22)`}
+        strokeWidth="1.2"
         strokeDasharray="3,3"
       />
-      <text x={x} y={y + 3} textAnchor="middle" fontSize="9" fill={lc.color}>{lc.icon}</text>
+      <text x={x} y={y + 4} textAnchor="middle" fontSize="9" fill={`rgba(${lc.color},0.7)`}>{lc.icon}</text>
     </g>
   );
 }
