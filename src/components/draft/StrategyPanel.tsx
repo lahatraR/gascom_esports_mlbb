@@ -160,6 +160,7 @@ function TemplateCard({
   bannedNames,
   pickedNames,
   heroMap,
+  uiMode = 'simple',
 }: {
   template:      DraftTemplate;
   isRecommended: boolean;
@@ -168,6 +169,7 @@ function TemplateCard({
   bannedNames:   Set<string>;
   pickedNames:   Set<string>;
   heroMap:       Map<string, HeroData>;
+  uiMode?:       'simple' | 'advanced';
 }) {
   const s = ARCHETYPE_STYLE[template.archetype];
 
@@ -284,8 +286,8 @@ function TemplateCard({
             </div>
           </Section>
 
-          {/* ── Ban priorities ── */}
-          <Section title="Bans Prioritaires">
+          {/* ── Ban priorities — advanced only ── */}
+          {uiMode === 'advanced' && <Section title="Bans Prioritaires">
             <div className="flex flex-col gap-2">
               {template.bans.map((ban, i) => {
                 const ps = PRIORITY_STYLE[ban.priority];
@@ -318,7 +320,7 @@ function TemplateCard({
                 );
               })}
             </div>
-          </Section>
+          </Section>}
 
           {/* ── Win condition ── */}
           <Section title="Condition de Victoire">
@@ -333,8 +335,8 @@ function TemplateCard({
             </div>
           </Section>
 
-          {/* ── Phase breakdown ── */}
-          <Section title="Puissance par Phase">
+          {/* ── Phase breakdown — advanced only ── */}
+          {uiMode === 'advanced' && <Section title="Puissance par Phase">
             <div className="grid grid-cols-3 gap-2">
               {(['early', 'mid', 'late'] as const).map((phase) => {
                 const rating = template.phaseRating[phase];
@@ -358,7 +360,7 @@ function TemplateCard({
                 );
               })}
             </div>
-          </Section>
+          </Section>}
 
           {/* ── Tips ── */}
           {template.tips.length > 0 && (
@@ -866,7 +868,7 @@ function GeneratedDraftCard({
               </div>
               <span className="text-[9px] font-bold" style={{ color: scoreColor }}>{draft.teamScore}/100</span>
             </div>
-            {draft.synergyScore !== undefined && (
+            {uiMode === 'advanced' && draft.synergyScore !== undefined && (
               <span
                 className="text-[9px] px-1.5 py-0.5 rounded font-semibold"
                 style={{
@@ -878,8 +880,8 @@ function GeneratedDraftCard({
                 🔗 synergie {draft.synergyScore}%
               </span>
             )}
-            {/* Objective control badge */}
-            {draft.objectiveScore !== undefined && (
+            {/* Objective control badge — advanced only */}
+            {uiMode === 'advanced' && draft.objectiveScore !== undefined && (
               <span
                 className="text-[9px] px-1.5 py-0.5 rounded font-semibold"
                 style={{
@@ -898,8 +900,8 @@ function GeneratedDraftCard({
                 🏯 objectifs {draft.objectiveScore}%
               </span>
             )}
-            {/* Health check badge */}
-            {draft.healthCheck && (
+            {/* Health check badge — advanced only */}
+            {uiMode === 'advanced' && draft.healthCheck && (
               <span
                 className="text-[9px] px-1.5 py-0.5 rounded font-bold"
                 style={{
@@ -1058,8 +1060,8 @@ function GeneratedDraftCard({
             </div>
           </Section>
 
-          {/* Bans — 3-phase visual layout */}
-          <Section title="Stratégie de Ban">
+          {/* Bans — 3-phase visual layout — advanced only */}
+          {uiMode === 'advanced' && <Section title="Stratégie de Ban">
             <div className="flex flex-col gap-2.5">
               {(['must-ban', 'high', 'situational'] as GeneratedBan['priority'][]).map((priority) => {
                 const phaseBans = draft.bans.filter((b) => b.priority === priority);
@@ -1156,7 +1158,7 @@ function GeneratedDraftCard({
                 );
               })}
             </div>
-          </Section>
+          </Section>}
 
           {/* Top combos */}
           {draft.topCombos && draft.topCombos.length > 0 && (
@@ -1194,8 +1196,8 @@ function GeneratedDraftCard({
             </Section>
           )}
 
-          {/* Pick order */}
-          {draft.pickOrder && draft.pickOrder.length > 0 && (
+          {/* Pick order — advanced only */}
+          {uiMode === 'advanced' && draft.pickOrder && draft.pickOrder.length > 0 && (
             <Section title="Ordre de Pick Recommandé">
               <div className="flex flex-col gap-1">
                 {draft.pickOrder.map((step) => {
@@ -1242,8 +1244,8 @@ function GeneratedDraftCard({
             </div>
           </Section>
 
-          {/* Composition health check */}
-          {draft.healthCheck && (
+          {/* Composition health check — advanced only */}
+          {uiMode === 'advanced' && draft.healthCheck && (
             <Section title="Santé de la Composition">
               <HealthCheckDisplay check={draft.healthCheck} />
             </Section>
@@ -1466,6 +1468,7 @@ export function StrategyPanel() {
                   bannedNames={bannedNames}
                   pickedNames={pickedNames}
                   heroMap={heroMap}
+                  uiMode={uiMode}
                 />
               ))}
             </div>
