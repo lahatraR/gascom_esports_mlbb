@@ -325,130 +325,301 @@ export function ArenaMiniMap({ bluePicks, redPicks, winProbability }: MiniMapPro
     ...buildSynLines(redAssign,  RED_MAP,  'red'),
   ], [blueAssign, redAssign]);
 
+  // SVG viewBox — isometric map coordinate space
+  const W = 800;
+  const H = 460;
   const blueAdv = winProbability - 50;
-
-  // Container height derived from real map ratio: 699×314 → ratio ≈ 2.226
-  // We fix the height and let width be 100% → positions stay proportionally correct
-  const MAP_W = 699;
-  const MAP_H = 314;
 
   return (
     <div
-      className="w-full rounded-xl overflow-hidden relative flex-shrink-0"
-      style={{ border: '1px solid rgba(40,60,100,0.5)', background: '#0a0e1a' }}
+      className="w-full rounded-xl overflow-hidden flex-shrink-0"
+      style={{ border: '1px solid rgba(30,60,110,0.5)', background: '#04080f' }}
     >
-      {/* ── Real MLBB map image ── */}
-      <div
-        className="relative w-full"
-        style={{ paddingBottom: `${(MAP_H / MAP_W) * 100}%` }}
-      >
-        {/* Map background */}
-        <img
-          src="/mlbb-map.webp"
-          alt="MLBB Arena Map"
-          className="absolute inset-0 w-full h-full object-cover"
-          style={{ opacity: 0.82 }}
-          draggable={false}
-        />
-
-        {/* Dark vignette to push hero nodes forward */}
-        <div
-          className="absolute inset-0"
-          style={{
-            background: 'radial-gradient(ellipse 90% 90% at 50% 50%, transparent 40%, rgba(0,0,0,0.55) 100%)',
-          }}
-        />
-
-        {/* Win-prob atmosphere tint */}
-        <div
-          className="absolute inset-0 pointer-events-none transition-all duration-1000"
-          style={{
-            background: blueAdv > 6
-              ? `radial-gradient(ellipse 50% 100% at 12% 50%, rgba(30,111,255,${Math.min(0.18, blueAdv / 320)}) 0%, transparent 65%)`
-              : blueAdv < -6
-              ? `radial-gradient(ellipse 50% 100% at 88% 50%, rgba(232,53,53,${Math.min(0.18, Math.abs(blueAdv) / 320)}) 0%, transparent 65%)`
-              : 'none',
-          }}
-        />
-
-        {/* ── SVG overlay — same coordinate space as the image (699×314) ── */}
+      {/* ── Isometric SVG Map ── */}
+      <div className="relative w-full" style={{ paddingBottom: `${(H / W) * 100}%` }}>
         <svg
-          viewBox={`0 0 ${MAP_W} ${MAP_H}`}
+          viewBox={`0 0 ${W} ${H}`}
           className="absolute inset-0 w-full h-full"
           preserveAspectRatio="xMidYMid meet"
         >
           <defs>
-            {/* Clip paths for hero portraits */}
-            {(Object.entries(BLUE_MAP) as [LaneKey, [number,number]][]).map(([lane, [x,y]]) => (
-              <clipPath key={`cbm-${lane}`} id={`cbm-${lane}`}>
-                <circle cx={x} cy={y} r={18} />
-              </clipPath>
-            ))}
-            {(Object.entries(RED_MAP) as [LaneKey, [number,number]][]).map(([lane, [x,y]]) => (
-              <clipPath key={`crm-${lane}`} id={`crm-${lane}`}>
-                <circle cx={x} cy={y} r={18} />
-              </clipPath>
-            ))}
-            {/* Node glow filter */}
-            <filter id="node-glow" x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur stdDeviation="3" result="glow" />
-              <feMerge>
-                <feMergeNode in="glow" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
+            {/* Terrain gradient fills */}
+            <linearGradient id="grass-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%"   stopColor="#1a3d1a" />
+              <stop offset="40%"  stopColor="#1f4a1a" />
+              <stop offset="100%" stopColor="#152f14" />
+            </linearGradient>
+            <linearGradient id="path-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%"   stopColor="#5c4a2a" />
+              <stop offset="100%" stopColor="#4a3820" />
+            </linearGradient>
+            <radialGradient id="blue-base-grad" cx="50%" cy="50%" r="50%">
+              <stop offset="0%"   stopColor="rgba(30,111,255,0.6)" />
+              <stop offset="100%" stopColor="rgba(10,40,120,0.2)" />
+            </radialGradient>
+            <radialGradient id="red-base-grad" cx="50%" cy="50%" r="50%">
+              <stop offset="0%"   stopColor="rgba(232,53,53,0.6)" />
+              <stop offset="100%" stopColor="rgba(100,15,15,0.2)" />
+            </radialGradient>
+            <radialGradient id="jungle-blue-grad" cx="50%" cy="50%" r="50%">
+              <stop offset="0%"   stopColor="rgba(40,180,200,0.35)" />
+              <stop offset="100%" stopColor="rgba(20,80,100,0.1)" />
+            </radialGradient>
+            <radialGradient id="jungle-red-grad" cx="50%" cy="50%" r="50%">
+              <stop offset="0%"   stopColor="rgba(200,100,40,0.35)" />
+              <stop offset="100%" stopColor="rgba(100,40,10,0.1)" />
+            </radialGradient>
+
+            {/* Glow filter */}
+            <filter id="iso-glow" x="-40%" y="-40%" width="180%" height="180%">
+              <feGaussianBlur stdDeviation="4" result="g" />
+              <feMerge><feMergeNode in="g" /><feMergeNode in="SourceGraphic" /></feMerge>
             </filter>
+            <filter id="soft-glow" x="-60%" y="-60%" width="220%" height="220%">
+              <feGaussianBlur stdDeviation="7" result="g" />
+              <feMerge><feMergeNode in="g" /><feMergeNode in="SourceGraphic" /></feMerge>
+            </filter>
+
+            {/* Hero portrait clips */}
+            {(Object.entries(BLUE_MAP) as [LaneKey,[number,number]][]).map(([l,[x,y]])=>(
+              <clipPath key={`iso-cb-${l}`} id={`iso-cb-${l}`}><circle cx={x} cy={y} r={19}/></clipPath>
+            ))}
+            {(Object.entries(RED_MAP) as [LaneKey,[number,number]][]).map(([l,[x,y]])=>(
+              <clipPath key={`iso-cr-${l}`} id={`iso-cr-${l}`}><circle cx={x} cy={y} r={19}/></clipPath>
+            ))}
           </defs>
+
+          {/* ── Sky / outer background ── */}
+          <rect width={W} height={H} fill="#04080f" />
+
+          {/* ── Outer border / walls (isometric perspective trapezoidal shape) ── */}
+          {/* Main map boundary — slightly tilted rectangle to suggest perspective */}
+          <polygon
+            points="55,28 745,28 745,432 55,432"
+            fill="#0c1824"
+            stroke="#1e3a5a"
+            strokeWidth="2"
+          />
+
+          {/* ── Terrain — grass base ── */}
+          <polygon
+            points="80,52 720,52 720,408 80,408"
+            fill="url(#grass-grad)"
+          />
+
+          {/* Grass texture overlay (subtle) */}
+          {[...Array(18)].map((_,i) => (
+            <line key={`gt-${i}`}
+              x1={80 + i * 36} y1={52} x2={80 + i * 36} y2={408}
+              stroke="rgba(255,255,255,0.014)" strokeWidth="1"
+            />
+          ))}
+          {[...Array(10)].map((_,i) => (
+            <line key={`gth-${i}`}
+              x1={80} y1={52 + i * 36} x2={720} y2={52 + i * 36}
+              stroke="rgba(255,255,255,0.014)" strokeWidth="1"
+            />
+          ))}
+
+          {/* ── Stone wall border (inner) ── */}
+          <polygon
+            points="80,52 720,52 720,408 80,408"
+            fill="none"
+            stroke="#3a2e18"
+            strokeWidth="8"
+          />
+          <polygon
+            points="80,52 720,52 720,408 80,408"
+            fill="none"
+            stroke="#5c4a28"
+            strokeWidth="2"
+          />
+
+          {/* ── Wall corner ornaments ── */}
+          {[[80,52],[720,52],[720,408],[80,408]].map(([cx,cy],i) => (
+            <g key={`corner-${i}`}>
+              <rect x={cx-12} y={cy-12} width={24} height={24} rx={3}
+                fill="#2a2010" stroke="#6b5530" strokeWidth="1.5" />
+              <rect x={cx-6} y={cy-6} width={12} height={12} rx={1}
+                fill="#3d3018" stroke="#8a6e3a" strokeWidth="1" />
+            </g>
+          ))}
+
+          {/* ── LANES (stone paths) ── */}
+
+          {/* Top lane — along top edge */}
+          <path d="M 80,52 L 80,230 Q 80,260 110,275 L 400,275 Q 430,275 430,245 L 430,52"
+            fill="none" stroke="rgba(92,74,42,0.5)" strokeWidth="28" />
+          <path d="M 80,52 L 80,230 Q 80,260 110,275 L 400,275 Q 430,275 430,245 L 430,52"
+            fill="none" stroke="#6b5530" strokeWidth="16" />
+          <path d="M 80,52 L 80,230 Q 80,260 110,275 L 400,275 Q 430,275 430,245 L 430,52"
+            fill="none" stroke="#7a6238" strokeWidth="10" />
+          <path d="M 80,52 L 80,230 Q 80,260 110,275 L 400,275 Q 430,275 430,245 L 430,52"
+            fill="none" stroke="rgba(180,150,80,0.15)" strokeWidth="4" />
+
+          {/* Bottom lane — along bottom edge */}
+          <path d="M 720,408 L 720,230 Q 720,200 690,185 L 400,185 Q 370,185 370,215 L 370,408"
+            fill="none" stroke="rgba(92,74,42,0.5)" strokeWidth="28" />
+          <path d="M 720,408 L 720,230 Q 720,200 690,185 L 400,185 Q 370,185 370,215 L 370,408"
+            fill="none" stroke="#6b5530" strokeWidth="16" />
+          <path d="M 720,408 L 720,230 Q 720,200 690,185 L 400,185 Q 370,185 370,215 L 370,408"
+            fill="none" stroke="#7a6238" strokeWidth="10" />
+          <path d="M 720,408 L 720,230 Q 720,200 690,185 L 400,185 Q 370,185 370,215 L 370,408"
+            fill="none" stroke="rgba(180,150,80,0.15)" strokeWidth="4" />
+
+          {/* Mid lane — diagonal */}
+          <line x1="80" y1="408" x2="720" y2="52"
+            stroke="rgba(92,74,42,0.5)" strokeWidth="28" />
+          <line x1="80" y1="408" x2="720" y2="52"
+            stroke="#6b5530" strokeWidth="16" />
+          <line x1="80" y1="408" x2="720" y2="52"
+            stroke="#7a6238" strokeWidth="10" />
+          <line x1="80" y1="408" x2="720" y2="52"
+            stroke="rgba(180,150,80,0.15)" strokeWidth="4" />
+
+          {/* ── River (diagonal water strip) ── */}
+          <line x1="340" y1="52" x2="460" y2="408"
+            stroke="rgba(20,80,160,0.18)" strokeWidth="22" />
+          <line x1="340" y1="52" x2="460" y2="408"
+            stroke="rgba(40,120,220,0.12)" strokeWidth="10" />
+
+          {/* ── Jungle areas ── */}
+          {/* Blue jungle (upper-left) */}
+          <ellipse cx="195" cy="195" rx="72" ry="55"
+            fill="rgba(8,30,18,0.7)" stroke="rgba(30,90,50,0.4)" strokeWidth="1.5" />
+          <circle cx="195" cy="195" r="20"
+            fill="url(#jungle-blue-grad)" filter="url(#soft-glow)" />
+          <text x="195" y="199" textAnchor="middle" fontSize="16">🌀</text>
+          {/* Camp rock decorations */}
+          {[[168,178],[218,175],[185,215],[210,210]].map(([rx,ry],i)=>(
+            <ellipse key={`bjc-${i}`} cx={rx} cy={ry} rx={9} ry={6}
+              fill="#1a2a14" stroke="#2a4020" strokeWidth="1" />
+          ))}
+
+          {/* Red jungle (lower-right) */}
+          <ellipse cx="605" cy="265" rx="72" ry="55"
+            fill="rgba(25,10,8,0.7)" stroke="rgba(90,30,20,0.4)" strokeWidth="1.5" />
+          <circle cx="605" cy="265" r="20"
+            fill="url(#jungle-red-grad)" filter="url(#soft-glow)" />
+          <text x="605" y="269" textAnchor="middle" fontSize="16">🔥</text>
+          {[[578,248],[628,245],[595,285],[620,280]].map(([rx,ry],i)=>(
+            <ellipse key={`rjc-${i}`} cx={rx} cy={ry} rx={9} ry={6}
+              fill="#2a1408" stroke="#3a2010" strokeWidth="1" />
+          ))}
+
+          {/* ── Rock/bush decorations scattered on terrain ── */}
+          {[
+            [160,110],[240,340],[480,90],[560,360],
+            [310,150],[490,320],[150,300],[640,160],
+          ].map(([rx,ry],i)=>(
+            <ellipse key={`rock-${i}`} cx={rx} cy={ry} rx={12} ry={8}
+              fill="rgba(40,35,20,0.6)" stroke="rgba(60,50,28,0.4)" strokeWidth="1" />
+          ))}
+
+          {/* ── Bases ── */}
+          {/* Blue base (bottom-left) */}
+          <polygon points="80,408 140,408 140,348 80,348"
+            fill="rgba(5,15,40,0.85)" stroke="rgba(30,111,255,0.4)" strokeWidth="1.5" />
+          <circle cx="110" cy="378" r="26"
+            fill="url(#blue-base-grad)" filter="url(#iso-glow)" />
+          <circle cx="110" cy="378" r="18"
+            fill="rgba(10,30,100,0.9)" stroke="rgba(60,160,255,0.7)" strokeWidth="2" />
+          <text x="110" y="384" textAnchor="middle" fontSize="14">🔵</text>
+
+          {/* Red base (top-right) */}
+          <polygon points="660,52 720,52 720,112 660,112"
+            fill="rgba(40,5,5,0.85)" stroke="rgba(232,53,53,0.4)" strokeWidth="1.5" />
+          <circle cx="690" cy="82" r="26"
+            fill="url(#red-base-grad)" filter="url(#iso-glow)" />
+          <circle cx="690" cy="82" r="18"
+            fill="rgba(80,10,10,0.9)" stroke="rgba(255,80,80,0.7)" strokeWidth="2" />
+          <text x="690" y="88" textAnchor="middle" fontSize="14">🔴</text>
+
+          {/* ── Towers on lanes ── */}
+          {[
+            // Blue towers
+            [108, 290], [108, 330],
+            [145, 260], [178, 260],
+            // Red towers
+            [692, 170], [692, 210],
+            [622, 200], [655, 200],
+          ].map(([tx,ty],i) => (
+            <g key={`tower-${i}`}>
+              <rect x={tx-5} y={ty-5} width={10} height={10} rx={2}
+                fill={i < 4 ? 'rgba(30,80,200,0.6)' : 'rgba(200,40,40,0.6)'}
+                stroke={i < 4 ? 'rgba(80,160,255,0.5)' : 'rgba(255,80,80,0.5)'}
+                strokeWidth="1" />
+            </g>
+          ))}
+
+          {/* ── Win-prob atmosphere overlay ── */}
+          {blueAdv > 6 && (
+            <rect width={W} height={H}
+              fill={`rgba(30,111,255,${Math.min(0.08, blueAdv/580)})`} />
+          )}
+          {blueAdv < -6 && (
+            <rect width={W} height={H}
+              fill={`rgba(232,53,53,${Math.min(0.08, Math.abs(blueAdv)/580)})`} />
+          )}
 
           {/* ── Synergy lines ── */}
           {synLines.map((sl, i) => (
             <line key={i}
               x1={sl.x1} y1={sl.y1} x2={sl.x2} y2={sl.y2}
               stroke={sl.team === 'blue'
-                ? `rgba(30,111,255,${sl.strength * 0.55})`
-                : `rgba(232,53,53,${sl.strength * 0.55})`
-              }
-              strokeWidth={1 + sl.strength * 2.2}
-              strokeDasharray={sl.strength < 0.55 ? '5,6' : undefined}
+                ? `rgba(60,140,255,${sl.strength * 0.6})`
+                : `rgba(255,80,80,${sl.strength * 0.6})`}
+              strokeWidth={1.2 + sl.strength * 2.4}
+              strokeDasharray={sl.strength < 0.55 ? '6,7' : undefined}
               strokeLinecap="round"
+              filter="url(#iso-glow)"
             />
           ))}
 
-          {/* ── Blue hero nodes ── */}
+          {/* ── Hero nodes — Blue ── */}
           {(Object.keys(BLUE_MAP) as LaneKey[]).map((lane) => {
             const hero = blueAssign[lane];
             const [x, y] = BLUE_MAP[lane];
             return hero
-              ? <MapHeroNode key={`bm-${lane}`} hero={hero} x={x} y={y} team="blue" lane={lane} clipId={`cbm-${lane}`} />
+              ? <MapHeroNode key={`bm-${lane}`} hero={hero} x={x} y={y} team="blue" lane={lane} clipId={`iso-cb-${lane}`} />
               : <MapEmptyNode key={`bme-${lane}`} x={x} y={y} team="blue" lane={lane} />;
           })}
 
-          {/* ── Red hero nodes ── */}
+          {/* ── Hero nodes — Red ── */}
           {(Object.keys(RED_MAP) as LaneKey[]).map((lane) => {
             const hero = redAssign[lane];
             const [x, y] = RED_MAP[lane];
             return hero
-              ? <MapHeroNode key={`rm-${lane}`} hero={hero} x={x} y={y} team="red" lane={lane} clipId={`crm-${lane}`} />
+              ? <MapHeroNode key={`rm-${lane}`} hero={hero} x={x} y={y} team="red" lane={lane} clipId={`iso-cr-${lane}`} />
               : <MapEmptyNode key={`rme-${lane}`} x={x} y={y} team="red" lane={lane} />;
           })}
+
+          {/* ── Lane labels ── */}
+          <text x="135" y="150" textAnchor="middle" fontSize="9"
+            fill="rgba(255,255,255,0.22)" fontFamily="monospace" letterSpacing="1.5" transform="rotate(-45,135,150)">
+            TOP LANE
+          </text>
+          <text x="400" y="235" textAnchor="middle" fontSize="9"
+            fill="rgba(255,255,255,0.22)" fontFamily="monospace" letterSpacing="1.5">
+            MID
+          </text>
+          <text x="665" y="320" textAnchor="middle" fontSize="9"
+            fill="rgba(255,255,255,0.22)" fontFamily="monospace" letterSpacing="1.5" transform="rotate(-45,665,320)">
+            BOT LANE
+          </text>
         </svg>
       </div>
 
-      {/* ── Win probability bar — below the map ── */}
-      <div
-        className="flex items-center gap-2 px-3 py-1.5"
-        style={{ background: 'rgba(4,6,14,0.95)', borderTop: '1px solid rgba(40,60,100,0.4)' }}
-      >
+      {/* ── Win probability bar ── */}
+      <div className="flex items-center gap-2 px-3 py-1.5"
+        style={{ background: 'rgba(4,6,14,0.97)', borderTop: '1px solid rgba(30,50,90,0.5)' }}>
         <span className="text-[11px] font-black text-blue-400 tabular-nums">🔵 {winProbability.toFixed(0)}%</span>
-        <div className="flex-1 h-1.5 rounded-full overflow-hidden relative" style={{ background: 'rgba(30,30,50,0.8)' }}>
-          <div
-            className="h-full transition-all duration-700 rounded-l-full"
-            style={{ width: `${winProbability}%`, background: 'linear-gradient(to right, #1e4fff, #3b82f6)' }}
-          />
-          <div
-            className="absolute inset-y-0 rounded-r-full transition-all duration-700"
-            style={{ left: `${winProbability}%`, right: 0, background: 'linear-gradient(to right, #ef444490, #e83535)' }}
-          />
-          <div className="absolute inset-y-0 w-px bg-white/30" style={{ left: '50%' }} />
+        <div className="flex-1 h-1.5 rounded-full overflow-hidden relative" style={{ background: 'rgba(20,25,45,0.9)' }}>
+          <div className="h-full transition-all duration-700 rounded-l-full"
+            style={{ width: `${winProbability}%`, background: 'linear-gradient(to right,#1e4fff,#3b82f6)' }} />
+          <div className="absolute inset-y-0 rounded-r-full transition-all duration-700"
+            style={{ left: `${winProbability}%`, right: 0, background: 'linear-gradient(to right,#ef444490,#e83535)' }} />
+          <div className="absolute inset-y-0 w-px bg-white/25" style={{ left: '50%' }} />
         </div>
         <span className="text-[11px] font-black text-red-400 tabular-nums">{(100 - winProbability).toFixed(0)}% 🔴</span>
       </div>
