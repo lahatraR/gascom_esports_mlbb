@@ -1,0 +1,2987 @@
+{
+  "savedAt": "2026-03-26T09:20:00.568Z",
+  "rankMap": {
+    "1": {
+      "winRate": 0.501087,
+      "banRate": 0.028423,
+      "pickRate": 0.023994
+    },
+    "2": {
+      "winRate": 0.436314,
+      "banRate": 0.002718,
+      "pickRate": 0.003946
+    },
+    "3": {
+      "winRate": 0.492127,
+      "banRate": 0.169621,
+      "pickRate": 0.009853
+    },
+    "4": {
+      "winRate": 0.510529,
+      "banRate": 0.188627,
+      "pickRate": 0.008259
+    },
+    "5": {
+      "winRate": 0.478659,
+      "banRate": 0.038627,
+      "pickRate": 0.015889
+    },
+    "6": {
+      "winRate": 0.468345,
+      "banRate": 0.063364,
+      "pickRate": 0.02144
+    },
+    "7": {
+      "winRate": 0.498686,
+      "banRate": 0.00915,
+      "pickRate": 0.006964
+    },
+    "8": {
+      "winRate": 0.464207,
+      "banRate": 0.017843,
+      "pickRate": 0.005455
+    },
+    "9": {
+      "winRate": 0.510537,
+      "banRate": 0.01858,
+      "pickRate": 0.004977
+    },
+    "10": {
+      "winRate": 0.450912,
+      "banRate": 0.079542,
+      "pickRate": 0.01528
+    },
+    "11": {
+      "winRate": 0.503311,
+      "banRate": 0.002169,
+      "pickRate": 0.003507
+    },
+    "12": {
+      "winRate": 0.486472,
+      "banRate": 0.002018,
+      "pickRate": 0.001653
+    },
+    "13": {
+      "winRate": 0.510204,
+      "banRate": 0.008352,
+      "pickRate": 0.007926
+    },
+    "14": {
+      "winRate": 0.518542,
+      "banRate": 0.027187,
+      "pickRate": 0.002823
+    },
+    "15": {
+      "winRate": 0.491505,
+      "banRate": 0.021926,
+      "pickRate": 0.007815
+    },
+    "16": {
+      "winRate": 0.46762,
+      "banRate": 0.006203,
+      "pickRate": 0.009539
+    },
+    "17": {
+      "winRate": 0.442868,
+      "banRate": 0.047116,
+      "pickRate": 0.007818
+    },
+    "18": {
+      "winRate": 0.468071,
+      "banRate": 0.009945,
+      "pickRate": 0.01033
+    },
+    "19": {
+      "winRate": 0.535547,
+      "banRate": 0.05098,
+      "pickRate": 0.004796
+    },
+    "20": {
+      "winRate": 0.56555,
+      "banRate": 0.014937,
+      "pickRate": 0.00154
+    },
+    "21": {
+      "winRate": 0.490996,
+      "banRate": 0.07857,
+      "pickRate": 0.010109
+    },
+    "22": {
+      "winRate": 0.507796,
+      "banRate": 0.473625,
+      "pickRate": 0.013598
+    },
+    "23": {
+      "winRate": 0.541254,
+      "banRate": 0.005315,
+      "pickRate": 0.007354
+    },
+    "24": {
+      "winRate": 0.520818,
+      "banRate": 0.019439,
+      "pickRate": 0.003352
+    },
+    "25": {
+      "winRate": 0.510378,
+      "banRate": 0.009465,
+      "pickRate": 0.006929
+    },
+    "26": {
+      "winRate": 0.454951,
+      "banRate": 0.028376,
+      "pickRate": 0.010541
+    },
+    "27": {
+      "winRate": 0.529572,
+      "banRate": 0.119244,
+      "pickRate": 0.016603
+    },
+    "28": {
+      "winRate": 0.468066,
+      "banRate": 0.008142,
+      "pickRate": 0.013069
+    },
+    "29": {
+      "winRate": 0.524193,
+      "banRate": 0.005127,
+      "pickRate": 0.0055
+    },
+    "30": {
+      "winRate": 0.504007,
+      "banRate": 0.202801,
+      "pickRate": 0.015802
+    },
+    "31": {
+      "winRate": 0.49616,
+      "banRate": 0.003928,
+      "pickRate": 0.010104
+    },
+    "32": {
+      "winRate": 0.498088,
+      "banRate": 0.025892,
+      "pickRate": 0.008672
+    },
+    "33": {
+      "winRate": 0.512827,
+      "banRate": 0.00486,
+      "pickRate": 0.008956
+    },
+    "34": {
+      "winRate": 0.538532,
+      "banRate": 0.556432,
+      "pickRate": 0.008268
+    },
+    "35": {
+      "winRate": 0.533708,
+      "banRate": 0.1944,
+      "pickRate": 0.011075
+    },
+    "36": {
+      "winRate": 0.475978,
+      "banRate": 0.00509,
+      "pickRate": 0.00438
+    },
+    "37": {
+      "winRate": 0.496465,
+      "banRate": 0.012356,
+      "pickRate": 0.005901
+    },
+    "38": {
+      "winRate": 0.501213,
+      "banRate": 0.017113,
+      "pickRate": 0.020724
+    },
+    "39": {
+      "winRate": 0.500432,
+      "banRate": 0.001168,
+      "pickRate": 0.003282
+    },
+    "40": {
+      "winRate": 0.514137,
+      "banRate": 0.107393,
+      "pickRate": 0.01204
+    },
+    "41": {
+      "winRate": 0.471234,
+      "banRate": 0.005595,
+      "pickRate": 0.008117
+    },
+    "42": {
+      "winRate": 0.519506,
+      "banRate": 0.052636,
+      "pickRate": 0.014146
+    },
+    "43": {
+      "winRate": 0.517589,
+      "banRate": 0.003354,
+      "pickRate": 0.004404
+    },
+    "44": {
+      "winRate": 0.481956,
+      "banRate": 0.052756,
+      "pickRate": 0.007561
+    },
+    "45": {
+      "winRate": 0.520674,
+      "banRate": 0.01283,
+      "pickRate": 0.004089
+    },
+    "46": {
+      "winRate": 0.501962,
+      "banRate": 0.006412,
+      "pickRate": 0.008387
+    },
+    "47": {
+      "winRate": 0.445886,
+      "banRate": 0.024524,
+      "pickRate": 0.009004
+    },
+    "48": {
+      "winRate": 0.542048,
+      "banRate": 0.065119,
+      "pickRate": 0.002015
+    },
+    "49": {
+      "winRate": 0.490863,
+      "banRate": 0.005229,
+      "pickRate": 0.003191
+    },
+    "50": {
+      "winRate": 0.518037,
+      "banRate": 0.003351,
+      "pickRate": 0.003167
+    },
+    "51": {
+      "winRate": 0.507586,
+      "banRate": 0.316383,
+      "pickRate": 0.009467
+    },
+    "52": {
+      "winRate": 0.484537,
+      "banRate": 0.005854,
+      "pickRate": 0.007219
+    },
+    "53": {
+      "winRate": 0.467842,
+      "banRate": 0.046055,
+      "pickRate": 0.015434
+    },
+    "54": {
+      "winRate": 0.486911,
+      "banRate": 0.003147,
+      "pickRate": 0.004385
+    },
+    "55": {
+      "winRate": 0.48872,
+      "banRate": 0.081229,
+      "pickRate": 0.016131
+    },
+    "56": {
+      "winRate": 0.501308,
+      "banRate": 0.139464,
+      "pickRate": 0.018998
+    },
+    "57": {
+      "winRate": 0.531151,
+      "banRate": 0.016975,
+      "pickRate": 0.009915
+    },
+    "58": {
+      "winRate": 0.459769,
+      "banRate": 0.004396,
+      "pickRate": 0.005763
+    },
+    "59": {
+      "winRate": 0.517612,
+      "banRate": 0.008246,
+      "pickRate": 0.004666
+    },
+    "60": {
+      "winRate": 0.540209,
+      "banRate": 0.095239,
+      "pickRate": 0.038188
+    },
+    "61": {
+      "winRate": 0.486777,
+      "banRate": 0.006652,
+      "pickRate": 0.009722
+    },
+    "62": {
+      "winRate": 0.554827,
+      "banRate": 0.025881,
+      "pickRate": 0.002697
+    },
+    "63": {
+      "winRate": 0.487292,
+      "banRate": 0.01261,
+      "pickRate": 0.007725
+    },
+    "64": {
+      "winRate": 0.49422,
+      "banRate": 0.009339,
+      "pickRate": 0.004108
+    },
+    "65": {
+      "winRate": 0.499438,
+      "banRate": 0.005813,
+      "pickRate": 0.00871
+    },
+    "66": {
+      "winRate": 0.507162,
+      "banRate": 0.003085,
+      "pickRate": 0.005977
+    },
+    "67": {
+      "winRate": 0.521955,
+      "banRate": 0.054576,
+      "pickRate": 0.007936
+    },
+    "68": {
+      "winRate": 0.50113,
+      "banRate": 0.00285,
+      "pickRate": 0.003492
+    },
+    "69": {
+      "winRate": 0.508867,
+      "banRate": 0.068557,
+      "pickRate": 0.004054
+    },
+    "70": {
+      "winRate": 0.510069,
+      "banRate": 0.049941,
+      "pickRate": 0.010248
+    },
+    "71": {
+      "winRate": 0.486369,
+      "banRate": 0.008143,
+      "pickRate": 0.009243
+    },
+    "72": {
+      "winRate": 0.491495,
+      "banRate": 0.047476,
+      "pickRate": 0.012859
+    },
+    "73": {
+      "winRate": 0.468269,
+      "banRate": 0.000881,
+      "pickRate": 0.001938
+    },
+    "74": {
+      "winRate": 0.525078,
+      "banRate": 0.169503,
+      "pickRate": 0.009537
+    },
+    "75": {
+      "winRate": 0.525511,
+      "banRate": 0.064514,
+      "pickRate": 0.009253
+    },
+    "76": {
+      "winRate": 0.514376,
+      "banRate": 0.004959,
+      "pickRate": 0.001048
+    },
+    "77": {
+      "winRate": 0.506796,
+      "banRate": 0.010192,
+      "pickRate": 0.009634
+    },
+    "78": {
+      "winRate": 0.537615,
+      "banRate": 0.010048,
+      "pickRate": 0.00243
+    },
+    "79": {
+      "winRate": 0.428935,
+      "banRate": 0.047433,
+      "pickRate": 0.017797
+    },
+    "80": {
+      "winRate": 0.522732,
+      "banRate": 0.302077,
+      "pickRate": 0.013773
+    },
+    "81": {
+      "winRate": 0.444009,
+      "banRate": 0.011798,
+      "pickRate": 0.006087
+    },
+    "82": {
+      "winRate": 0.508352,
+      "banRate": 0.00613,
+      "pickRate": 0.004087
+    },
+    "83": {
+      "winRate": 0.496893,
+      "banRate": 0.044593,
+      "pickRate": 0.00691
+    },
+    "84": {
+      "winRate": 0.470292,
+      "banRate": 0.001955,
+      "pickRate": 0.002193
+    },
+    "85": {
+      "winRate": 0.436706,
+      "banRate": 0.0039,
+      "pickRate": 0.007494
+    },
+    "86": {
+      "winRate": 0.497579,
+      "banRate": 0.009966,
+      "pickRate": 0.008218
+    },
+    "87": {
+      "winRate": 0.512233,
+      "banRate": 0.001935,
+      "pickRate": 0.001272
+    },
+    "88": {
+      "winRate": 0.569981,
+      "banRate": 0.003605,
+      "pickRate": 0.001144
+    },
+    "89": {
+      "winRate": 0.471367,
+      "banRate": 0.005836,
+      "pickRate": 0.001728
+    },
+    "90": {
+      "winRate": 0.529576,
+      "banRate": 0.017078,
+      "pickRate": 0.012142
+    },
+    "91": {
+      "winRate": 0.493944,
+      "banRate": 0.002768,
+      "pickRate": 0.00717
+    },
+    "92": {
+      "winRate": 0.520263,
+      "banRate": 0.009184,
+      "pickRate": 0.004759
+    },
+    "93": {
+      "winRate": 0.516421,
+      "banRate": 0.014629,
+      "pickRate": 0.004335
+    },
+    "94": {
+      "winRate": 0.523905,
+      "banRate": 0.002677,
+      "pickRate": 0.002765
+    },
+    "95": {
+      "winRate": 0.500835,
+      "banRate": 0.031797,
+      "pickRate": 0.00847
+    },
+    "96": {
+      "winRate": 0.479141,
+      "banRate": 0.002592,
+      "pickRate": 0.002336
+    },
+    "97": {
+      "winRate": 0.527697,
+      "banRate": 0.010184,
+      "pickRate": 0.006013
+    },
+    "98": {
+      "winRate": 0.52898,
+      "banRate": 0.003767,
+      "pickRate": 0.00323
+    },
+    "99": {
+      "winRate": 0.484195,
+      "banRate": 0.000985,
+      "pickRate": 0.001355
+    },
+    "100": {
+      "winRate": 0.512901,
+      "banRate": 0.005187,
+      "pickRate": 0.005059
+    },
+    "101": {
+      "winRate": 0.526479,
+      "banRate": 0.00085,
+      "pickRate": 0.001105
+    },
+    "102": {
+      "winRate": 0.451521,
+      "banRate": 0.004699,
+      "pickRate": 0.001123
+    },
+    "103": {
+      "winRate": 0.477837,
+      "banRate": 0.003015,
+      "pickRate": 0.003921
+    },
+    "104": {
+      "winRate": 0.557371,
+      "banRate": 0.704663,
+      "pickRate": 0.006228
+    },
+    "105": {
+      "winRate": 0.485545,
+      "banRate": 0.003438,
+      "pickRate": 0.006277
+    },
+    "106": {
+      "winRate": 0.511115,
+      "banRate": 0.014897,
+      "pickRate": 0.005562
+    },
+    "107": {
+      "winRate": 0.539029,
+      "banRate": 0.017453,
+      "pickRate": 0.007802
+    },
+    "108": {
+      "winRate": 0.513947,
+      "banRate": 0.001607,
+      "pickRate": 0.001871
+    },
+    "109": {
+      "winRate": 0.513575,
+      "banRate": 0.144322,
+      "pickRate": 0.008944
+    },
+    "110": {
+      "winRate": 0.443911,
+      "banRate": 0.002489,
+      "pickRate": 0.001609
+    },
+    "111": {
+      "winRate": 0.509914,
+      "banRate": 0.000998,
+      "pickRate": 0.002334
+    },
+    "112": {
+      "winRate": 0.542195,
+      "banRate": 0.122827,
+      "pickRate": 0.010975
+    },
+    "113": {
+      "winRate": 0.47967,
+      "banRate": 0.03004,
+      "pickRate": 0.006421
+    },
+    "114": {
+      "winRate": 0.512024,
+      "banRate": 0.016908,
+      "pickRate": 0.005809
+    },
+    "115": {
+      "winRate": 0.492027,
+      "banRate": 0.002165,
+      "pickRate": 0.005528
+    },
+    "116": {
+      "winRate": 0.502913,
+      "banRate": 0.021888,
+      "pickRate": 0.010138
+    },
+    "117": {
+      "winRate": 0.520357,
+      "banRate": 0.126469,
+      "pickRate": 0.007705
+    },
+    "118": {
+      "winRate": 0.495748,
+      "banRate": 0.008541,
+      "pickRate": 0.002974
+    },
+    "119": {
+      "winRate": 0.488714,
+      "banRate": 0.004491,
+      "pickRate": 0.006052
+    },
+    "120": {
+      "winRate": 0.49032,
+      "banRate": 0.005677,
+      "pickRate": 0.004421
+    },
+    "121": {
+      "winRate": 0.495858,
+      "banRate": 0.035241,
+      "pickRate": 0.008705
+    },
+    "122": {
+      "winRate": 0.49778,
+      "banRate": 0.003479,
+      "pickRate": 0.003398
+    },
+    "123": {
+      "winRate": 0.481261,
+      "banRate": 0.018554,
+      "pickRate": 0.005127
+    },
+    "124": {
+      "winRate": 0.476082,
+      "banRate": 0.014894,
+      "pickRate": 0.000661
+    },
+    "125": {
+      "winRate": 0.523868,
+      "banRate": 0.113384,
+      "pickRate": 0.00497
+    },
+    "126": {
+      "winRate": 0.516959,
+      "banRate": 0.034808,
+      "pickRate": 0.013834
+    },
+    "127": {
+      "winRate": 0.484285,
+      "banRate": 0.007915,
+      "pickRate": 0.00397
+    },
+    "128": {
+      "winRate": 0.464186,
+      "banRate": 0.012944,
+      "pickRate": 0.002604
+    },
+    "129": {
+      "winRate": 0.515709,
+      "banRate": 0.128654,
+      "pickRate": 0.015461
+    },
+    "130": {
+      "winRate": 0.515691,
+      "banRate": 0.020505,
+      "pickRate": 0.006567
+    },
+    "131": {
+      "winRate": 0.517068,
+      "banRate": 0.55834,
+      "pickRate": 0.010293
+    },
+    "132": {
+      "winRate": 0.489607,
+      "banRate": 0.614932,
+      "pickRate": 0.004356
+    }
+  },
+  "timeWRMap": {},
+  "synergyMap": {},
+  "synergyPairsMap": {},
+  "specialityMap": {
+    "1": [
+      "Finisher",
+      "Damage"
+    ],
+    "2": [
+      "Damage",
+      "Regen"
+    ],
+    "3": [
+      "Charge",
+      "Finisher"
+    ],
+    "4": [
+      "Charge",
+      "Regen"
+    ],
+    "5": [
+      "Poke",
+      "Burst"
+    ],
+    "6": [
+      "Crowd Control",
+      ""
+    ],
+    "7": [
+      "Chase",
+      "Damage"
+    ],
+    "8": [
+      "Finisher",
+      "Magic Damage"
+    ],
+    "9": [
+      "Guard",
+      "Crowd Control"
+    ],
+    "10": [
+      "Initiator",
+      "Control"
+    ],
+    "11": [
+      "Push",
+      "Burst"
+    ],
+    "12": [
+      "Finisher",
+      "Burst"
+    ],
+    "13": [
+      "Finisher",
+      "Burst"
+    ],
+    "14": [
+      "Regen",
+      "Guard"
+    ],
+    "15": [
+      "Control",
+      "Burst"
+    ],
+    "16": [
+      "Chase",
+      "Damage"
+    ],
+    "17": [
+      "Chase",
+      "Finisher"
+    ],
+    "18": [
+      "Finisher",
+      "Damage"
+    ],
+    "19": [
+      "Crowd Control",
+      ""
+    ],
+    "20": [
+      "Guard",
+      "Crowd Control"
+    ],
+    "21": [
+      "Chase",
+      "Burst"
+    ],
+    "22": [
+      "Chase",
+      "Damage"
+    ],
+    "23": [
+      "Poke",
+      "Burst"
+    ],
+    "24": [
+      "Chase",
+      "Finisher"
+    ],
+    "25": [
+      "Poke",
+      "Finisher"
+    ],
+    "26": [
+      "Chase",
+      "Control"
+    ],
+    "27": [
+      "Push",
+      "Damage"
+    ],
+    "28": [
+      "Charge",
+      "Damage"
+    ],
+    "29": [
+      "Crowd Control",
+      "Regen"
+    ],
+    "30": [
+      "Finisher",
+      "Chase"
+    ],
+    "31": [
+      "Finisher",
+      "Chase"
+    ],
+    "32": [
+      "Support",
+      "Crowd Control"
+    ],
+    "33": [
+      "Damage",
+      "Control"
+    ],
+    "34": [
+      "Regen",
+      "Guard"
+    ],
+    "35": [
+      "Damage",
+      "Regen"
+    ],
+    "36": [
+      "Crowd Control",
+      "Poke"
+    ],
+    "37": [
+      "Chase",
+      "Burst"
+    ],
+    "38": [
+      "Poke",
+      "Control"
+    ],
+    "39": [
+      "Finisher",
+      "Burst"
+    ],
+    "40": [
+      "Finisher",
+      "Damage"
+    ],
+    "41": [
+      "Crowd Control",
+      "Burst"
+    ],
+    "42": [
+      "Burst",
+      "Poke"
+    ],
+    "43": [
+      "Finisher",
+      "Burst"
+    ],
+    "44": [
+      "Crowd Control",
+      "Initiator"
+    ],
+    "45": [
+      "Charge",
+      "Burst"
+    ],
+    "46": [
+      "Burst",
+      "Poke"
+    ],
+    "47": [
+      "Chase",
+      "Burst"
+    ],
+    "48": [
+      "Guard",
+      "Poke"
+    ],
+    "49": [
+      "Guard",
+      "Initiator"
+    ],
+    "50": [
+      "Chase",
+      "Damage"
+    ],
+    "51": [
+      "Push",
+      "Burst"
+    ],
+    "52": [
+      "Burst",
+      "Poke"
+    ],
+    "53": [
+      "Finisher",
+      "Burst"
+    ],
+    "54": [
+      "Charge",
+      "Burst"
+    ],
+    "55": [
+      "Guard",
+      "Support"
+    ],
+    "56": [
+      "Burst",
+      "Magic Damage"
+    ],
+    "57": [
+      "Damage",
+      "Guard"
+    ],
+    "58": [
+      "Finisher",
+      "Charge"
+    ],
+    "59": [
+      "Regen",
+      ""
+    ],
+    "60": [
+      "Finisher",
+      "Damage"
+    ],
+    "61": [
+      "Poke",
+      "Burst"
+    ],
+    "62": [
+      "Control",
+      "Charge"
+    ],
+    "63": [
+      "Initiator",
+      "Finisher"
+    ],
+    "64": [
+      "Burst",
+      "Support"
+    ],
+    "65": [
+      "Burst",
+      "Chase"
+    ],
+    "66": [
+      "Burst",
+      "Crowd Control"
+    ],
+    "67": [
+      "Chase",
+      "Burst"
+    ],
+    "68": [
+      "Burst",
+      "Damage"
+    ],
+    "69": [
+      "Poke",
+      "Burst"
+    ],
+    "70": [
+      "Crowd Control",
+      "Regen"
+    ],
+    "71": [
+      "Damage",
+      "Magic Damage"
+    ],
+    "72": [
+      "Chase",
+      "Damage"
+    ],
+    "73": [
+      "Chase",
+      "Damage"
+    ],
+    "74": [
+      "Initiator",
+      "Crowd Control"
+    ],
+    "75": [
+      "Burst",
+      "Charge"
+    ],
+    "76": [
+      "Guard",
+      "Charge"
+    ],
+    "77": [
+      "Charge",
+      "Burst"
+    ],
+    "78": [
+      "Initiator",
+      "Crowd Control"
+    ],
+    "79": [
+      "Burst",
+      "Finisher"
+    ],
+    "80": [
+      "Burst",
+      "Magic Damage"
+    ],
+    "81": [
+      "Regen",
+      "Mixed Damage"
+    ],
+    "82": [
+      "Burst",
+      "Crowd Control"
+    ],
+    "83": [
+      "Regen",
+      "Burst"
+    ],
+    "84": [
+      "Chase",
+      "Burst"
+    ],
+    "85": [
+      "Charge",
+      "Burst"
+    ],
+    "86": [
+      "Push",
+      "Damage"
+    ],
+    "87": [
+      "Support",
+      "Damage"
+    ],
+    "88": [
+      "Push",
+      "Damage"
+    ],
+    "89": [
+      "Finisher",
+      "Burst"
+    ],
+    "90": [
+      "Initiator",
+      "Magic Damage"
+    ],
+    "91": [
+      "Poke",
+      "Burst"
+    ],
+    "92": [
+      "Crowd Control",
+      "Damage"
+    ],
+    "93": [
+      "Crowd Control",
+      "Initiator"
+    ],
+    "94": [
+      "Push",
+      "Burst"
+    ],
+    "95": [
+      "Regen",
+      "Damage"
+    ],
+    "96": [
+      "Support",
+      "Crowd Control"
+    ],
+    "97": [
+      "Chase",
+      "Burst"
+    ],
+    "98": [
+      "Damage",
+      "Regen"
+    ],
+    "99": [
+      "Damage",
+      "Crowd Control"
+    ],
+    "100": [
+      "Burst",
+      "Finisher"
+    ],
+    "101": [
+      "Poke",
+      "Burst"
+    ],
+    "102": [
+      "Initiator",
+      "Guard"
+    ],
+    "103": [
+      "Chase",
+      "Damage"
+    ],
+    "104": [
+      "Regen",
+      "Control"
+    ],
+    "105": [
+      "Finisher",
+      "Damage"
+    ],
+    "106": [
+      "Regen",
+      "Damage"
+    ],
+    "107": [
+      "Burst",
+      "Magic Damage"
+    ],
+    "108": [
+      "Damage",
+      "Crowd Control"
+    ],
+    "109": [
+      "Chase",
+      "Magic Damage"
+    ],
+    "110": [
+      "Burst",
+      "Finisher"
+    ],
+    "111": [
+      "Control",
+      "Burst"
+    ],
+    "112": [
+      "Poke",
+      "Guard"
+    ],
+    "113": [
+      "Burst",
+      "Control"
+    ],
+    "114": [
+      "Finisher",
+      "Damage"
+    ],
+    "115": [
+      "Damage",
+      "Burst"
+    ],
+    "116": [
+      "Chase",
+      "Magic Damage"
+    ],
+    "117": [
+      "Damage",
+      "Chase"
+    ],
+    "118": [
+      "Chase",
+      "Damage"
+    ],
+    "119": [
+      "Burst",
+      "Poke"
+    ],
+    "120": [
+      "Charge",
+      "Burst"
+    ],
+    "121": [
+      "Finisher",
+      "Damage"
+    ],
+    "122": [
+      "Chase",
+      "Burst"
+    ],
+    "123": [
+      "Damage",
+      "Regen"
+    ],
+    "124": [
+      "Support",
+      "Crowd Control"
+    ],
+    "125": [
+      "Damage",
+      "Crowd Control"
+    ],
+    "126": [
+      "Chase",
+      "Burst"
+    ],
+    "127": [
+      "Regen",
+      "Damage"
+    ],
+    "128": [
+      "Control",
+      "Regen"
+    ],
+    "129": [
+      "Damage",
+      "Crowd Control"
+    ],
+    "130": [
+      "Finisher",
+      "Damage"
+    ],
+    "131": [
+      "Charge",
+      "Burst"
+    ],
+    "132": [
+      "Crowd Control",
+      "Support"
+    ]
+  },
+  "skillTagsMap": {
+    "1": [
+      "Buff",
+      "AOE",
+      "CC",
+      "Conceal",
+      "Remove CC"
+    ],
+    "2": [
+      "Heal",
+      "Mobility",
+      "Slow",
+      "AOE",
+      "Buff",
+      "Burst"
+    ],
+    "3": [
+      "Debuff",
+      "AOE",
+      "Buff",
+      "Mobility",
+      "Burst",
+      "CC"
+    ],
+    "4": [
+      "AOE",
+      "Heal",
+      "Mobility",
+      "Slow",
+      "CC"
+    ],
+    "5": [
+      "Death Immunity",
+      "AOE",
+      "CC",
+      "Debuff",
+      "Burst"
+    ],
+    "6": [
+      "Buff",
+      "AOE",
+      "Slow",
+      "Charge",
+      "CC"
+    ],
+    "7": [
+      "Buff",
+      "Mobility",
+      "AOE",
+      "Burst"
+    ],
+    "8": [
+      "Buff",
+      "Damage",
+      "Speed Up",
+      "AOE",
+      "Burst",
+      "Mobility"
+    ],
+    "9": [
+      "Buff",
+      "Mobility",
+      "CC",
+      "AOE"
+    ],
+    "10": [
+      "Buff",
+      "CC",
+      "Damage",
+      "Slow",
+      "Burst"
+    ],
+    "11": [
+      "Burst",
+      "Damage",
+      "Heal",
+      "AOE",
+      "CC"
+    ],
+    "12": [
+      "Buff",
+      "Damage",
+      "Slow",
+      "Mobility",
+      "CC",
+      "Burst"
+    ],
+    "13": [
+      "Burst",
+      "AOE",
+      "Mobility",
+      "CC",
+      "Slow"
+    ],
+    "14": [
+      "Buff",
+      "AOE",
+      "Slow",
+      "Heal",
+      "Speed Up",
+      "CC"
+    ],
+    "15": [
+      "Buff",
+      "AOE",
+      "CC",
+      "Damage",
+      "Burst"
+    ],
+    "16": [
+      "Buff",
+      "Heal",
+      "CC",
+      "Damage",
+      "Mobility",
+      "Debuff",
+      "Speed Up"
+    ],
+    "17": [
+      "Buff",
+      "AOE",
+      "Mobility",
+      "Burst"
+    ],
+    "18": [
+      "Buff",
+      "Burst",
+      "AOE",
+      "CC"
+    ],
+    "19": [
+      "Buff",
+      "CC",
+      "AOE",
+      "Heal"
+    ],
+    "20": [
+      "Shield",
+      "Mobility",
+      "CC",
+      "Damage",
+      "AOE"
+    ],
+    "21": [
+      "Buff",
+      "Damage",
+      "Mobility",
+      "Summon",
+      "Burst"
+    ],
+    "22": [
+      "Buff",
+      "CC",
+      "Shield",
+      "Mobility",
+      "Damage",
+      "Morph"
+    ],
+    "23": [
+      "Buff",
+      "Slow",
+      "CC",
+      "AOE",
+      "Burst"
+    ],
+    "24": [
+      "Buff",
+      "Mobility",
+      "AOE",
+      "Slow"
+    ],
+    "25": [
+      "Shield",
+      "CC",
+      "Damage",
+      "Slow",
+      "Remove CC",
+      "Mobility",
+      "Burst"
+    ],
+    "26": [
+      "Buff",
+      "AOE",
+      "Mobility",
+      "CC",
+      "Burst"
+    ],
+    "27": [
+      "Debuff",
+      "Heal",
+      "Summon",
+      "AOE",
+      "Mobility",
+      "Burst"
+    ],
+    "28": [
+      "Damage",
+      "Slow",
+      "AOE",
+      "Heal",
+      "Mobility",
+      "CC"
+    ],
+    "29": [
+      "Buff",
+      "AOE",
+      "Slow",
+      "CC"
+    ],
+    "30": [
+      "Buff",
+      "Mobility",
+      "AOE",
+      "Burst",
+      "CC"
+    ],
+    "31": [
+      "Buff",
+      "Mobility",
+      "CC",
+      "Damage",
+      "Slow",
+      "Teleport"
+    ],
+    "32": [
+      "Shield",
+      "CC",
+      "AOE",
+      "Slow",
+      "Morph"
+    ],
+    "33": [
+      "Buff",
+      "AOE",
+      "Burst",
+      "CC",
+      "Damage"
+    ],
+    "34": [
+      "Buff",
+      "Heal",
+      "Slow",
+      "AOE"
+    ],
+    "35": [
+      "Buff",
+      "AOE",
+      "Speed Up",
+      "Damage",
+      "CC",
+      "Burst"
+    ],
+    "36": [
+      "Death Immunity",
+      "AOE",
+      "Slow",
+      "CC"
+    ],
+    "37": [
+      "Buff",
+      "Shield",
+      "AOE",
+      "Mobility",
+      "Damage",
+      "Morph",
+      "CC",
+      "Reduce DMG",
+      "Burst"
+    ],
+    "38": [
+      "Damage",
+      "CC",
+      "AOE",
+      "Summon"
+    ],
+    "39": [
+      "Buff",
+      "Damage",
+      "Debuff",
+      "Speed Up",
+      "Morph",
+      "Mobility",
+      "Burst"
+    ],
+    "40": [
+      "Buff",
+      "AOE",
+      "Slow",
+      "Mobility",
+      "Damage",
+      "Burst"
+    ],
+    "41": [
+      "Buff",
+      "Heal",
+      "AOE",
+      "Slow",
+      "CC",
+      "Mobility"
+    ],
+    "42": [
+      "Debuff",
+      "AOE",
+      "Buff",
+      "Mobility",
+      "Speed Up",
+      "Burst",
+      "Slow"
+    ],
+    "43": [
+      "Buff",
+      "AOE",
+      "Debuff",
+      "Slow",
+      "Mobility"
+    ],
+    "44": [
+      "Buff",
+      "CC",
+      "AOE",
+      "Mobility"
+    ],
+    "45": [
+      "Buff",
+      "Mobility",
+      "AOE",
+      "Damage",
+      "Debuff",
+      "Death Immunity"
+    ],
+    "46": [
+      "Buff",
+      "AOE",
+      "Slow",
+      "CC",
+      "Damage",
+      "Burst",
+      "Mobility"
+    ],
+    "47": [
+      "Buff",
+      "Mobility",
+      "AOE",
+      "Slow",
+      "Burst"
+    ],
+    "48": [
+      "Buff",
+      "AOE",
+      "Slow",
+      "CC",
+      "Damage",
+      "CC Immune",
+      "Speed Up"
+    ],
+    "49": [
+      "Buff",
+      "CC",
+      "Damage",
+      "AOE",
+      "Debuff",
+      "Speed Up",
+      "Heal"
+    ],
+    "50": [
+      "Summon",
+      "CC",
+      "AOE",
+      "Slow",
+      "Damage",
+      "Morph",
+      "Buff"
+    ],
+    "51": [
+      "Buff",
+      "Mobility",
+      "CC",
+      "Burst",
+      "Debuff"
+    ],
+    "52": [
+      "Damage",
+      "Slow",
+      "CC",
+      "AOE",
+      "Burst",
+      "Morph",
+      "Speed Up"
+    ],
+    "53": [
+      "Buff",
+      "CC",
+      "Mobility",
+      "Burst"
+    ],
+    "54": [
+      "Buff",
+      "Burst",
+      "Shield",
+      "CC",
+      "Mobility"
+    ],
+    "55": [
+      "Speed Up",
+      "Heal",
+      "AOE",
+      "Slow",
+      "CC",
+      "Attach",
+      "Shield"
+    ],
+    "56": [
+      "Buff",
+      "Heal",
+      "Damage",
+      "Mobility",
+      "AOE",
+      "Slow"
+    ],
+    "57": [
+      "CC",
+      "Damage",
+      "AOE",
+      "Slow",
+      "Remove CC",
+      "Buff"
+    ],
+    "58": [
+      "Buff",
+      "CC",
+      "AOE",
+      "Mobility",
+      "Burst"
+    ],
+    "59": [
+      "Heal",
+      "AOE",
+      "Slow",
+      "Mobility",
+      "Shield",
+      "Buff",
+      "Speed Up"
+    ],
+    "60": [
+      "Buff",
+      "Shield",
+      "AOE",
+      "CC"
+    ],
+    "61": [
+      "Debuff",
+      "AOE",
+      "Slow",
+      "Buff",
+      "Shield",
+      "Burst"
+    ],
+    "62": [
+      "Buff",
+      "AOE",
+      "Slow",
+      "Mobility",
+      "Damage",
+      "CC"
+    ],
+    "63": [
+      "Buff",
+      "Summon",
+      "Slow",
+      "CC",
+      "Speed Up",
+      "Morph",
+      "Burst",
+      "Shield",
+      "Mobility"
+    ],
+    "64": [
+      "Shield",
+      "Damage",
+      "Buff",
+      "CC",
+      "Mobility"
+    ],
+    "65": [
+      "Buff",
+      "AOE",
+      "Mobility",
+      "Summon",
+      "Burst",
+      "Shield"
+    ],
+    "66": [
+      "Buff",
+      "Speed Up",
+      "AOE",
+      "CC"
+    ],
+    "67": [
+      "Buff",
+      "AOE",
+      "Slow",
+      "Mobility",
+      "Summon",
+      "Morph",
+      "CC"
+    ],
+    "68": [
+      "Buff",
+      "AOE",
+      "Heal",
+      "Damage",
+      "Slow",
+      "Invincible",
+      "Mobility",
+      "Burst"
+    ],
+    "69": [
+      "Buff",
+      "Burst",
+      "AOE",
+      "Slow",
+      "Morph",
+      "Mobility",
+      "Damage",
+      "CC"
+    ],
+    "70": [
+      "Buff",
+      "CC",
+      "AOE",
+      "Speed Up",
+      "Heal"
+    ],
+    "71": [
+      "Damage",
+      "Speed Up",
+      "Buff",
+      "CC",
+      "AOE"
+    ],
+    "72": [
+      "Debuff",
+      "AOE",
+      "Slow",
+      "Mobility",
+      "Buff"
+    ],
+    "73": [
+      "Buff",
+      "AOE",
+      "Mobility",
+      "Slow"
+    ],
+    "74": [
+      "CC",
+      "Damage",
+      "Reduce DMG",
+      "Buff",
+      "Summon"
+    ],
+    "75": [
+      "Heal",
+      "Mobility",
+      "AOE",
+      "CC",
+      "Burst",
+      "Invincible"
+    ],
+    "76": [
+      "Buff",
+      "CC",
+      "AOE",
+      "Burst",
+      "Death Immunity"
+    ],
+    "77": [
+      "CC",
+      "Damage",
+      "AOE",
+      "Slow",
+      "Mobility",
+      "Burst"
+    ],
+    "78": [
+      "Heal",
+      "Damage",
+      "Mobility",
+      "CC",
+      "Slow",
+      "Buff",
+      "AOE"
+    ],
+    "79": [
+      "Damage",
+      "Buff",
+      "Burst",
+      "Mobility",
+      "Slow"
+    ],
+    "80": [
+      "Buff",
+      "Damage",
+      "Mobility",
+      "CC",
+      "Burst"
+    ],
+    "81": [
+      "Buff",
+      "Shield",
+      "AOE",
+      "Burst",
+      "Mobility"
+    ],
+    "82": [
+      "Buff",
+      "AOE",
+      "Speed Up",
+      "Burst",
+      "Slow",
+      "CC"
+    ],
+    "83": [
+      "Buff",
+      "AOE",
+      "CC",
+      "Burst",
+      "Mobility"
+    ],
+    "84": [
+      "Buff",
+      "Mobility",
+      "Damage",
+      "Burst",
+      "CC"
+    ],
+    "85": [
+      "Buff",
+      "Heal",
+      "AOE",
+      "Slow",
+      "Mobility",
+      "Damage",
+      "Burst"
+    ],
+    "86": [
+      "Buff",
+      "Speed Up",
+      "AOE",
+      "Slow",
+      "Heal"
+    ],
+    "87": [
+      "Buff",
+      "Debuff",
+      "Speed Up",
+      "CC",
+      "Damage",
+      "Slow",
+      "AOE"
+    ],
+    "88": [
+      "Buff",
+      "Speed Up",
+      "Debuff",
+      "AOE",
+      "Burst",
+      "Mobility",
+      "Heal",
+      "Invincible"
+    ],
+    "89": [
+      "Buff",
+      "Mobility",
+      "AOE",
+      "CC",
+      "Remove CC",
+      "Burst"
+    ],
+    "90": [
+      "Buff",
+      "Debuff",
+      "Mobility",
+      "CC",
+      "AOE",
+      "Shield"
+    ],
+    "91": [
+      "Buff",
+      "AOE",
+      "Speed Up",
+      "CC",
+      "Burst",
+      "Shield",
+      "Slow"
+    ],
+    "92": [
+      "Buff",
+      "Debuff",
+      "Damage",
+      "Heal",
+      "Speed Up",
+      "CC"
+    ],
+    "93": [
+      "Buff",
+      "Debuff",
+      "AOE",
+      "Mobility",
+      "CC"
+    ],
+    "94": [
+      "Buff",
+      "Damage",
+      "CC",
+      "AOE",
+      "Summon"
+    ],
+    "95": [
+      "Buff",
+      "AOE",
+      "Slow",
+      "Mobility",
+      "CC",
+      "Morph"
+    ],
+    "96": [
+      "Burst",
+      "CC",
+      "AOE",
+      "Slow",
+      "Teleport"
+    ],
+    "97": [
+      "Mobility",
+      "Damage",
+      "AOE",
+      "Buff",
+      "Burst"
+    ],
+    "98": [
+      "Speed Up",
+      "Damage",
+      "AOE",
+      "Reduce DMG",
+      "Heal",
+      "CC",
+      "Mobility"
+    ],
+    "99": [
+      "Buff",
+      "AOE",
+      "CC",
+      "Mobility"
+    ],
+    "100": [
+      "Buff",
+      "AOE",
+      "Slow",
+      "Mobility",
+      "CC",
+      "Burst"
+    ],
+    "101": [
+      "Shield",
+      "AOE",
+      "Buff",
+      "Slow",
+      "Burst",
+      "CC"
+    ],
+    "102": [
+      "Damage",
+      "Speed Up",
+      "Burst",
+      "Mobility",
+      "Shield"
+    ],
+    "103": [
+      "Buff",
+      "Damage",
+      "AOE",
+      "Shield",
+      "Burst",
+      "Mobility",
+      "CC"
+    ],
+    "104": [
+      "Slow",
+      "Buff",
+      "AOE",
+      "CC",
+      "Attach",
+      "Heal"
+    ],
+    "105": [
+      "Buff",
+      "Morph",
+      "Mobility",
+      "Burst",
+      "AOE",
+      "Slow"
+    ],
+    "106": [
+      "Buff",
+      "AOE",
+      "Slow",
+      "CC",
+      "Mobility",
+      "Burst"
+    ],
+    "107": [
+      "Buff",
+      "Burst",
+      "CC",
+      "Summon",
+      "Mobility"
+    ],
+    "108": [
+      "Buff",
+      "Speed Up",
+      "Slow",
+      "Heal"
+    ],
+    "109": [
+      "Buff",
+      "Damage",
+      "Burst"
+    ],
+    "110": [
+      "Buff",
+      "Heal",
+      "Damage",
+      "CC",
+      "Mobility",
+      "Morph",
+      "Slow"
+    ],
+    "111": [
+      "Buff",
+      "CC",
+      "AOE",
+      "Charge",
+      "Morph",
+      "Burst"
+    ],
+    "112": [
+      "Buff",
+      "Damage",
+      "Heal",
+      "CC"
+    ],
+    "113": [
+      "Buff",
+      "Burst",
+      "Speed Up",
+      "Mobility",
+      "CC"
+    ],
+    "114": [
+      "Buff",
+      "Mobility",
+      "Debuff",
+      "AOE",
+      "Summon"
+    ],
+    "115": [
+      "CC",
+      "Damage",
+      "AOE",
+      "Slow",
+      "Burst",
+      "Buff"
+    ],
+    "116": [
+      "Buff",
+      "Damage",
+      "Slow",
+      "Mobility",
+      "CC",
+      "Conceal"
+    ],
+    "117": [
+      "Buff",
+      "Heal",
+      "Damage",
+      "Mobility",
+      "CC",
+      "AOE",
+      "Burst"
+    ],
+    "118": [
+      "Damage",
+      "Speed Up",
+      "Summon",
+      "Mobility",
+      "AOE"
+    ],
+    "119": [
+      "Buff",
+      "Slow",
+      "AOE",
+      "Burst"
+    ],
+    "120": [
+      "Buff",
+      "CC",
+      "AOE",
+      "Damage",
+      "Mobility"
+    ],
+    "121": [
+      "Damage",
+      "Heal",
+      "Burst",
+      "CC",
+      "AOE"
+    ],
+    "122": [
+      "Damage",
+      "AOE",
+      "Mobility",
+      "Burst"
+    ],
+    "123": [
+      "Buff",
+      "Burst",
+      "Mobility",
+      "CC",
+      "Slow"
+    ],
+    "124": [
+      "Heal",
+      "CC",
+      "AOE",
+      "Speed Up",
+      "Teleport"
+    ],
+    "125": [
+      "Buff",
+      "AOE",
+      "Damage",
+      "CC",
+      "Shield",
+      "Mobility"
+    ],
+    "126": [
+      "Buff",
+      "Mobility",
+      "CC",
+      "AOE",
+      "Burst",
+      "Damage",
+      "Debuff"
+    ],
+    "127": [
+      "Buff",
+      "Damage",
+      "CC",
+      "Mobility",
+      "Morph",
+      "Burst"
+    ],
+    "128": [
+      "Buff",
+      "AOE",
+      "Mobility",
+      "CC"
+    ],
+    "129": [
+      "Shield",
+      "CC",
+      "AOE",
+      "Slow",
+      "Debuff"
+    ],
+    "130": [
+      "Buff",
+      "Damage",
+      "AOE",
+      "Speed Up",
+      "CC",
+      "Mobility"
+    ],
+    "131": [
+      "Buff",
+      "Damage",
+      "Mobility",
+      "CC"
+    ],
+    "132": [
+      "CC",
+      "AOE",
+      "Speed Up"
+    ]
+  },
+  "powerCurveMap": {
+    "1": {
+      "early": 5,
+      "mid": 4.37,
+      "late": 6.66,
+      "peak": "late"
+    },
+    "2": {
+      "early": 5,
+      "mid": 0.59,
+      "late": 3.54,
+      "peak": "early"
+    },
+    "3": {
+      "early": 5,
+      "mid": 5.24,
+      "late": 5.42,
+      "peak": "late"
+    },
+    "4": {
+      "early": 5,
+      "mid": 1.23,
+      "late": 4.33,
+      "peak": "early"
+    },
+    "5": {
+      "early": 5,
+      "mid": 3.87,
+      "late": 4.06,
+      "peak": "early"
+    },
+    "6": {
+      "early": 5,
+      "mid": 3.14,
+      "late": 3.94,
+      "peak": "early"
+    },
+    "7": {
+      "early": 5,
+      "mid": 2.71,
+      "late": 6.38,
+      "peak": "late"
+    },
+    "8": {
+      "early": 5,
+      "mid": 1.88,
+      "late": 5.63,
+      "peak": "late"
+    },
+    "9": {
+      "early": 5,
+      "mid": 5.38,
+      "late": 5.22,
+      "peak": "mid"
+    },
+    "10": {
+      "early": 5,
+      "mid": 2.41,
+      "late": 3.01,
+      "peak": "early"
+    },
+    "11": {
+      "early": 5,
+      "mid": 4.53,
+      "late": 4.7,
+      "peak": "early"
+    },
+    "12": {
+      "early": 5,
+      "mid": 4.78,
+      "late": 5.5,
+      "peak": "late"
+    },
+    "13": {
+      "early": 5,
+      "mid": 7.39,
+      "late": 3.9,
+      "peak": "mid"
+    },
+    "14": {
+      "early": 5,
+      "mid": 5.61,
+      "late": 7.15,
+      "peak": "late"
+    },
+    "15": {
+      "early": 5,
+      "mid": 4.18,
+      "late": 4.89,
+      "peak": "early"
+    },
+    "16": {
+      "early": 5,
+      "mid": 3.32,
+      "late": 4.59,
+      "peak": "early"
+    },
+    "17": {
+      "early": 5,
+      "mid": 1.06,
+      "late": 3.49,
+      "peak": "early"
+    },
+    "18": {
+      "early": 5,
+      "mid": 2.78,
+      "late": 5.01,
+      "peak": "late"
+    },
+    "19": {
+      "early": 5,
+      "mid": 7.27,
+      "late": 6.32,
+      "peak": "mid"
+    },
+    "20": {
+      "early": 5,
+      "mid": 9.23,
+      "late": 6.93,
+      "peak": "mid"
+    },
+    "21": {
+      "early": 5,
+      "mid": 4.94,
+      "late": 4.25,
+      "peak": "early"
+    },
+    "22": {
+      "early": 5,
+      "mid": 6.66,
+      "late": 4.49,
+      "peak": "mid"
+    },
+    "23": {
+      "early": 5,
+      "mid": 7.9,
+      "late": 5.89,
+      "peak": "mid"
+    },
+    "24": {
+      "early": 5,
+      "mid": 6.29,
+      "late": 7.83,
+      "peak": "late"
+    },
+    "25": {
+      "early": 5,
+      "mid": 5.98,
+      "late": 5.05,
+      "peak": "mid"
+    },
+    "26": {
+      "early": 5,
+      "mid": 2.24,
+      "late": 4.15,
+      "peak": "early"
+    },
+    "27": {
+      "early": 5,
+      "mid": 4.74,
+      "late": 8.6,
+      "peak": "late"
+    },
+    "28": {
+      "early": 5,
+      "mid": 2.43,
+      "late": 4.5,
+      "peak": "early"
+    },
+    "29": {
+      "early": 5,
+      "mid": 7.34,
+      "late": 5.24,
+      "peak": "mid"
+    },
+    "30": {
+      "early": 5,
+      "mid": 3.02,
+      "late": 3.83,
+      "peak": "early"
+    },
+    "31": {
+      "early": 5,
+      "mid": 3.86,
+      "late": 6.03,
+      "peak": "late"
+    },
+    "32": {
+      "early": 5,
+      "mid": 4.27,
+      "late": 5.62,
+      "peak": "late"
+    },
+    "33": {
+      "early": 5,
+      "mid": 5.27,
+      "late": 6.77,
+      "peak": "late"
+    },
+    "34": {
+      "early": 5,
+      "mid": 7.68,
+      "late": 3.95,
+      "peak": "mid"
+    },
+    "35": {
+      "early": 5,
+      "mid": 6.03,
+      "late": 5.23,
+      "peak": "mid"
+    },
+    "36": {
+      "early": 5,
+      "mid": 3.68,
+      "late": 4.35,
+      "peak": "early"
+    },
+    "37": {
+      "early": 5,
+      "mid": 6.14,
+      "late": 3.26,
+      "peak": "mid"
+    },
+    "38": {
+      "early": 5,
+      "mid": 6.12,
+      "late": 3.88,
+      "peak": "mid"
+    },
+    "39": {
+      "early": 5,
+      "mid": 2.65,
+      "late": 5.24,
+      "peak": "late"
+    },
+    "40": {
+      "early": 5,
+      "mid": 5.58,
+      "late": 6.83,
+      "peak": "late"
+    },
+    "41": {
+      "early": 5,
+      "mid": 3.13,
+      "late": 4.64,
+      "peak": "early"
+    },
+    "42": {
+      "early": 5,
+      "mid": 1.68,
+      "late": 4.83,
+      "peak": "early"
+    },
+    "43": {
+      "early": 5,
+      "mid": 6.62,
+      "late": 6.01,
+      "peak": "mid"
+    },
+    "44": {
+      "early": 5,
+      "mid": 4.57,
+      "late": 4.73,
+      "peak": "early"
+    },
+    "45": {
+      "early": 5,
+      "mid": 4.47,
+      "late": 8.78,
+      "peak": "late"
+    },
+    "46": {
+      "early": 5,
+      "mid": 4.95,
+      "late": 5.22,
+      "peak": "late"
+    },
+    "47": {
+      "early": 5,
+      "mid": 1.16,
+      "late": 3.98,
+      "peak": "early"
+    },
+    "48": {
+      "early": 5,
+      "mid": 8.35,
+      "late": 5.95,
+      "peak": "mid"
+    },
+    "49": {
+      "early": 5,
+      "mid": 4.31,
+      "late": 5.39,
+      "peak": "late"
+    },
+    "50": {
+      "early": 5,
+      "mid": 6.55,
+      "late": 5.85,
+      "peak": "mid"
+    },
+    "51": {
+      "early": 5,
+      "mid": 4.89,
+      "late": 5.58,
+      "peak": "late"
+    },
+    "52": {
+      "early": 5,
+      "mid": 4.13,
+      "late": 4.35,
+      "peak": "early"
+    },
+    "53": {
+      "early": 5,
+      "mid": 1.9,
+      "late": 5.94,
+      "peak": "late"
+    },
+    "54": {
+      "early": 5,
+      "mid": 5.17,
+      "late": 4.48,
+      "peak": "mid"
+    },
+    "55": {
+      "early": 5,
+      "mid": 4.59,
+      "late": 5.02,
+      "peak": "late"
+    },
+    "56": {
+      "early": 5,
+      "mid": 5.58,
+      "late": 5.35,
+      "peak": "mid"
+    },
+    "57": {
+      "early": 5,
+      "mid": 7.2,
+      "late": 5.92,
+      "peak": "mid"
+    },
+    "58": {
+      "early": 5,
+      "mid": 3.97,
+      "late": 3.59,
+      "peak": "early"
+    },
+    "59": {
+      "early": 5,
+      "mid": 4.83,
+      "late": 4.66,
+      "peak": "early"
+    },
+    "60": {
+      "early": 5,
+      "mid": 7.97,
+      "late": 5.29,
+      "peak": "mid"
+    },
+    "61": {
+      "early": 5,
+      "mid": 3.53,
+      "late": 5.41,
+      "peak": "late"
+    },
+    "62": {
+      "early": 5,
+      "mid": 5.02,
+      "late": 4.84,
+      "peak": "mid"
+    },
+    "63": {
+      "early": 5,
+      "mid": 3.08,
+      "late": 4.11,
+      "peak": "early"
+    },
+    "64": {
+      "early": 5,
+      "mid": 2.64,
+      "late": 8.1,
+      "peak": "late"
+    },
+    "65": {
+      "early": 5,
+      "mid": 5.27,
+      "late": 5.26,
+      "peak": "mid"
+    },
+    "66": {
+      "early": 5,
+      "mid": 4.85,
+      "late": 6.24,
+      "peak": "late"
+    },
+    "67": {
+      "early": 5,
+      "mid": 4.14,
+      "late": 4.47,
+      "peak": "early"
+    },
+    "68": {
+      "early": 5,
+      "mid": 4.82,
+      "late": 5.85,
+      "peak": "late"
+    },
+    "69": {
+      "early": 5,
+      "mid": 5.38,
+      "late": 6.33,
+      "peak": "late"
+    },
+    "70": {
+      "early": 5,
+      "mid": 5.76,
+      "late": 5.58,
+      "peak": "mid"
+    },
+    "71": {
+      "early": 5,
+      "mid": 4.36,
+      "late": 2.63,
+      "peak": "early"
+    },
+    "72": {
+      "early": 5,
+      "mid": 4.72,
+      "late": 5.13,
+      "peak": "late"
+    },
+    "73": {
+      "early": 5,
+      "mid": 0.67,
+      "late": 3.54,
+      "peak": "early"
+    },
+    "74": {
+      "early": 5,
+      "mid": 7.52,
+      "late": 5.85,
+      "peak": "mid"
+    },
+    "75": {
+      "early": 5,
+      "mid": 7.1,
+      "late": 5.64,
+      "peak": "mid"
+    },
+    "76": {
+      "early": 5,
+      "mid": 4.12,
+      "late": 6.13,
+      "peak": "late"
+    },
+    "77": {
+      "early": 5,
+      "mid": 4.87,
+      "late": 4.83,
+      "peak": "early"
+    },
+    "78": {
+      "early": 5,
+      "mid": 6.9,
+      "late": 7.06,
+      "peak": "late"
+    },
+    "79": {
+      "early": 5,
+      "mid": 2.06,
+      "late": 1.48,
+      "peak": "early"
+    },
+    "80": {
+      "early": 5,
+      "mid": 6.81,
+      "late": 5.22,
+      "peak": "mid"
+    },
+    "81": {
+      "early": 5,
+      "mid": 0,
+      "late": 2.03,
+      "peak": "early"
+    },
+    "82": {
+      "early": 5,
+      "mid": 6.64,
+      "late": 4.22,
+      "peak": "mid"
+    },
+    "83": {
+      "early": 5,
+      "mid": 5.65,
+      "late": 4.08,
+      "peak": "mid"
+    },
+    "84": {
+      "early": 5,
+      "mid": 2.22,
+      "late": 6.25,
+      "peak": "late"
+    },
+    "85": {
+      "early": 5,
+      "mid": 2.39,
+      "late": 2.77,
+      "peak": "early"
+    },
+    "86": {
+      "early": 5,
+      "mid": 5.45,
+      "late": 4.38,
+      "peak": "mid"
+    },
+    "87": {
+      "early": 5,
+      "mid": 5.14,
+      "late": 4.89,
+      "peak": "mid"
+    },
+    "88": {
+      "early": 5,
+      "mid": 8.23,
+      "late": 10,
+      "peak": "late"
+    },
+    "89": {
+      "early": 5,
+      "mid": 2.52,
+      "late": 5.47,
+      "peak": "late"
+    },
+    "90": {
+      "early": 5,
+      "mid": 7.64,
+      "late": 5.86,
+      "peak": "mid"
+    },
+    "91": {
+      "early": 5,
+      "mid": 4.79,
+      "late": 4.92,
+      "peak": "early"
+    },
+    "92": {
+      "early": 5,
+      "mid": 6.87,
+      "late": 5.32,
+      "peak": "mid"
+    },
+    "93": {
+      "early": 5,
+      "mid": 6.24,
+      "late": 5.13,
+      "peak": "mid"
+    },
+    "94": {
+      "early": 5,
+      "mid": 5.36,
+      "late": 5.39,
+      "peak": "late"
+    },
+    "95": {
+      "early": 5,
+      "mid": 5.71,
+      "late": 4.67,
+      "peak": "mid"
+    },
+    "96": {
+      "early": 5,
+      "mid": 4.33,
+      "late": 4.12,
+      "peak": "early"
+    },
+    "97": {
+      "early": 5,
+      "mid": 5.82,
+      "late": 5.04,
+      "peak": "mid"
+    },
+    "98": {
+      "early": 5,
+      "mid": 6.12,
+      "late": 4.24,
+      "peak": "mid"
+    },
+    "99": {
+      "early": 5,
+      "mid": 0.11,
+      "late": 2.57,
+      "peak": "early"
+    },
+    "100": {
+      "early": 5,
+      "mid": 7.97,
+      "late": 3.41,
+      "peak": "mid"
+    },
+    "101": {
+      "early": 5,
+      "mid": 7.36,
+      "late": 4.93,
+      "peak": "mid"
+    },
+    "102": {
+      "early": 5,
+      "mid": 2.41,
+      "late": 4.09,
+      "peak": "early"
+    },
+    "103": {
+      "early": 5,
+      "mid": 4.51,
+      "late": 3.81,
+      "peak": "early"
+    },
+    "104": {
+      "early": 5,
+      "mid": 9.33,
+      "late": 7.05,
+      "peak": "mid"
+    },
+    "105": {
+      "early": 5,
+      "mid": 4.34,
+      "late": 5.08,
+      "peak": "late"
+    },
+    "106": {
+      "early": 5,
+      "mid": 6.65,
+      "late": 5.05,
+      "peak": "mid"
+    },
+    "107": {
+      "early": 5,
+      "mid": 8.53,
+      "late": 4.95,
+      "peak": "mid"
+    },
+    "108": {
+      "early": 5,
+      "mid": 4.66,
+      "late": 6.13,
+      "peak": "late"
+    },
+    "109": {
+      "early": 5,
+      "mid": 6.1,
+      "late": 5.72,
+      "peak": "mid"
+    },
+    "110": {
+      "early": 5,
+      "mid": 1.61,
+      "late": 2.15,
+      "peak": "early"
+    },
+    "111": {
+      "early": 5,
+      "mid": 4.7,
+      "late": 5.28,
+      "peak": "late"
+    },
+    "112": {
+      "early": 5,
+      "mid": 8.32,
+      "late": 5.2,
+      "peak": "mid"
+    },
+    "113": {
+      "early": 5,
+      "mid": 3.76,
+      "late": 5.1,
+      "peak": "late"
+    },
+    "114": {
+      "early": 5,
+      "mid": 5.96,
+      "late": 6.11,
+      "peak": "late"
+    },
+    "115": {
+      "early": 5,
+      "mid": 5.28,
+      "late": 4.61,
+      "peak": "mid"
+    },
+    "116": {
+      "early": 5,
+      "mid": 5.25,
+      "late": 4.9,
+      "peak": "mid"
+    },
+    "117": {
+      "early": 5,
+      "mid": 4.42,
+      "late": 5.16,
+      "peak": "late"
+    },
+    "118": {
+      "early": 5,
+      "mid": 4.94,
+      "late": 5.09,
+      "peak": "late"
+    },
+    "119": {
+      "early": 5,
+      "mid": 4,
+      "late": 5.5,
+      "peak": "late"
+    },
+    "120": {
+      "early": 5,
+      "mid": 5.56,
+      "late": 4.08,
+      "peak": "mid"
+    },
+    "121": {
+      "early": 5,
+      "mid": 6.13,
+      "late": 3.84,
+      "peak": "mid"
+    },
+    "122": {
+      "early": 5,
+      "mid": 5.86,
+      "late": 3.83,
+      "peak": "mid"
+    },
+    "123": {
+      "early": 5,
+      "mid": 3.92,
+      "late": 4.97,
+      "peak": "early"
+    },
+    "124": {
+      "early": 5,
+      "mid": 3.49,
+      "late": 4.14,
+      "peak": "early"
+    },
+    "125": {
+      "early": 5,
+      "mid": 7.33,
+      "late": 4.85,
+      "peak": "mid"
+    },
+    "126": {
+      "early": 5,
+      "mid": 7,
+      "late": 5.08,
+      "peak": "mid"
+    },
+    "127": {
+      "early": 5,
+      "mid": 3.93,
+      "late": 5.27,
+      "peak": "late"
+    },
+    "128": {
+      "early": 5,
+      "mid": 2.95,
+      "late": 3.91,
+      "peak": "early"
+    },
+    "129": {
+      "early": 5,
+      "mid": 0.41,
+      "late": 4,
+      "peak": "early"
+    },
+    "130": {
+      "early": 5,
+      "mid": 1.62,
+      "late": 6.4,
+      "peak": "late"
+    },
+    "131": {
+      "early": 5,
+      "mid": 4.95,
+      "late": 3.65,
+      "peak": "early"
+    },
+    "132": {
+      "early": 5,
+      "mid": 3.3,
+      "late": 4.75,
+      "peak": "early"
+    }
+  }
+}

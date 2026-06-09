@@ -4,7 +4,7 @@ import { predictEnemyPicks } from './predictionEngine';
 import { detectTeamArchetype } from './archetypeEngine';
 import { buildEnemyCompAnalysis } from './compositionEngine';
 import { buildWinningLineup }     from './lineupEngine';
-import { analyzeBanPattern, buildArchetypeProbability, detectCompositionHoles } from './intelligenceEngine';
+import { analyzeBanPattern, buildArchetypeProbability, detectCompositionHoles, buildStrategicRead, buildAdaptiveBanSuggestions, buildCounterplayTips } from './intelligenceEngine';
 
 // ─── Team metric calculation ─────────────────────────────────────────────────
 
@@ -211,9 +211,32 @@ export function runDraftAnalysis(
   const allyPicksForIntel  = currentTeam === 'blue' ? blueTeam : redTeam;
   const enemyPicksForIntel = currentTeam === 'blue' ? redTeam  : blueTeam;
 
-  const banAnalysis = analyzeBanPattern(enemyBansForIntel, allyBansForIntel);
+  const banAnalysis          = analyzeBanPattern(enemyBansForIntel, allyBansForIntel);
   const archetypeProbability = buildArchetypeProbability(enemyPicksForIntel, enemyBansForIntel);
-  const compositionHoles = detectCompositionHoles(allyPicksForIntel);
+  const compositionHoles     = detectCompositionHoles(allyPicksForIntel);
+
+  // Chess master strategic read: cross-reference enemy bans + picks + our bans
+  const allyArch    = currentTeam === 'blue' ? blueArchetype : redArchetype;
+  const strategicRead = buildStrategicRead(
+    enemyPicksForIntel,
+    enemyBansForIntel,
+    allyBansForIntel,
+    allyArch?.primary ?? null,
+  );
+
+  // Adaptive ban suggestions (phase-2 aware): react to confirmed enemy picks
+  const bannedIdsSet = new Set([...blueBans.map((h) => h.id), ...redBans.map((h) => h.id)]);
+  const pickedIdsSet = new Set([...blueTeam.map((h) => h.id), ...redTeam.map((h) => h.id)]);
+  const adaptiveBanSuggestions = buildAdaptiveBanSuggestions(
+    enemyPicksForIntel,
+    allyPicksForIntel,
+    allHeroes,
+    bannedIdsSet,
+    pickedIdsSet,
+  );
+
+  // Counterplay tips: stat-based actionable advice vs confirmed enemy heroes
+  const counterplayTips = buildCounterplayTips(enemyPicksForIntel);
 
   return {
     blueMetrics,
@@ -233,6 +256,9 @@ export function runDraftAnalysis(
     archetypeProbability,
     compositionHoles,
     currentAction,
+    strategicRead,
+    adaptiveBanSuggestions,
+    counterplayTips,
   };
 }
 

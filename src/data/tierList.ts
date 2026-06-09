@@ -31,43 +31,53 @@ export const LANE_TIERS: Record<LaneKey, Partial<Record<TierRank, string[]>>> = 
 
   // ── EXP Lane (Solo/Fighter) ────────────────────────────────────────────────
   // Source: gosugamers tier list image — "Arlott, Yu Zhong, and Sora dominate"
+  // Rule: Fighter or Assassin role ONLY. Mage/Tank/Support heroes do NOT go EXP.
   EXP: {
     'S+': ['Arlott', 'Yu Zhong', 'Sora', 'Thamuz', 'Joy', 'Fredrinn', 'Khaleed', 'Ruby'],
     'S-': ['Guinevere', 'Benedetta', 'Terizla', 'Masha'],
     'A+': ['Argus', 'Aldous', 'Paquito', 'Dyrroth', 'Chou', 'X.Borg'],
     'A':  ['Zilong', 'Balmond', 'Lapu-Lapu', 'Silvanna', 'Badang', 'Roger', 'Sun'],
     'B':  ['Esmeralda', 'Hilda', 'Aulus', 'Gatotkaca', 'Bane', 'Jawhead', 'Leomord'],
-    'C':  ['Alucard', 'Alpha', 'Hanzo', 'Martis', 'Hylos', 'Cyclops'],
+    'C':  ['Alucard', 'Alpha', 'Hanzo', 'Martis'],
+    // Removed: Hylos (Tank → Roam only), Cyclops (Mage → Mid only)
   },
 
-  // ── Gold Lane (Marksman) ───────────────────────────────────────────────────
+  // ── Gold Lane (Marksman + rare Mage kit exceptions) ──────────────────────
   // Source: gosugamers — "Yi Sun-Shin newly viable in gold lane"
+  // Rule: Marksman role primary. Mage exceptions only when kit mirrors ADC playstyle
+  //       (Kimmy auto-attack mage, Lunox dual-stance burst, Harith mobility burst).
+  //       Fighter/Tank heroes (Thamuz, Zilong) do NOT belong in Gold lane.
   Gold: {
     'S+': ['Claude', 'Brody', 'Beatrix', 'Yi Sun-Shin'],
-    'S-': ['Wanwan', 'Melissa', 'Irithel', 'Valentina', 'Granger'],
-    'A+': ['Karrie', 'Natan', 'Moskov', 'Popol and Kupa', 'Kimmy', 'Clint', 'Miya'],
+    'S-': ['Wanwan', 'Melissa', 'Irithel', 'Granger'],
+    'A+': ['Karrie', 'Natan', 'Moskov', 'Popol and Kupa', 'Kimmy', 'Clint', 'Miya', 'Obsidia'],
     'A':  ['Layla', 'Lesley', 'Hanabi', 'Bruno'],
-    'B':  ['Ixia', 'Chang\'e', 'Zilong', 'Harley', 'Thamuz'],
-    'C':  ['Alucard', 'Vexana', 'Selena'],
+    'B':  ['Ixia', 'Lunox', 'Harith'],
+    // Removed: Zilong (Fighter → EXP primary), Thamuz (Fighter → EXP primary)
+    'C':  [],
   },
 
   // ── Jungle ────────────────────────────────────────────────────────────────
   // Source: gosugamers — "Leomord, Fredrinn, and Suyou remain top jungle picks"
+  // Rule: Fighter, Assassin, or Marksman (attack-speed/crit jungler) role required.
+  //       Tank-only and Support-only heroes CANNOT jungle — no camp clear, no kill threat.
   Jungle: {
     'S+': ['Leomord', 'Fredrinn', 'Suyou', 'Julian', 'Karina', 'Aamon'],
     'S-': ['Ling', 'Fanny', 'Gusion', 'Benedetta', 'Lancelot', 'Hayabusa'],
     'A+': ['Yi Sun-Shin', 'Joy', 'Hanzo', 'Granger', 'Wanwan', 'Selena', 'Arlott'],
     'A':  ['Roger', 'Balmond', 'Jawhead', 'Harley', 'Aldous', 'Alucard'],
-    'B':  ['Alpha', 'Sun', 'Bane', 'Argus', 'Natalia', 'Cyclops', 'Dyrroth', 'Silvanna', 'Badang', 'Masha'],
-    'C':  ['Lolita', 'Gloo', 'Popol and Kupa', 'Uranus', 'Terizla', 'Hilda'],
+    'B':  ['Alpha', 'Sun', 'Bane', 'Argus', 'Natalia', 'Dyrroth', 'Silvanna', 'Badang', 'Masha'],
+    // Removed: Cyclops (Mage → Mid only, no jungle clear)
+    'C':  ['Popol and Kupa', 'Terizla', 'Hilda'],
+    // Removed: Lolita (Tank/Support → Roam S- only), Gloo (Tank → Roam A), Uranus (Tank → Roam B)
   },
 
   // ── Mid Lane (Mage) ────────────────────────────────────────────────────────
   // Source: gosugamers — "Zhuxin, Kimmy, Yve are must-picks"
   Mid: {
-    'S+': ['Zhuxin', 'Kimmy', 'Yve', 'Kagura', 'Lunox'],
+    'S+': ['Zhuxin', 'Kimmy', 'Yve', 'Pharsa', 'Lunox'],
     'S-': ['Luo Yi', 'Lylia', 'Cecilion', 'Valir', 'Eudora'],
-    'A+': ['Xavier', 'Vale', 'Gord', 'Pharsa', 'Aurora', 'Alice', 'Harley', 'Odette'],
+    'A+': ['Xavier', 'Vale', 'Gord', 'Kagura', 'Aurora', 'Alice', 'Harley', 'Odette'],
     'A':  ['Nana', 'Chang\'e', 'Vexana', 'Cyclops', 'Esmeralda', 'Zhask', 'Guinevere'],
     'B':  ['Kadita', 'Faramis', 'Selena'],
     'C':  [],
@@ -94,6 +104,47 @@ const ROLE_TO_LANE: Record<string, LaneKey> = {
   Tank:      'Roam',
   Support:   'Roam',
 };
+
+// ─── Hero lane(s) detection ───────────────────────────────────────────────────
+// Returns every lane where the hero explicitly appears in the tier lists.
+// Falls back to the role→lane mapping when the hero isn't listed anywhere.
+// A hero can appear in multiple lanes (e.g. Yi Sun-Shin: Gold + Jungle).
+
+export function getHeroLanes(heroName: string, roles: string[]): LaneKey[] {
+  const ALL_LANES: LaneKey[] = ['EXP', 'Gold', 'Jungle', 'Mid', 'Roam'];
+  const nameLower = heroName.toLowerCase();
+  const found: LaneKey[] = [];
+
+  for (const lane of ALL_LANES) {
+    const tiers = LANE_TIERS[lane];
+    const inLane = (Object.values(tiers) as string[][]).some(
+      (heroes) => heroes?.some((n) => n.toLowerCase() === nameLower)
+    );
+    if (inLane) found.push(lane);
+  }
+
+  if (found.length > 0) return found;
+
+  // Fallback: derive from role mapping
+  const primaryRole = roles[0] ?? '';
+  const lane = ROLE_TO_LANE[primaryRole];
+  return lane ? [lane] : [];
+}
+
+// ─── Lookup: tier score for a hero in a specific lane ────────────────────────
+// Returns the tier score if the hero is explicitly listed for this lane,
+// or null if not in this lane's tier list.
+
+export function getHeroTierScoreForLane(heroName: string, lane: LaneKey): number | null {
+  const tiers = LANE_TIERS[lane];
+  const nameLower = heroName.toLowerCase();
+  for (const [tier, heroes] of Object.entries(tiers) as [TierRank, string[]][]) {
+    if (heroes?.some((n) => n.toLowerCase() === nameLower)) {
+      return TIER_META_SCORE[tier];
+    }
+  }
+  return null;
+}
 
 // ─── Lookup: get tier meta score for a hero by name + roles ──────────────────
 
@@ -128,6 +179,7 @@ export type DraftArchetypeTag = 'poke' | 'engage' | 'protect' | 'split' | 'catch
 
 export const HERO_ARCHETYPE_TAGS: Record<string, DraftArchetypeTag[]> = {
   // ── Poke (consistent damage, long range, short cooldowns) ─────────────────
+  // DPS/Control Mages + Crit/Skill Marksmen
   Yve:       ['poke'],
   Zhuxin:    ['poke'],
   Kimmy:     ['poke'],
@@ -137,6 +189,7 @@ export const HERO_ARCHETYPE_TAGS: Record<string, DraftArchetypeTag[]> = {
   Pharsa:    ['poke'],
   Lunox:     ['poke'],
   Chang_e:   ['poke'],
+  "Chang'e": ['poke'],
   Lesley:    ['poke'],
   Layla:     ['poke'],
   Moskov:    ['poke'],
@@ -148,12 +201,18 @@ export const HERO_ARCHETYPE_TAGS: Record<string, DraftArchetypeTag[]> = {
   Cecilion:  ['poke'],
   Lylia:     ['poke'],
   Miya:      ['poke'],
+  Valir:     ['poke'],
+  Zhask:     ['poke'],
+  Bruno:     ['poke'],
+  Irithel:   ['poke'],
+  Melissa:   ['poke', 'protect'],
 
   // ── Engage (teamfight initiation, AoE CC, force fights) ──────────────────
+  // Glorious Launchers + Mastodon fighters
   Atlas:     ['engage'],
   Khufra:    ['engage'],
   Tigreal:   ['engage'],
-  Franco:    ['engage'],
+  Franco:    ['engage', 'catch'],  // hook = pick-off tool in catch, AoE initiation in engage
   Akai:      ['engage'],
   Barats:    ['engage'],
   Belerick:  ['engage'],
@@ -168,10 +227,17 @@ export const HERO_ARCHETYPE_TAGS: Record<string, DraftArchetypeTag[]> = {
   Thamuz:    ['engage'],
   Fredrinn:  ['engage'],
   Yu_Zhong:  ['engage'],
+  'Yu Zhong': ['engage'],
   Arlott:    ['engage'],
   Martis:    ['engage'],
+  Ruby:      ['engage', 'catch'],
+  Paquito:   ['engage', 'catch'],
+  Badang:    ['engage'],
+  Silvanna:  ['engage', 'catch'],
+  Guinevere: ['engage', 'catch'],
 
   // ── Protect (scaling carries + 2 defensive layers) ────────────────────────
+  // Enchanters + Avant-gardes + scaling damage dealers
   Angela:    ['protect'],
   Estes:     ['protect'],
   Floryn:    ['protect'],
@@ -184,10 +250,12 @@ export const HERO_ARCHETYPE_TAGS: Record<string, DraftArchetypeTag[]> = {
   Esmeralda: ['protect'],
   Claude:    ['protect'],
   Brody:     ['protect'],
-  Melissa:   ['protect'],
   Wanwan:    ['protect'],
+  Diggie:    ['protect'],
+  Natan:     ['protect', 'poke'],
 
   // ── Split (map pressure, agile heroes, objective control) ─────────────────
+  // Speed Specialists + Berserkers + Skill Marksmen with global presence
   Ling:      ['split'],
   Fanny:     ['split'],
   Hayabusa:  ['split'],
@@ -196,17 +264,19 @@ export const HERO_ARCHETYPE_TAGS: Record<string, DraftArchetypeTag[]> = {
   Leomord:   ['split'],
   Benedetta: ['split'],
   Zilong:    ['split'],
-  Khaleed:   ['split'],
+  Khaleed:   ['split', 'engage'],
   Sora:      ['split', 'engage'],
   Roger:     ['split'],
   Argus:     ['split'],
-  Joy:       ['split'],
+  Joy:       ['split', 'catch'],
+  Masha:     ['split'],
+  Lancelot:  ['split', 'catch'],
 
   // ── Catch (single-target CC, burst, hard to escape) ──────────────────────
+  // Prey Hunters + Snipers + Initiators with lockdown
   Kaja:      ['catch'],
   Suyou:     ['catch'],
   Gusion:    ['catch'],
-  Lancelot:  ['catch'],
   Aamon:     ['catch'],
   Selena:    ['catch'],
   Karina:    ['catch'],
@@ -215,11 +285,12 @@ export const HERO_ARCHETYPE_TAGS: Record<string, DraftArchetypeTag[]> = {
   Natalia:   ['catch'],
   Helcurt:   ['catch'],
   Hanzo:     ['catch'],
-  Guinevere: ['catch', 'engage'],
   Kagura:    ['catch'],
   Luo_Yi:    ['catch', 'engage'],
+  'Luo Yi':  ['catch', 'engage'],
   Gloo:      ['catch'],
   Nana:      ['catch'],
+  Saber:     ['catch'],
 };
 
 /** Get archetype tags for a hero by name */

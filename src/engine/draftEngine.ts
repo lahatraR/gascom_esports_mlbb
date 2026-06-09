@@ -1,5 +1,9 @@
-import type { HeroData, DraftSuggestion, BanSuggestion, ScoreBreakdown, GameMode } from '@/types/draft';
-import { getHeroTierScore } from '@/data/tierList';
+import type { HeroData, DraftSuggestion, BanSuggestion, ScoreBreakdown, GameMode, DraftArchetype } from '@/types/draft';
+import { getHeroTierScore, getHeroLanes } from '@/data/tierList';
+import type { LaneKey } from '@/data/tierList';
+import { playstyleCounterScore, buildPlaystyleHint, getPlaystyles, PLAYSTYLE_LABEL } from '@/data/heroArchetypes';
+import { heroArchetypeScores, ARCHETYPE_BEATS } from '@/engine/archetypeEngine';
+import { getHeroDifficulty } from '@/data/executionDifficulty';
 
 // ─── Weight configuration per game mode ─────────────────────────────────────
 
@@ -15,22 +19,31 @@ const WEIGHTS: Record<GameMode, {
 
 /**
  * Counter Score (0–10):
- * +2 for each enemy hero this hero counters
- * −2 for each enemy hero that counters this hero
- * Normalized to 0–10 range.
+ * Blends two signals:
+ *  1. API relation data (+2 for each enemy countered, -2/-1.5 for countered)  — 70%
+ *  2. Playstyle archetype counter matrix (glorious_launcher beats prey_hunter, etc.) — 30%
+ *
+ * The archetype signal adds richness when the API counter arrays are sparse.
  */
 export function calculateCounterScore(hero: HeroData, enemyTeam: HeroData[]): number {
   if (enemyTeam.length === 0) return 5;
+
+  // ── Signal 1: API relation arrays ─────────────────────────────────────────
   let raw = 0;
   for (const enemy of enemyTeam) {
-    if (hero.counters.includes(enemy.id)) raw += 2;
-    if (hero.counteredBy.includes(enemy.id)) raw -= 2;
-    if (enemy.counters.includes(hero.id)) raw -= 1.5;
-    if (enemy.counteredBy.includes(hero.id)) raw += 1.5;
+    if (hero.counters.includes(enemy.id))      raw += 2;
+    if (hero.counteredBy.includes(enemy.id))   raw -= 2;
+    if (enemy.counters.includes(hero.id))      raw -= 1.5;
+    if (enemy.counteredBy.includes(hero.id))   raw += 1.5;
   }
-  // raw range: -3.5*5 to +3.5*5 → clamp & normalize to 0-10
-  const maxRaw = enemyTeam.length * 3.5;
-  return clamp(((raw + maxRaw) / (maxRaw * 2)) * 10, 0, 10);
+  const maxRaw  = enemyTeam.length * 3.5;
+  const apiScore = clamp(((raw + maxRaw) / (maxRaw * 2)) * 10, 0, 10);
+
+  // ── Signal 2: Playstyle archetype counter score ────────────────────────────
+  const archScore = playstyleCounterScore(hero.name, enemyTeam.map((e) => e.name));
+
+  // Blend: API is primary (70%), archetypes add signal (30%)
+  return clamp(apiScore * 0.70 + archScore * 0.30, 0, 10);
 }
 
 /**
@@ -117,6 +130,199 @@ export function calculatePressureScore(hero: HeroData, alliedTeam: HeroData[]): 
   return clamp(baseScore - penalty, 0, 10);
 }
 
+// ─── Required roles per lane (team composition rule) ─────────────────────────
+//
+// A well-balanced MLBB team MUST have:
+//   Gold   → Marksman (carries the late-game DPS)
+//   Roam   → Tank or Support (vision, engage, peel)
+//   Jungle → Assassin, Fighter, or Tank (objectives + ganks)
+//   EXP    → Fighter or Assassin (duel + side-lane pressure)
+//   Mid    → Mage or Assassin (burst + rotation)
+//
+// Heroes placed in a lane whose role doesn't match receive a heavy penalty.
+// This prevents e.g. Valentina (Mage) from being suggested as Gold carry
+// when the team still has no Marksman.
+
+// Role → lane logic (mirrors hero-position API: sort_title → road_sort_title)
+//   Fighter   → Exp Lane     Assassin  → Jungle
+//   Mage      → Mid Lane     Marksman  → Gold Lane
+//   Tank      → Roam         Support   → Roam
+// Jungle: Tank-primary heroes belong in Roam, NOT Jungle.
+// A hero like Fredrinn (Fighter+Tank) qualifies via Fighter role.
+const LANE_REQUIRED_ROLES: Record<LaneKey, string[]> = {
+  Gold:   ['Marksman'],
+  Roam:   ['Tank', 'Support'],
+  Jungle: ['Assassin', 'Fighter'],  // ← Tank removed
+  EXP:    ['Fighter', 'Assassin'],
+  Mid:    ['Mage'],                 // ← Assassin removed: must be explicit Mid tier hero
+};
+
+// Required roles across the full team composition
+const TEAM_COMPOSITION_REQUIRED: string[][] = [
+  ['Marksman'],                    // 1 Marksman (Gold)
+  ['Tank', 'Support'],             // 1 Tank or Support (Roam)
+  ['Assassin', 'Fighter'],         // Jungler (Fighter or Assassin role)
+  ['Fighter', 'Assassin'],         // EXP
+  ['Mage'],                        // Mid — must be a Mage
+];
+
+// ─── Lane fit multiplier ──────────────────────────────────────────────────────
+//
+// Combines two signals:
+//  1. Lane coverage — is the hero's lane already taken?
+//  2. Role composition — does the hero fill a REQUIRED role that's still missing?
+//
+// Examples:
+//  - Team has EXP/Gold/Jungle/Roam → Mid is missing.
+//    Sora (EXP Fighter) → 0.35 multiplier  → meta drops from 8 to 2.8
+//    Zhuxin (Mid Mage S+) → 1.35 multiplier → meta boosted
+//  - Team has no Marksman → Valentina (Mage) in Gold → 0.20 penalty
+//    because Marksman role is still missing and she doesn't fill it
+
+function calculateLaneFitScore(hero: HeroData, alliedTeam: HeroData[]): number {
+  if (alliedTeam.length === 0) return 1.0;
+
+  const ALL_LANES: LaneKey[] = ['EXP', 'Gold', 'Jungle', 'Mid', 'Roam'];
+
+  // ── Collect what the team already covers ─────────────────────────────────
+  const coveredLanes = new Set<LaneKey>();
+  for (const ally of alliedTeam) {
+    for (const lane of getHeroLanes(ally.name, ally.roles)) {
+      coveredLanes.add(lane);
+    }
+  }
+
+  const coveredRoles = new Set<string>();
+  for (const ally of alliedTeam) {
+    for (const r of ally.roles) coveredRoles.add(r);
+  }
+
+  const missingLanes = ALL_LANES.filter((l) => !coveredLanes.has(l));
+
+  // ── Which required role slots are still unfilled? ──────────────────────
+  const missingSlots = TEAM_COMPOSITION_REQUIRED.filter(
+    (group) => !group.some((r) => coveredRoles.has(r))
+  );
+
+  // Does this hero fill any required missing slot?
+  const heroFillsRequiredSlot = missingSlots.some(
+    (group) => group.some((r) => hero.roles.includes(r))
+  );
+
+  // Does this hero fill a missing lane?
+  const heroLanes     = getHeroLanes(hero.name, hero.roles);
+  const fillsMissingLane = heroLanes.some((l) => missingLanes.includes(l));
+
+  // Check role-lane match: does hero's role fit the lane their tier puts them in?
+  const heroFitsAnyLane = heroLanes.some((lane) => {
+    const required = LANE_REQUIRED_ROLES[lane] ?? [];
+    return required.length === 0 || hero.roles.some((r) => required.includes(r));
+  });
+
+  const pickedCount = alliedTeam.length;
+
+  // ── Big bonus: fills both a missing lane AND a required role slot ──────
+  if (fillsMissingLane && heroFillsRequiredSlot) return 1.35;
+
+  // ── Moderate bonus: fills a required role slot (even if lane covered) ──
+  if (heroFillsRequiredSlot) return 1.10;
+
+  // ── Lane fills missing but role doesn't match composition need ─────────
+  if (fillsMissingLane && !heroFillsRequiredSlot) return 0.90;
+
+  // ── Hero's lane covered, but role-lane mismatch (e.g. Mage in Gold) ────
+  if (!heroFitsAnyLane) {
+    // Hard penalty: role doesn't belong in any lane this hero appears in
+    if (pickedCount >= 3) return 0.20;
+    if (pickedCount >= 2) return 0.35;
+    return 0.55;
+  }
+
+  // ── Hero's lane covered, role fits but redundant ───────────────────────
+  if (pickedCount >= 3) return 0.35; // 4th/5th pick: strong penalty
+  if (pickedCount >= 2) return 0.55; // 3rd pick: moderate penalty
+  return 0.80;                        // 1st/2nd pick: mild penalty
+}
+
+// ─── Enemy draft archetype detection ─────────────────────────────────────────
+//
+// Given the enemy's current picks, compute which composition archetype they
+// appear to be building (engage / poke / protect / split / catch).
+//
+// Works with 1+ heroes:
+//   1 hero  → weak signal, low confidence multiplier applied downstream
+//   2 picks → moderate signal
+//   3+ picks → strong signal
+//
+// Returns null when no archetype is clearly dominant (spread score).
+
+const ALL_ARCHETYPES: DraftArchetype[] = ['poke', 'engage', 'protect', 'split', 'catch'];
+
+export function dominantEnemyArchetype(
+  enemyTeam: HeroData[]
+): { archetype: DraftArchetype; dominance: number } | null {
+  if (enemyTeam.length === 0) return null;
+
+  const totals: Record<DraftArchetype, number> = {
+    poke: 0, engage: 0, protect: 0, split: 0, catch: 0,
+  };
+
+  for (const enemy of enemyTeam) {
+    const scores = heroArchetypeScores(enemy);
+    for (const a of ALL_ARCHETYPES) totals[a] += scores[a];
+  }
+
+  const total = ALL_ARCHETYPES.reduce((s, a) => s + totals[a], 0);
+  if (total === 0) return null;
+
+  const sorted = [...ALL_ARCHETYPES].sort((a, b) => totals[b] - totals[a]);
+  const dominance = totals[sorted[0]] / total; // share of the dominant archetype
+
+  // Threshold: only signal when dominant archetype is clearly ahead
+  // 1 hero: need > 0.32 (one hero strongly biased)
+  // 2 heroes: > 0.30
+  // 3+: > 0.27 (signal is more reliable)
+  const threshold = Math.max(0.27, 0.35 - enemyTeam.length * 0.03);
+  if (dominance < threshold) return null;
+
+  return { archetype: sorted[0], dominance };
+}
+
+/**
+ * Primary archetype of a single hero — the archetype where they score highest.
+ */
+function heroMainArchetype(hero: HeroData): DraftArchetype {
+  const scores = heroArchetypeScores(hero);
+  return ALL_ARCHETYPES.reduce(
+    (best, a) => scores[a] > scores[best] ? a : best,
+    ALL_ARCHETYPES[0]
+  );
+}
+
+/**
+ * Archetype Counter Score (added on top of the counter score):
+ *  +2.0 × confidence  if our hero's archetype beats the enemy's predicted archetype
+ *  −1.5 × confidence  if the enemy's archetype beats our hero's archetype
+ *
+ * Confidence = min(enemyPickCount / 3, 1.0)
+ * → with 1 pick: 33% weight, 2 picks: 67%, 3+ picks: full weight
+ */
+function calculateArchetypeCounterScore(
+  hero: HeroData,
+  enemyPrediction: { archetype: DraftArchetype; dominance: number } | null,
+  enemyPickCount: number
+): number {
+  if (!enemyPrediction) return 0;
+
+  const heroArch   = heroMainArchetype(hero);
+  const enemyArch  = enemyPrediction.archetype;
+  const confidence = Math.min(enemyPickCount / 3, 1.0) * enemyPrediction.dominance;
+
+  if (ARCHETYPE_BEATS[heroArch].includes(enemyArch))  return  2.0 * confidence;
+  if (ARCHETYPE_BEATS[enemyArch].includes(heroArch))  return -1.5 * confidence;
+  return 0;
+}
+
 // ─── Final hero score ────────────────────────────────────────────────────────
 
 export function scoreHero(
@@ -124,24 +330,44 @@ export function scoreHero(
   alliedTeam: HeroData[],
   enemyTeam: HeroData[],
   bannedIds: Set<number>,
-  gameMode: GameMode
+  gameMode: GameMode,
+  precomputedEnemyArch?: { archetype: DraftArchetype; dominance: number } | null
 ): ScoreBreakdown {
   if (bannedIds.has(hero.id)) {
     return { counter: 0, synergy: 0, meta: 0, phase: 0, pressure: 0, total: 0 };
   }
 
   const w = WEIGHTS[gameMode];
-  const counter  = calculateCounterScore(hero, enemyTeam);
+
+  // Archetype counter: blend into counter score
+  // Precomputed outside the loop in getSuggestions for performance; falls back to computing here
+  const enemyArch  = precomputedEnemyArch !== undefined
+    ? precomputedEnemyArch
+    : dominantEnemyArchetype(enemyTeam);
+  const archBonus  = calculateArchetypeCounterScore(hero, enemyArch, enemyTeam.length);
+
+  const counter  = clamp(calculateCounterScore(hero, enemyTeam) + archBonus, 0, 10);
   const synergy  = calculateSynergyScore(hero, alliedTeam);
-  const meta     = calculateMetaScore(hero);
+  const meta     = clamp(calculateMetaScore(hero) * calculateLaneFitScore(hero, alliedTeam), 0, 10);
   const phase    = calculatePhaseScore(hero, alliedTeam, gameMode);
   const pressure = calculatePressureScore(hero, alliedTeam);
 
-  const total = (counter * w.counter) +
-                (synergy * w.synergy) +
-                (meta    * w.meta)    +
-                (phase   * w.phase)   +
-                (pressure * w.pressure);
+  let total = (counter * w.counter) +
+              (synergy * w.synergy) +
+              (meta    * w.meta)    +
+              (phase   * w.phase)   +
+              (pressure * w.pressure);
+
+  // ── Execution difficulty penalty ────────────────────────────────────────
+  // In ranked: high-difficulty heroes are risky without practice.
+  // In tournament: difficulty is neutral (pros are expected to master their pool).
+  // In custom: slight penalty to avoid recommending heroes the team can't play.
+  if (gameMode !== 'tournament') {
+    const diff = hero.difficulty ?? getHeroDifficulty(hero.name);
+    if (diff >= 5) total *= gameMode === 'ranked' ? 0.72 : 0.88;  // Fanny/Ling/Kagura
+    else if (diff >= 4) total *= gameMode === 'ranked' ? 0.85 : 0.94;
+    // Difficulty 1-3: no penalty — within reach of most players
+  }
 
   return { counter, synergy, meta, phase, pressure, total };
 }
@@ -161,12 +387,45 @@ export function getSuggestions(
     (h) => !bannedIds.has(h.id) && !pickedIds.has(h.id)
   );
 
+  // Precompute enemy archetype once — used inside scoreHero for all candidates
+  const enemyArch = dominantEnemyArchetype(enemyTeam);
+
   const scored = available.map((hero) => {
-    const bd = scoreHero(hero, alliedTeam, enemyTeam, bannedIds, gameMode);
+    const bd = scoreHero(hero, alliedTeam, enemyTeam, bannedIds, gameMode, enemyArch);
     return { hero, bd };
   });
 
   scored.sort((a, b) => b.bd.total - a.bd.total);
+
+  // ── Lane-coverage filter ────────────────────────────────────────────────────
+  // Only suggest heroes that fill a lane not yet covered by the allied team.
+  // Prevents recommending a 2nd Roam (Khufra) when Atlas is already picked,
+  // a 2nd Marksman when Brody is already Gold, etc.
+  // Fallback: if no hero fills a missing lane (shouldn't happen), return top-N.
+  if (alliedTeam.length > 0 && alliedTeam.length < 5) {
+    const ALL_LANES: LaneKey[] = ['EXP', 'Gold', 'Jungle', 'Mid', 'Roam'];
+    const coveredLanes = new Set<LaneKey>();
+    for (const ally of alliedTeam) {
+      for (const lane of getHeroLanes(ally.name, ally.roles)) coveredLanes.add(lane);
+    }
+    const neededLanes = ALL_LANES.filter((l) => !coveredLanes.has(l));
+
+    if (neededLanes.length > 0) {
+      const fillsNeeded = scored.filter(({ hero }) => {
+        const heroLanes = getHeroLanes(hero.name, hero.roles);
+        return heroLanes.some((l) => neededLanes.includes(l));
+      });
+      // Only apply the filter when it produces enough candidates
+      if (fillsNeeded.length >= topN) {
+        return fillsNeeded.slice(0, topN).map(({ hero, bd }) => ({
+          hero,
+          score:     Math.round(normalizeScore(bd.total) * 100),
+          breakdown: bd,
+          reason:    buildReason(hero, bd, alliedTeam, enemyTeam),
+        }));
+      }
+    }
+  }
 
   return scored.slice(0, topN).map(({ hero, bd }) => ({
     hero,
@@ -291,10 +550,25 @@ function buildReason(
 ): string {
   const parts: string[] = [];
 
+  // API counter matches
   if (bd.counter >= 7) {
     const countered = enemies.filter((e) => hero.counters.includes(e.id));
     if (countered.length > 0)
       parts.push(`counters ${countered.map((e) => e.name).join(', ')}`);
+    else {
+      // Fallback: playstyle archetype advantage hint
+      const hint = buildPlaystyleHint(hero.name, enemies.map((e) => e.name));
+      if (hint && !hint.startsWith('⚠')) parts.push(hint);
+    }
+  }
+
+  // Archetype identity badge (if hero has notable playstyle)
+  const playstyles = getPlaystyles(hero.name);
+  if (playstyles.length > 0 && parts.length < 2) {
+    const primary = playstyles[0];
+    if (['glorious_launcher','prey_hunter','speed_specialist','enchanter','control_mage'].includes(primary)) {
+      parts.push(PLAYSTYLE_LABEL[primary]);
+    }
   }
 
   if (bd.synergy >= 7 && allied.length > 0) {

@@ -30,7 +30,7 @@ export function SuggestionPanel({ suggestions, currentTeam, isPickPhase }: Sugge
     return (
       <div className="glass p-4 flex items-center justify-center min-h-[120px]">
         <p className="text-slate-500 text-xs text-center">
-          {isPickPhase ? 'Loading suggestions…' : 'Suggestions appear during pick phases'}
+          {isPickPhase ? 'Calcul des suggestions…' : 'Les suggestions IA apparaissent en phase de pick'}
         </p>
       </div>
     );
@@ -41,9 +41,9 @@ export function SuggestionPanel({ suggestions, currentTeam, isPickPhase }: Sugge
   return (
     <div className="flex flex-col gap-2 glass p-3">
       <h3 className="text-xs font-bold tracking-widest uppercase text-slate-400">
-        💡 Top Suggestions —{' '}
+        💡 Meilleurs picks ·{' '}
         <span className={isBlue ? 'text-blue-400' : 'text-red-400'}>
-          {currentTeam.toUpperCase()} TEAM
+          Équipe {isBlue ? 'Bleue' : 'Rouge'}
         </span>
       </h3>
 
@@ -107,8 +107,23 @@ export function SuggestionPanel({ suggestions, currentTeam, isPickPhase }: Sugge
                         );
                       })()}
                     </div>
-                    <span className={clsx('font-black text-sm tabular-nums flex-shrink-0', scoreColor)}>
-                      {s.score}
+                    <span className="flex-shrink-0 flex items-baseline gap-px leading-none tabular-nums">
+                      <span
+                        className="font-display tabular-nums"
+                        style={{
+                          fontSize:   22,
+                          lineHeight: 1,
+                          color:      s.score >= 80 ? '#4ade80' : s.score >= 60 ? '#facc15' : '#f87171',
+                          textShadow: s.score >= 80
+                            ? '0 0 10px rgba(74,222,128,0.45)'
+                            : s.score >= 60
+                            ? '0 0 10px rgba(250,204,21,0.45)'
+                            : '0 0 10px rgba(248,113,113,0.45)',
+                        }}
+                      >
+                        {s.score}
+                      </span>
+                      <span className="text-[9px] text-slate-600 font-normal">/100</span>
                     </span>
                   </div>
                   <p className="text-[10px] text-slate-500 truncate">{s.reason}</p>
@@ -124,7 +139,7 @@ export function SuggestionPanel({ suggestions, currentTeam, isPickPhase }: Sugge
                       : 'bg-red-600/20  text-red-300  hover:bg-red-600/40  border border-red-600/30'
                   )}
                 >
-                  Pick
+                  Choisir
                 </button>
               </button>
 
@@ -132,11 +147,11 @@ export function SuggestionPanel({ suggestions, currentTeam, isPickPhase }: Sugge
               {isSelected && (
                 <div className="mt-1 ml-10 mr-2 p-2 rounded bg-navy-900/60 border border-slate-700/30 grid grid-cols-2 gap-1.5">
                   {[
-                    { label: 'Counter',  val: s.breakdown.counter  },
-                    { label: 'Synergy',  val: s.breakdown.synergy  },
-                    { label: 'Meta',     val: s.breakdown.meta     },
+                    { label: 'Contre',   val: s.breakdown.counter  },
+                    { label: 'Synergie', val: s.breakdown.synergy  },
+                    { label: 'Méta',     val: s.breakdown.meta     },
                     { label: 'Phase',    val: s.breakdown.phase    },
-                    { label: 'Pressure',val: s.breakdown.pressure  },
+                    { label: 'Pression', val: s.breakdown.pressure },
                   ].map(({ label, val }) => (
                     <MetricBar key={label} label={label} value={val} size="sm" />
                   ))}

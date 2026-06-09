@@ -6,8 +6,17 @@ import dynamic from 'next/dynamic';
 import clsx from 'clsx';
 import { useDraftStore } from '@/store/draftStore';
 import { SeriesTracker } from '@/components/draft/SeriesTracker';
+import { OnboardingOverlay } from '@/components/onboarding/OnboardingOverlay';
+import { DataFreshnessIndicator } from '@/components/ui/DataFreshnessIndicator';
 import { TIER_LIST_PATCH, TIER_LIST_DATE } from '@/data/tierList';
-import type { GameMode, SeriesMode } from '@/types/draft';
+import type { GameMode, DraftArchetype, SeriesMode } from '@/types/draft';
+import {
+  ARCHETYPE_ICON,
+  ARCHETYPE_LABELS,
+  ARCHETYPE_DESCRIPTION,
+  ARCHETYPE_BEATS,
+  ARCHETYPE_LOSES_TO,
+} from '@/engine/archetypeEngine';
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
 
@@ -32,12 +41,44 @@ const DraftBoard = dynamic(
   }
 );
 
-// ─── Mode options ─────────────────────────────────────────────────────────────
-const MODE_OPTIONS: { value: GameMode; label: string; desc: string }[] = [
-  { value: 'ranked',     label: 'Ranked',     desc: 'Comfort & flexibility' },
-  { value: 'tournament', label: 'Tournament', desc: 'Meta & coordination' },
-  { value: 'custom',     label: 'Custom',     desc: 'Scrim simulation' },
+// ─── Mode definitions ─────────────────────────────────────────────────────────
+const MODE_LOBBY: {
+  value: GameMode;
+  icon: string;
+  label: string;
+  subLabel: string;
+  desc: string;
+  accent: string;
+}[] = [
+  {
+    value: 'custom',
+    icon: '🎮',
+    label: 'CUSTOM',
+    subLabel: 'Simulation de Scrim',
+    desc: 'Draft libre entre équipes. Testez vos compositions et préparez vos stratégies sans contraintes.',
+    accent: 'rgba(100,180,255,0.18)',
+  },
+  {
+    value: 'ranked',
+    icon: '🏆',
+    label: 'RANKED',
+    subLabel: 'Mode Classé',
+    desc: 'Optimisé pour le solo & duo. Confort, flexibilité et picks sûrs face à toutes les compositions.',
+    accent: 'rgba(255,200,60,0.18)',
+  },
+  {
+    value: 'tournament',
+    icon: '⚔️',
+    label: 'TOURNAMENT',
+    subLabel: 'Mode Tournoi',
+    desc: 'Draft compétitif pro. Méta, coordination et picks high-level pour dominer la scène.',
+    accent: 'rgba(220,80,50,0.20)',
+  },
 ];
+
+const MODE_LABEL: Record<GameMode, string> = {
+  custom: 'Custom', ranked: 'Ranked', tournament: 'Tournament',
+};
 
 const SERIES_OPTIONS: { value: SeriesMode; label: string }[] = [
   { value: 'none', label: '1G' },
@@ -45,61 +86,10 @@ const SERIES_OPTIONS: { value: SeriesMode; label: string }[] = [
   { value: 'bo5',  label: 'BO5' },
 ];
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
-export default function Home() {
-  const loadHeroPool   = useDraftStore((s) => s.loadHeroPool);
-  const loadFromUrl    = useDraftStore((s) => s.loadFromUrl);
-  const resetDraft     = useDraftStore((s) => s.resetDraft);
-  const undoLastAction = useDraftStore((s) => s.undoLastAction);
-  const setGameMode    = useDraftStore((s) => s.setGameMode);
-  const setSeriesMode  = useDraftStore((s) => s.setSeriesMode);
-  const gameMode       = useDraftStore((s) => s.gameMode);
-  const seriesMode     = useDraftStore((s) => s.seriesMode);
-  const isLoading      = useDraftStore((s) => s.isLoadingPool);
-  const poolError      = useDraftStore((s) => s.poolError);
-  const currentStep    = useDraftStore((s) => s.currentStep);
-  const heroPoolLen    = useDraftStore((s) => s.heroPool.length);
-
-  const [confirmReset, setConfirmReset] = useState(false);
-  const [castMode,     setCastMode]     = useState(false);
-  const [copyMsg,      setCopyMsg]      = useState<string | null>(null);
-
-  // Load heroes then restore URL state
-  useEffect(() => {
-    loadHeroPool().then(() => {
-      loadFromUrl();
-    });
-  }, [loadHeroPool, loadFromUrl]);
-
-  // ── Reset handler ─────────────────────────────────────────────────────────
-  function handleReset() {
-    if (!confirmReset) {
-      setConfirmReset(true);
-      setTimeout(() => setConfirmReset(false), 2500);
-      return;
-    }
-    resetDraft();
-    setConfirmReset(false);
-  }
-
-  // ── Share handler ─────────────────────────────────────────────────────────
-  const handleShare = useCallback(() => {
-    const url = window.location.href;
-    navigator.clipboard.writeText(url).then(() => {
-      setCopyMsg('Copied!');
-      setTimeout(() => setCopyMsg(null), 2000);
-    }).catch(() => {
-      setCopyMsg('Link ready — share manually');
-      setTimeout(() => setCopyMsg(null), 3000);
-    });
-  }, []);
-
+// ─── Shared background layers ─────────────────────────────────────────────────
+function Background() {
   return (
-    <div
-      className="min-h-screen flex flex-col"
-      style={{ background: '#030304' }}
-    >
-      {/* Background gradient */}
+    <>
       <div
         aria-hidden="true"
         className="fixed inset-0 pointer-events-none z-0"
@@ -118,8 +108,7 @@ export default function Home() {
           `,
         }}
       />
-
-      {/* GES watermark */}
+      {/* GES watermark — very subtle */}
       <div
         aria-hidden="true"
         className="fixed pointer-events-none z-0"
@@ -139,16 +128,536 @@ export default function Home() {
           draggable={false}
         />
       </div>
+    </>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+export default function Home() {
+  const loadHeroPool        = useDraftStore((s) => s.loadHeroPool);
+  const loadFromUrl         = useDraftStore((s) => s.loadFromUrl);
+  const resetDraft          = useDraftStore((s) => s.resetDraft);
+  const undoLastAction      = useDraftStore((s) => s.undoLastAction);
+  const setGameMode         = useDraftStore((s) => s.setGameMode);
+  const setSeriesMode       = useDraftStore((s) => s.setSeriesMode);
+  const gameMode            = useDraftStore((s) => s.gameMode);
+  const seriesMode          = useDraftStore((s) => s.seriesMode);
+  const isLoading           = useDraftStore((s) => s.isLoadingPool);
+  const poolError           = useDraftStore((s) => s.poolError);
+  const currentStep         = useDraftStore((s) => s.currentStep);
+  const heroPoolLen         = useDraftStore((s) => s.heroPool.length);
+  const setMySide           = useDraftStore((s) => s.setMySide);
+  const setPlannedArchetype = useDraftStore((s) => s.setPlannedArchetype);
+  const mySide              = useDraftStore((s) => s.mySide);
+
+  const [phase, setPhase]               = useState<'lobby' | 'side-select' | 'strategy-intent' | 'archetype-select' | 'draft'>('lobby');
+  const [hoveredMode, setHoveredMode]   = useState<GameMode | null>(null);
+  const [confirmReset, setConfirmReset] = useState(false);
+  const [castMode,     setCastMode]     = useState(false);
+  const [copyMsg,      setCopyMsg]      = useState<string | null>(null);
+
+  useEffect(() => {
+    loadHeroPool().then(() => {
+      // If URL contains draft state, jump directly to draft
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('m')) {
+        loadFromUrl();
+        setPhase('draft');
+      }
+    });
+  }, [loadHeroPool, loadFromUrl]);
+
+  function handleSelectMode(mode: GameMode) {
+    setGameMode(mode);
+    resetDraft();
+    setPhase('side-select');
+  }
+
+  function handleSelectSide(side: 'blue' | 'red') {
+    setMySide(side);
+    setPhase('strategy-intent');
+  }
+
+  function handleStrategyIntent(hasPlan: boolean) {
+    if (hasPlan) setPhase('archetype-select');
+    else setPhase('draft');
+  }
+
+  function handleSelectArchetype(arch: DraftArchetype) {
+    setPlannedArchetype(arch);
+    setPhase('draft');
+  }
+
+  function handleBackToLobby() {
+    resetDraft();
+    setConfirmReset(false);
+    setPhase('lobby');
+  }
+
+  function handleReset() {
+    if (!confirmReset) {
+      setConfirmReset(true);
+      setTimeout(() => setConfirmReset(false), 2500);
+      return;
+    }
+    resetDraft();
+    setConfirmReset(false);
+  }
+
+  const handleShare = useCallback(() => {
+    const url = window.location.href;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopyMsg('Copied!');
+      setTimeout(() => setCopyMsg(null), 2000);
+    }).catch(() => {
+      setCopyMsg('Link ready — share manually');
+      setTimeout(() => setCopyMsg(null), 3000);
+    });
+  }, []);
+
+  // ── LOBBY SCREEN ─────────────────────────────────────────────────────────────
+  if (phase === 'lobby') {
+    return (
+      <div
+        className="min-h-screen flex flex-col"
+        style={{ background: '#030304' }}
+      >
+        <OnboardingOverlay />
+        <DataFreshnessIndicator />
+        <Background />
+
+        <div className="relative z-10 flex flex-col flex-1 min-h-screen items-center justify-center px-4 py-10 sm:py-14">
+
+          {/* ── Brand identity ── */}
+          <div className="flex flex-col items-center text-center mb-10 sm:mb-14">
+
+            <div
+              aria-hidden="true"
+              style={{
+                position: 'absolute',
+                width: 340, height: 220,
+                borderRadius: '50%',
+                background: 'radial-gradient(ellipse, rgba(160,34,16,0.50) 0%, transparent 70%)',
+                filter: 'blur(40px)',
+                pointerEvents: 'none',
+              }}
+            />
+
+            <div style={{ filter: 'drop-shadow(0 0 28px rgba(200,50,22,1)) drop-shadow(0 0 72px rgba(120,20,10,0.60))', position: 'relative' }}>
+              <Image
+                src={`${BASE}/ges-logo.png`}
+                alt="Gascom Esports Logo"
+                width={140} height={165}
+                className="object-contain"
+                style={{ width: 'clamp(88px, 16vw, 148px)', height: 'auto' }}
+                priority
+              />
+            </div>
+
+            <h1
+              className="font-display text-white tracking-[0.22em] leading-none mt-5"
+              style={{ fontSize: 'clamp(24px, 5.5vw, 52px)' }}
+            >
+              GASCOM ESPORTS
+            </h1>
+
+            <div
+              className="my-2.5"
+              style={{
+                height: 1,
+                width: 'clamp(100px, 30vw, 220px)',
+                background: 'linear-gradient(to right, transparent, #7c1a0f, transparent)',
+              }}
+            />
+
+            <p
+              className="font-display tracking-[0.30em] leading-none"
+              style={{ fontSize: 'clamp(10px, 1.8vw, 15px)', color: 'rgba(210,100,70,0.92)' }}
+            >
+              MLBB · DRAFT SIMULATOR
+            </p>
+
+            <p
+              className="text-[10px] sm:text-xs italic font-medium tracking-wider mt-1.5"
+              style={{ color: 'rgba(150,60,40,0.72)' }}
+            >
+              « UNIS PAR UNE SEULE PASSION, L&apos;ESPORTS »
+            </p>
+          </div>
+
+          {/* ── Mode selection ── */}
+          <div className="w-full max-w-4xl flex flex-col items-center gap-6 sm:gap-8">
+
+            <div className="flex flex-col items-center gap-2">
+              <p
+                className="text-white font-bold tracking-widest text-center"
+                style={{ fontSize: 'clamp(13px, 2.2vw, 18px)' }}
+              >
+                Vous allez draft pour quel mode de jeu ?
+              </p>
+              <div style={{ height: 1, width: 60, background: 'linear-gradient(to right, transparent, rgba(124,26,15,0.70), transparent)' }} />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-5 w-full">
+              {MODE_LOBBY.map((mode) => {
+                const isHovered = hoveredMode === mode.value;
+                return (
+                  <button
+                    key={mode.value}
+                    onClick={() => handleSelectMode(mode.value)}
+                    onMouseEnter={() => setHoveredMode(mode.value)}
+                    onMouseLeave={() => setHoveredMode(null)}
+                    className="group relative flex flex-col items-center rounded-2xl border text-center cursor-pointer transition-all duration-300 overflow-hidden"
+                    style={{
+                      background: isHovered
+                        ? `linear-gradient(160deg, rgba(16,5,3,0.98), rgba(10,3,2,0.98))`
+                        : 'rgba(9,3,2,0.92)',
+                      borderColor: isHovered ? 'rgba(180,50,20,0.75)' : 'rgba(124,26,15,0.38)',
+                      boxShadow: isHovered
+                        ? `0 0 40px rgba(124,26,15,0.45), 0 0 80px rgba(80,14,6,0.20), inset 0 0 24px rgba(80,14,6,0.12)`
+                        : '0 2px 16px rgba(0,0,0,0.50)',
+                      transform: isHovered ? 'translateY(-4px) scale(1.02)' : 'translateY(0) scale(1)',
+                      padding: 'clamp(20px, 3vw, 36px) clamp(16px, 2.5vw, 28px)',
+                    }}
+                  >
+                    <div
+                      aria-hidden="true"
+                      className="absolute top-0 left-0 right-0 h-0.5 transition-opacity duration-300"
+                      style={{
+                        background: `linear-gradient(to right, transparent, ${mode.accent.replace('0.18', '0.9').replace('0.20', '0.9')}, transparent)`,
+                        opacity: isHovered ? 1 : 0,
+                      }}
+                    />
+                    <div
+                      className="mb-3 transition-transform duration-300"
+                      style={{
+                        fontSize: 'clamp(2rem, 5vw, 2.8rem)',
+                        transform: isHovered ? 'scale(1.12)' : 'scale(1)',
+                        filter: isHovered ? 'drop-shadow(0 0 12px rgba(220,100,60,0.6))' : 'none',
+                      }}
+                    >
+                      {mode.icon}
+                    </div>
+                    <div
+                      className="font-display tracking-[0.20em] leading-tight transition-colors duration-300"
+                      style={{ fontSize: 'clamp(15px, 2.8vw, 20px)', color: isHovered ? '#ffffff' : 'rgba(230,210,200,0.92)' }}
+                    >
+                      {mode.label}
+                    </div>
+                    <div
+                      className="mt-1 font-medium tracking-wider transition-colors duration-300"
+                      style={{ fontSize: 'clamp(9px, 1.3vw, 11px)', color: isHovered ? 'rgba(220,130,90,0.95)' : 'rgba(160,80,55,0.80)' }}
+                    >
+                      {mode.subLabel}
+                    </div>
+                    <div
+                      className="my-3 transition-opacity duration-300"
+                      style={{
+                        height: 1, width: '60%',
+                        background: 'linear-gradient(to right, transparent, rgba(124,26,15,0.60), transparent)',
+                        opacity: isHovered ? 1 : 0.4,
+                      }}
+                    />
+                    <p
+                      className="leading-relaxed transition-colors duration-300"
+                      style={{ fontSize: 'clamp(10px, 1.4vw, 12px)', color: isHovered ? 'rgba(180,130,110,0.90)' : 'rgba(120,75,55,0.75)', maxWidth: 240 }}
+                    >
+                      {mode.desc}
+                    </p>
+                    <div
+                      className="mt-4 px-5 py-1.5 rounded-full font-bold tracking-[0.18em] transition-all duration-300"
+                      style={{
+                        fontSize: 'clamp(9px, 1.3vw, 11px)',
+                        background: isHovered ? 'linear-gradient(135deg, #8c1e10, #5a1208)' : 'rgba(124,26,15,0.22)',
+                        color: isHovered ? '#ffffff' : 'rgba(200,110,80,0.85)',
+                        border: `1px solid ${isHovered ? 'rgba(180,60,30,0.80)' : 'rgba(124,26,15,0.45)'}`,
+                        boxShadow: isHovered ? '0 0 16px rgba(124,26,15,0.55)' : 'none',
+                      }}
+                    >
+                      LANCER LE DRAFT →
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="h-5 flex items-center">
+              {isLoading ? (
+                <span className="text-[10px] text-slate-500 flex items-center gap-2 tracking-wider">
+                  <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-pulse" />
+                  Chargement des héros…
+                </span>
+              ) : poolError ? (
+                <span className="text-[10px] text-orange-400/70 flex items-center gap-2 tracking-wider">
+                  <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />
+                  Mode hors-ligne — {heroPoolLen} héros disponibles
+                </span>
+              ) : heroPoolLen > 0 ? (
+                <span className="text-[10px] text-emerald-400/60 flex items-center gap-2 tracking-wider">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  {heroPoolLen} héros prêts
+                </span>
+              ) : null}
+            </div>
+          </div>
+
+          <p
+            className="absolute bottom-4 text-[9px] sm:text-[10px] tracking-widest text-center"
+            style={{ color: 'rgba(100,40,30,0.55)' }}
+          >
+            Data: mlbb-stats.rone.dev · Tier list: @gosugamersmlbb
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // ── SIDE SELECT SCREEN ───────────────────────────────────────────────────────
+  if (phase === 'side-select') {
+    const sides = [
+      {
+        value: 'blue' as const,
+        label: 'BLUE SIDE',
+        emoji: '🔵',
+        sub: 'Premier Pick · Imposez votre stratégie',
+        accent: 'rgba(59,130,246,0.70)',
+        bg: 'rgba(30,58,138,0.22)',
+        border: 'rgba(59,130,246,0.50)',
+        glow: 'rgba(59,130,246,0.25)',
+        bullets: [
+          'Vous choisissez le premier héros — imposez votre archetype.',
+          'Vous contrôlez le rythme global de la draft.',
+          'Vos picks 4-5 sont les plus puissants (position de double-contre).',
+          'Idéal si votre équipe a des picks haute priorité à sécuriser.',
+        ],
+      },
+      {
+        value: 'red' as const,
+        label: 'RED SIDE',
+        emoji: '🔴',
+        sub: 'Second Pick · Lisez et contre-draftez',
+        accent: 'rgba(239,68,68,0.70)',
+        bg: 'rgba(127,29,29,0.22)',
+        border: 'rgba(239,68,68,0.50)',
+        glow: 'rgba(239,68,68,0.25)',
+        bullets: [
+          'Vous répondez au premier pick blue — avantage de lecture.',
+          'Deux picks consécutifs en phase 1 pour construire une synergie rapide.',
+          'Le 3e pick red est la position de contre la plus forte de la draft.',
+          'Idéal si votre équipe est forte en adaptabilité et en contre-draft.',
+        ],
+      },
+    ];
+    return (
+      <div className="min-h-screen flex flex-col" style={{ background: '#030304' }}>
+        <Background />
+        <div className="relative z-10 flex flex-col flex-1 min-h-screen items-center justify-center px-4 py-10">
+          <div className="flex flex-col items-center text-center mb-8">
+            <div style={{ filter: 'drop-shadow(0 0 20px rgba(200,50,22,0.8))' }}>
+              <Image src={`${BASE}/ges-logo.png`} alt="GES" width={90} height={106}
+                className="object-contain" style={{ width: 'clamp(64px, 10vw, 90px)', height: 'auto' }} priority />
+            </div>
+            <h2 className="font-display text-white tracking-[0.18em] mt-4" style={{ fontSize: 'clamp(18px, 3.5vw, 28px)' }}>
+              De quel côté jouez-vous ?
+            </h2>
+            <div className="my-2" style={{ height: 1, width: 80, background: 'linear-gradient(to right, transparent, #7c1a0f, transparent)' }} />
+            <p className="text-xs text-slate-500 tracking-wider">Mode : {MODE_LABEL[gameMode]}</p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 w-full max-w-2xl">
+            {sides.map((side) => (
+              <button
+                key={side.value}
+                onClick={() => handleSelectSide(side.value)}
+                className="group flex flex-col rounded-2xl border text-left cursor-pointer transition-all duration-300 overflow-hidden hover:scale-[1.02]"
+                style={{ background: side.bg, borderColor: side.border, boxShadow: `0 0 32px ${side.glow}`, padding: 'clamp(20px, 3vw, 32px)' }}
+              >
+                <div className="flex items-center gap-3 mb-4">
+                  <span style={{ fontSize: '2rem' }}>{side.emoji}</span>
+                  <div>
+                    <div className="font-display tracking-[0.18em] text-white" style={{ fontSize: 'clamp(15px, 2.5vw, 20px)' }}>{side.label}</div>
+                    <div className="text-[10px] font-medium tracking-wider mt-0.5" style={{ color: side.accent }}>{side.sub}</div>
+                  </div>
+                </div>
+                <ul className="space-y-2">
+                  {side.bullets.map((b, i) => (
+                    <li key={i} className="flex items-start gap-2 text-[11px] text-slate-400">
+                      <span className="shrink-0 mt-0.5" style={{ color: side.accent }}>›</span>
+                      {b}
+                    </li>
+                  ))}
+                </ul>
+                <div
+                  className="mt-5 self-end px-4 py-1.5 rounded-full font-bold tracking-widest text-[10px] transition-all duration-300"
+                  style={{ background: side.border, color: '#fff' }}
+                >
+                  CHOISIR →
+                </div>
+              </button>
+            ))}
+          </div>
+
+          <button
+            onClick={() => setPhase('lobby')}
+            className="mt-8 text-[11px] text-slate-500 hover:text-slate-300 transition-colors tracking-wider"
+          >
+            ← Retour au choix du mode
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── STRATEGY INTENT SCREEN ───────────────────────────────────────────────────
+  if (phase === 'strategy-intent') {
+    const sideBadgeColor = mySide === 'blue' ? 'rgba(59,130,246,0.7)' : 'rgba(239,68,68,0.7)';
+    const sideBadgeBg    = mySide === 'blue' ? 'rgba(30,58,138,0.35)' : 'rgba(127,29,29,0.35)';
+    const sideLabel      = mySide === 'blue' ? '🔵 Blue Side' : '🔴 Red Side';
+
+    return (
+      <div className="min-h-screen flex flex-col" style={{ background: '#030304' }}>
+        <Background />
+        <div className="relative z-10 flex flex-col flex-1 min-h-screen items-center justify-center px-4 py-10">
+          <div className="flex flex-col items-center text-center mb-8">
+            <div style={{ filter: 'drop-shadow(0 0 20px rgba(200,50,22,0.8))' }}>
+              <Image src={`${BASE}/ges-logo.png`} alt="GES" width={90} height={106}
+                className="object-contain" style={{ width: 'clamp(64px, 10vw, 90px)', height: 'auto' }} priority />
+            </div>
+            <span
+              className="mt-4 px-3 py-1 rounded-full text-[10px] font-bold tracking-widest"
+              style={{ background: sideBadgeBg, color: sideBadgeColor, border: `1px solid ${sideBadgeColor}` }}
+            >
+              {sideLabel}
+            </span>
+            <h2 className="font-display text-white tracking-[0.18em] mt-4" style={{ fontSize: 'clamp(16px, 3vw, 26px)' }}>
+              Avez-vous déjà une stratégie en tête ?
+            </h2>
+            <div className="my-2" style={{ height: 1, width: 80, background: 'linear-gradient(to right, transparent, #7c1a0f, transparent)' }} />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 w-full max-w-xl">
+            <button
+              onClick={() => handleStrategyIntent(true)}
+              className="flex flex-col items-center rounded-2xl border cursor-pointer transition-all duration-300 hover:scale-[1.02]"
+              style={{ background: 'rgba(20,40,20,0.35)', borderColor: 'rgba(74,222,128,0.45)', boxShadow: '0 0 24px rgba(74,222,128,0.12)', padding: 'clamp(24px,3vw,36px)' }}
+            >
+              <span style={{ fontSize: '2.5rem' }}>✅</span>
+              <span className="font-display tracking-widest text-white mt-3" style={{ fontSize: 'clamp(14px,2.2vw,18px)' }}>
+                OUI, j&apos;ai un plan
+              </span>
+              <p className="text-[11px] text-slate-400 mt-2 text-center leading-relaxed">
+                Choisissez un archetype de composition. On génère les 10 meilleures drafts pour vous.
+              </p>
+            </button>
+
+            <button
+              onClick={() => handleStrategyIntent(false)}
+              className="flex flex-col items-center rounded-2xl border cursor-pointer transition-all duration-300 hover:scale-[1.02]"
+              style={{ background: 'rgba(15,10,30,0.35)', borderColor: 'rgba(124,26,15,0.45)', boxShadow: '0 0 24px rgba(124,26,15,0.12)', padding: 'clamp(24px,3vw,36px)' }}
+            >
+              <span style={{ fontSize: '2.5rem' }}>🎲</span>
+              <span className="font-display tracking-widest text-white mt-3" style={{ fontSize: 'clamp(14px,2.2vw,18px)' }}>
+                NON, draft libre
+              </span>
+              <p className="text-[11px] text-slate-400 mt-2 text-center leading-relaxed">
+                Partez sans plan fixe. L&apos;IA adapte ses suggestions en temps réel selon la draft ennemie.
+              </p>
+            </button>
+          </div>
+
+          <button
+            onClick={() => setPhase('side-select')}
+            className="mt-8 text-[11px] text-slate-500 hover:text-slate-300 transition-colors tracking-wider"
+          >
+            ← Retour au choix du côté
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── ARCHETYPE SELECT SCREEN ──────────────────────────────────────────────────
+  if (phase === 'archetype-select') {
+    const archetypes: DraftArchetype[] = ['engage', 'poke', 'protect', 'split', 'catch'];
+    const ARCH_ACCENT: Record<DraftArchetype, { bg: string; border: string; glow: string; text: string }> = {
+      engage:  { bg: 'rgba(234,88,12,0.14)',  border: 'rgba(234,88,12,0.55)',  glow: 'rgba(234,88,12,0.18)',  text: '#fb923c' },
+      poke:    { bg: 'rgba(139,92,246,0.14)', border: 'rgba(139,92,246,0.55)', glow: 'rgba(139,92,246,0.18)', text: '#a78bfa' },
+      protect: { bg: 'rgba(20,184,166,0.14)', border: 'rgba(20,184,166,0.55)', glow: 'rgba(20,184,166,0.18)', text: '#2dd4bf' },
+      split:   { bg: 'rgba(234,179,8,0.14)',  border: 'rgba(234,179,8,0.55)',  glow: 'rgba(234,179,8,0.18)',  text: '#facc15' },
+      catch:   { bg: 'rgba(239,68,68,0.14)',  border: 'rgba(239,68,68,0.55)',  glow: 'rgba(239,68,68,0.18)',  text: '#f87171' },
+    };
+    return (
+      <div className="min-h-screen flex flex-col" style={{ background: '#030304' }}>
+        <Background />
+        <div className="relative z-10 flex flex-col flex-1 min-h-screen items-center justify-center px-4 py-10">
+          <div className="flex flex-col items-center text-center mb-8">
+            <div style={{ filter: 'drop-shadow(0 0 20px rgba(200,50,22,0.8))' }}>
+              <Image src={`${BASE}/ges-logo.png`} alt="GES" width={90} height={106}
+                className="object-contain" style={{ width: 'clamp(64px, 10vw, 90px)', height: 'auto' }} priority />
+            </div>
+            <h2 className="font-display text-white tracking-[0.18em] mt-4" style={{ fontSize: 'clamp(15px, 2.8vw, 24px)' }}>
+              Quelle composition voulez-vous jouer ?
+            </h2>
+            <div className="my-2" style={{ height: 1, width: 80, background: 'linear-gradient(to right, transparent, #7c1a0f, transparent)' }} />
+            <p className="text-[11px] text-slate-500 tracking-wider">Les 10 meilleures drafts seront générées selon votre choix</p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 w-full max-w-3xl">
+            {archetypes.map((arch) => {
+              const ac    = ARCH_ACCENT[arch];
+              const beats = ARCHETYPE_BEATS[arch].map((a) => ARCHETYPE_LABELS[a]).join(', ');
+              const loses = ARCHETYPE_LOSES_TO[arch].map((a) => ARCHETYPE_LABELS[a]).join(', ');
+              return (
+                <button
+                  key={arch}
+                  onClick={() => handleSelectArchetype(arch)}
+                  className="flex flex-col rounded-2xl border text-left cursor-pointer transition-all duration-300 hover:scale-[1.02]"
+                  style={{ background: ac.bg, borderColor: ac.border, boxShadow: `0 0 24px ${ac.glow}`, padding: 'clamp(16px,2.5vw,24px)' }}
+                >
+                  <div className="flex items-center gap-3 mb-3">
+                    <span style={{ fontSize: '1.8rem' }}>{ARCHETYPE_ICON[arch]}</span>
+                    <span className="font-display tracking-[0.15em] text-white" style={{ fontSize: 'clamp(13px,2vw,17px)' }}>
+                      {ARCHETYPE_LABELS[arch]}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 leading-relaxed mb-3">{ARCHETYPE_DESCRIPTION[arch]}</p>
+                  <div className="flex flex-col gap-1 mt-auto">
+                    <span className="text-[9px] font-bold" style={{ color: '#4ade80' }}>✓ Bat : {beats}</span>
+                    <span className="text-[9px] font-bold" style={{ color: '#f87171' }}>✗ Perdu contre : {loses}</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          <button
+            onClick={() => setPhase('strategy-intent')}
+            className="mt-8 text-[11px] text-slate-500 hover:text-slate-300 transition-colors tracking-wider"
+          >
+            ← Retour
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── DRAFT SCREEN ─────────────────────────────────────────────────────────────
+  return (
+    <div
+      className="min-h-screen flex flex-col"
+      style={{ background: '#030304' }}
+    >
+      <Background />
 
       <div className="relative z-10 flex flex-col flex-1 min-h-screen">
 
-        {/* ══ BRAND HERO ══════════════════════════════════════════════════ */}
+        {/* ── Brand hero strip ── */}
         <div
           className="relative flex flex-col items-center justify-center overflow-hidden"
           style={{
             background: `linear-gradient(to bottom, rgba(100,18,8,0.55) 0%, rgba(50,9,4,0.35) 40%, transparent 100%)`,
-            paddingTop:    'clamp(18px, 3vw, 32px)',
-            paddingBottom: 'clamp(14px, 2.5vw, 26px)',
+            paddingTop:    'clamp(14px, 2.5vw, 26px)',
+            paddingBottom: 'clamp(10px, 2vw, 20px)',
             borderBottom:  '1px solid rgba(124,26,15,0.45)',
           }}
         >
@@ -158,56 +667,45 @@ export default function Home() {
             style={{
               top: '50%', left: '50%',
               transform: 'translate(-50%, -50%)',
-              width: 300, height: 200,
+              width: 300, height: 160,
               borderRadius: '50%',
-              background: 'radial-gradient(ellipse, rgba(140,30,15,0.45) 0%, transparent 70%)',
-              filter: 'blur(30px)',
+              background: 'radial-gradient(ellipse, rgba(140,30,15,0.40) 0%, transparent 70%)',
+              filter: 'blur(28px)',
             }}
           />
 
-          <div
-            className="relative"
-            style={{
-              filter: 'drop-shadow(0 0 18px rgba(180,40,20,0.85)) drop-shadow(0 0 48px rgba(120,20,10,0.45))',
-            }}
-          >
+          <div style={{ filter: 'drop-shadow(0 0 16px rgba(180,40,20,0.85)) drop-shadow(0 0 40px rgba(120,20,10,0.45))' }}>
             <Image
               src={`${BASE}/ges-logo.png`}
               alt="Gascom Esports Logo"
               width={90} height={106}
               className="object-contain"
-              style={{ width: 'clamp(64px, 9vw, 104px)', height: 'auto' }}
+              style={{ width: 'clamp(52px, 7vw, 84px)', height: 'auto' }}
               priority
             />
           </div>
 
-          <div className="flex flex-col items-center gap-1 mt-3 text-center px-4">
+          <div className="flex flex-col items-center gap-0.5 mt-2.5 text-center px-4">
             <h1
               className="font-display text-white tracking-[0.20em] leading-none"
-              style={{ fontSize: 'clamp(22px, 4.5vw, 42px)' }}
+              style={{ fontSize: 'clamp(18px, 3.5vw, 34px)' }}
             >
               GASCOM ESPORTS
             </h1>
             <div
-              className="h-px w-24 sm:w-36 my-1"
+              className="h-px w-20 sm:w-28 my-1"
               style={{ background: 'linear-gradient(to right, transparent, #7c1a0f, transparent)' }}
             />
             <p
               className="font-display tracking-[0.25em] leading-none"
-              style={{ fontSize: 'clamp(10px, 1.8vw, 14px)', color: 'rgba(210,100,70,0.90)' }}
+              style={{ fontSize: 'clamp(9px, 1.5vw, 12px)', color: 'rgba(210,100,70,0.90)' }}
             >
               MLBB · DRAFT SIMULATOR
-            </p>
-            <p
-              className="text-[10px] sm:text-[11px] italic font-medium tracking-wider mt-0.5"
-              style={{ color: 'rgba(150,60,40,0.75)' }}
-            >
-              « UNIS PAR UNE SEULE PASSION, L&apos;ESPORTS »
             </p>
           </div>
         </div>
 
-        {/* ══ CONTROLS BAR ════════════════════════════════════════════════ */}
+        {/* ── Controls bar ── */}
         <div
           className="sticky top-0 z-40 flex items-center justify-between gap-2 px-3 sm:px-4 py-2 border-b flex-wrap"
           style={{
@@ -217,78 +715,60 @@ export default function Home() {
             boxShadow: '0 2px 24px rgba(80,14,6,0.20)',
           }}
         >
-          {/* Mini logo */}
+          {/* Left: mini logo + back button + mode badge */}
           <div className="flex items-center gap-2 shrink-0">
             <Image
               src={`${BASE}/ges-logo.png`}
               alt="GES"
               width={28} height={33}
-              style={{ width: 28, height: 'auto', filter: 'drop-shadow(0 0 5px rgba(160,32,14,0.8))' }}
+              style={{ width: 26, height: 'auto', filter: 'drop-shadow(0 0 5px rgba(160,32,14,0.8))' }}
             />
-            <span
-              className="font-display tracking-widest text-white hidden sm:block"
-              style={{ fontSize: 13 }}
+            <button
+              onClick={handleBackToLobby}
+              className="flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-[10px] sm:text-xs font-medium transition-all border border-slate-700/30 text-slate-400 hover:text-white hover:border-slate-500/50"
+              style={{ background: 'rgba(15,5,4,0.8)' }}
+              title="Retour à la sélection du mode"
             >
-              GASCOM ESPORTS
+              ← <span className="hidden sm:inline ml-1">Mode</span>
+            </button>
+            <span
+              className="hidden sm:inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold tracking-widest"
+              style={{
+                background: 'linear-gradient(135deg, rgba(124,26,15,0.55), rgba(80,14,7,0.55))',
+                color: 'rgba(220,150,120,0.90)',
+                border: '1px solid rgba(124,26,15,0.45)',
+              }}
+            >
+              {MODE_LABEL[gameMode]}
             </span>
           </div>
 
-          {/* Center controls group */}
-          <div className="flex items-center gap-2 flex-wrap justify-center">
-            {/* Game mode selector */}
-            <div
-              className="flex items-center gap-0.5 sm:gap-1 rounded-lg p-1 border"
-              style={{ background: 'rgba(10,3,2,0.85)', borderColor: 'rgba(124,26,15,0.35)' }}
-            >
-              {MODE_OPTIONS.map((mode) => (
-                <button
-                  key={mode.value}
-                  title={mode.desc}
-                  onClick={() => { setGameMode(mode.value); }}
-                  className={clsx(
-                    'px-2 sm:px-3 py-1 sm:py-1.5 rounded-md text-[10px] sm:text-xs font-bold tracking-wide transition-all',
-                    gameMode === mode.value ? 'text-white' : 'text-slate-500 hover:text-slate-300'
-                  )}
-                  style={gameMode === mode.value ? {
-                    background: 'linear-gradient(135deg, #8c1e10, #5a1208)',
-                    boxShadow:  '0 0 14px rgba(124,26,15,0.55)',
-                  } : {}}
-                >
-                  <span className="sm:hidden">{mode.label.slice(0, 4)}</span>
-                  <span className="hidden sm:inline">{mode.label}</span>
-                </button>
-              ))}
-            </div>
-
-            {/* Series mode selector */}
-            <div
-              className="flex items-center gap-0.5 rounded-lg p-1 border"
-              style={{ background: 'rgba(10,3,2,0.85)', borderColor: 'rgba(124,26,15,0.25)' }}
-              title="Series format"
-            >
-              {SERIES_OPTIONS.map((s) => (
-                <button
-                  key={s.value}
-                  onClick={() => setSeriesMode(s.value)}
-                  className={clsx(
-                    'px-2 py-1 rounded text-[10px] font-bold tracking-wide transition-all',
-                    seriesMode === s.value ? 'text-white' : 'text-slate-600 hover:text-slate-400'
-                  )}
-                  style={seriesMode === s.value ? {
-                    background: 'linear-gradient(135deg, #4a1a8c, #2a0e5a)',
-                    boxShadow:  '0 0 10px rgba(80,40,140,0.4)',
-                  } : {}}
-                >
-                  {s.label}
-                </button>
-              ))}
-            </div>
+          {/* Center: series selector */}
+          <div className="flex items-center gap-0.5 rounded-lg p-1 border"
+            style={{ background: 'rgba(10,3,2,0.85)', borderColor: 'rgba(124,26,15,0.25)' }}
+            title="Series format"
+          >
+            {SERIES_OPTIONS.map((s) => (
+              <button
+                key={s.value}
+                onClick={() => setSeriesMode(s.value)}
+                className={clsx(
+                  'px-2 py-1 rounded text-[10px] font-bold tracking-wide transition-all',
+                  seriesMode === s.value ? 'text-white' : 'text-slate-600 hover:text-slate-400'
+                )}
+                style={seriesMode === s.value ? {
+                  background: 'linear-gradient(135deg, #4a1a8c, #2a0e5a)',
+                  boxShadow:  '0 0 10px rgba(80,40,140,0.4)',
+                } : {}}
+              >
+                {s.label}
+              </button>
+            ))}
           </div>
 
           {/* Right controls */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
 
-            {/* Status */}
             {isLoading ? (
               <span className="hidden sm:flex text-[10px] text-slate-500 items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-pulse" />Loading…
@@ -303,7 +783,6 @@ export default function Home() {
               </span>
             ) : null}
 
-            {/* Cast mode toggle */}
             <button
               onClick={() => setCastMode(true)}
               title="Live Cast Mode — clean fullscreen view"
@@ -313,7 +792,6 @@ export default function Home() {
               📺 Cast
             </button>
 
-            {/* Share button */}
             <button
               onClick={handleShare}
               title="Copy shareable URL to clipboard"
@@ -326,7 +804,6 @@ export default function Home() {
               }
             </button>
 
-            {/* Undo */}
             {currentStep > 0 && (
               <button
                 onClick={undoLastAction}
@@ -338,7 +815,6 @@ export default function Home() {
               </button>
             )}
 
-            {/* Reset */}
             <button
               onClick={handleReset}
               className={clsx(
@@ -357,7 +833,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* ── Series tracker (shown only when BO3/BO5 active) ── */}
+        {/* ── Series tracker ── */}
         <div className="px-3 sm:px-4 pt-2">
           <SeriesTracker />
         </div>
@@ -370,10 +846,7 @@ export default function Home() {
         {/* ── Footer ── */}
         <footer
           className="hidden md:flex px-6 py-2 border-t items-center justify-between"
-          style={{
-            background: 'rgba(3,3,4,0.92)',
-            borderColor: 'rgba(124,26,15,0.25)',
-          }}
+          style={{ background: 'rgba(3,3,4,0.92)', borderColor: 'rgba(124,26,15,0.25)' }}
         >
           <span className="text-[10px] text-slate-600">
             Data:{' '}
@@ -388,25 +861,13 @@ export default function Home() {
             </a>
             {' '}· Tier list: @gosugamersmlbb
             {' '}·{' '}
-            <span className="text-slate-700">
-              Patch {TIER_LIST_PATCH} ({TIER_LIST_DATE})
-            </span>
+            <span className="text-slate-700">Patch {TIER_LIST_PATCH} ({TIER_LIST_DATE})</span>
             {' '}·{' '}
-            <span className="text-slate-700 text-[9px]">
-              Press / to search · 1-9 quick-select · Ctrl+Z undo
-            </span>
+            <span className="text-slate-700 text-[9px]">Press / to search · 1-9 quick-select · Ctrl+Z undo</span>
           </span>
           <div className="flex items-center gap-2 opacity-60">
-            <Image
-              src={`${BASE}/ges-logo.png`}
-              alt="GES"
-              width={16} height={19}
-              style={{ width: 16, height: 'auto' }}
-            />
-            <span
-              className="text-[10px] font-display tracking-widest"
-              style={{ color: 'rgba(180,60,40,0.8)' }}
-            >
+            <Image src={`${BASE}/ges-logo.png`} alt="GES" width={16} height={19} style={{ width: 16, height: 'auto' }} />
+            <span className="text-[10px] font-display tracking-widest" style={{ color: 'rgba(180,60,40,0.8)' }}>
               GASCOM ESPORTS
             </span>
           </div>

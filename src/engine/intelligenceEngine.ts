@@ -8,9 +8,140 @@ import type {
 } from '@/types/draft';
 import {
   ARCHETYPE_LOSES_TO,
+  ARCHETYPE_BEATS,
   ARCHETYPE_LABELS,
+  ARCHETYPE_SHORT,
   heroArchetypeScores,
 } from './archetypeEngine';
+
+// ─── Strategic Read ────────────────────────────────────────────────────────────
+//
+// Chess master approach: read BOTH enemy bans AND picks to infer their intent.
+//
+// Three reading layers:
+//   1. Ban tells  — what they ban reveals what they FEAR (protection theory)
+//   2. Pick tells — what they pick reveals what they BUILD
+//   3. Cross-reference — if both signals converge → high confidence enemy plan
+//
+// Output: what WE should do, whether to pivot, and any trap/deception opportunity.
+
+export interface StrategicRead {
+  enemyPlan:       DraftArchetype | null;   // detected enemy composition
+  counterStrategy: DraftArchetype | null;   // archetype that beats their plan
+  pivotNeeded:     boolean;                 // true if our current plan loses to their plan
+  trapOpportunity: string | null;           // flexible "hidden" pick suggestion
+  insight:         string;                  // French explanation
+  confidence:      'low' | 'medium' | 'high';
+}
+
+export function buildStrategicRead(
+  enemyPicks:       HeroData[],
+  enemyBans:        HeroData[],
+  allyBans:         HeroData[],
+  ourArchetype:     DraftArchetype | null,
+): StrategicRead {
+  const archetypes: DraftArchetype[] = ['poke', 'engage', 'protect', 'split', 'catch'];
+
+  // ── Signal 1: pick-based detection (direct) ──────────────────────────────
+  let pickSignal: DraftArchetype | null = null;
+  if (enemyPicks.length >= 1) {
+    const pickTotals: Record<DraftArchetype, number> = { poke:0, engage:0, protect:0, split:0, catch:0 };
+    for (const h of enemyPicks) {
+      const s = heroArchetypeScores(h);
+      for (const a of archetypes) pickTotals[a] += s[a];
+    }
+    const sorted = [...archetypes].sort((a, b) => pickTotals[b] - pickTotals[a]);
+    const top     = pickTotals[sorted[0]];
+    const second  = pickTotals[sorted[1]];
+    const pickShare = top / (Object.values(pickTotals).reduce((s, v) => s + v, 0) || 1);
+    if (pickShare > 0.30) pickSignal = sorted[0];
+  }
+
+  // ── Signal 2: ban-based detection (protection theory) ────────────────────
+  // If they ban a lot of "Engage" heroes → they FEAR engage → they're building Catch or Protect
+  let banSignal: DraftArchetype | null = null;
+  if (enemyBans.length >= 1) {
+    const banTotals: Record<DraftArchetype, number> = { poke:0, engage:0, protect:0, split:0, catch:0 };
+    for (const h of enemyBans) {
+      const s = heroArchetypeScores(h);
+      for (const a of archetypes) banTotals[a] += s[a];
+    }
+    const bannedDominant = archetypes.reduce((best, a) => banTotals[a] > banTotals[best] ? a : best, archetypes[0]);
+    // What plays well against the archetype they're banning?
+    const inferred = ARCHETYPE_LOSES_TO[bannedDominant];
+    if (inferred.length > 0) banSignal = inferred[0]; // primary inferred enemy style
+  }
+
+  // ── Signal 3: our own bans tell about OUR intent ──────────────────────────
+  // (Used to detect trap opportunities: our bans reveal our strategy to the enemy)
+  let ourBanSignal: DraftArchetype | null = null;
+  if (allyBans.length >= 2) {
+    const ourBanTotals: Record<DraftArchetype, number> = { poke:0, engage:0, protect:0, split:0, catch:0 };
+    for (const h of allyBans) {
+      const s = heroArchetypeScores(h);
+      for (const a of archetypes) ourBanTotals[a] += s[a];
+    }
+    const bannedBy = archetypes.reduce((b, a) => ourBanTotals[a] > ourBanTotals[b] ? a : b, archetypes[0]);
+    // What WE are banning exposes what we fear, hinting our strategy
+    ourBanSignal = ARCHETYPE_LOSES_TO[bannedBy][0] ?? null;
+  }
+
+  // ── Cross-reference: combine pick + ban signals ───────────────────────────
+  let enemyPlan: DraftArchetype | null = null;
+  let confidence: StrategicRead['confidence'] = 'low';
+
+  if (pickSignal && banSignal && pickSignal === banSignal) {
+    enemyPlan  = pickSignal;
+    confidence = 'high';  // both signals agree
+  } else if (pickSignal && enemyPicks.length >= 2) {
+    enemyPlan  = pickSignal;
+    confidence = enemyPicks.length >= 3 ? 'high' : 'medium';
+  } else if (banSignal && enemyBans.length >= 2) {
+    enemyPlan  = banSignal;
+    confidence = 'medium';
+  } else if (pickSignal || banSignal) {
+    enemyPlan  = pickSignal ?? banSignal;
+    confidence = 'low';
+  }
+
+  // ── Counter strategy ──────────────────────────────────────────────────────
+  const counterStrategy: DraftArchetype | null = enemyPlan
+    ? (ARCHETYPE_BEATS[enemyPlan][0] ?? null)
+    : null;
+
+  // ── Pivot needed? ─────────────────────────────────────────────────────────
+  const pivotNeeded = !!(
+    enemyPlan && ourArchetype &&
+    ARCHETYPE_BEATS[enemyPlan].includes(ourArchetype) === false &&
+    ARCHETYPE_LOSES_TO[ourArchetype].includes(enemyPlan)
+  );
+
+  // ── Trap opportunity: our bans may be leaking our strategy ───────────────
+  let trapOpportunity: string | null = null;
+  if (ourBanSignal && ourArchetype && ourBanSignal === ourArchetype && confidence !== 'low') {
+    const flexible = ARCHETYPE_BEATS[ourArchetype][0];
+    trapOpportunity = `Vos bans révèlent votre stratégie ${ARCHETYPE_SHORT[ourArchetype]}. Pikez un héros flexible ${ARCHETYPE_SHORT[flexible]} d'abord pour masquer votre plan.`;
+  } else if (enemyPlan && counterStrategy && confidence === 'high') {
+    trapOpportunity = `L'ennemi construit du ${ARCHETYPE_SHORT[enemyPlan]} — pikez des héros ${ARCHETYPE_SHORT[counterStrategy]} qui paraissent neutres pour ne pas déclencher leurs bans phase 2.`;
+  }
+
+  // ── French insight ────────────────────────────────────────────────────────
+  let insight = '';
+  if (!enemyPlan) {
+    insight = 'Pas encore assez de données — continuez à observer les bans et picks ennemis pour déduire leur plan.';
+  } else if (confidence === 'high') {
+    const counter = counterStrategy ? ARCHETYPE_LABELS[counterStrategy] : '?';
+    insight = pivotNeeded
+      ? `⚠️ L'ennemi joue ${ARCHETYPE_LABELS[enemyPlan]} — votre stratégie actuelle est en danger. Pivotez vers ${counter} pour renverser le matchup.`
+      : `✅ L'ennemi joue ${ARCHETYPE_LABELS[enemyPlan]} — votre ${ourArchetype ? ARCHETYPE_LABELS[ourArchetype] : counter} le contre structurellement. Renforcez votre plan.`;
+  } else if (confidence === 'medium') {
+    insight = `Indice probable : l'ennemi semble construire du ${ARCHETYPE_LABELS[enemyPlan]}. ${counterStrategy ? `Préparez du ${ARCHETYPE_LABELS[counterStrategy]}.` : ''}`;
+  } else {
+    insight = `Signal faible : ${ARCHETYPE_LABELS[enemyPlan!]} possible côté ennemi. Restez flexibles jusqu'au prochain pick.`;
+  }
+
+  return { enemyPlan, counterStrategy, pivotNeeded, trapOpportunity, insight, confidence };
+}
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -147,6 +278,161 @@ export function buildArchetypeProbability(
     dominantArchetype,
     signalCount,
   };
+}
+
+// ─── Adaptive Ban Suggestions ────────────────────────────────────────────────
+//
+// Phase-2 aware ban recommendations:
+//   1. Synergy partners of confirmed enemy picks (break their combos)
+//   2. Counters to our confirmed picks (protect our carries)
+//   3. Heroes that would complete the enemy archetype
+//
+// Call when at least 1 enemy pick is confirmed.
+
+export interface AdaptiveBanSuggestion {
+  hero:    HeroData;
+  reason:  string;
+  urgency: 'critical' | 'high' | 'medium';
+}
+
+export function buildAdaptiveBanSuggestions(
+  enemyPicks: HeroData[],
+  allyPicks:  HeroData[],
+  allHeroes:  HeroData[],
+  bannedIds:  Set<number>,
+  pickedIds:  Set<number>,
+): AdaptiveBanSuggestion[] {
+  if (enemyPicks.length === 0) return [];
+
+  const available = allHeroes.filter((h) => !bannedIds.has(h.id) && !pickedIds.has(h.id));
+  const results:   AdaptiveBanSuggestion[] = [];
+  const seen = new Set<number>();
+
+  const add = (hero: HeroData, reason: string, urgency: AdaptiveBanSuggestion['urgency']) => {
+    if (seen.has(hero.id)) return;
+    seen.add(hero.id);
+    results.push({ hero, reason, urgency });
+  };
+
+  // 1. Synergy partners of confirmed enemy picks
+  for (const enemy of enemyPicks) {
+    const partners = available
+      .filter((h) => enemy.synergies.includes(h.id) || h.synergies.includes(enemy.id))
+      .slice(0, 2);
+    for (const p of partners) {
+      add(p, `Partenaire fort de ${enemy.name} — brisez leur combo de kit`, 'high');
+    }
+  }
+
+  // 2. Hard counters to our confirmed picks
+  for (const ally of allyPicks) {
+    const counters = available
+      .filter((h) => ally.counteredBy.includes(h.id) || h.counters.includes(ally.id))
+      .slice(0, 1);
+    for (const c of counters) {
+      add(c, `Counter direct de votre ${ally.name} — protégez votre composition`, 'critical');
+    }
+  }
+
+  // 3. Heroes that would complete the enemy archetype (strongest fit not yet picked)
+  const enemyArch = dominantArchetypeOfHeroes(enemyPicks);
+  if (enemyArch && enemyPicks.length >= 2) {
+    const completions = [...available]
+      .sort((a, b) => heroArchetypeScores(b)[enemyArch] - heroArchetypeScores(a)[enemyArch])
+      .slice(0, 3);
+    for (const hero of completions) {
+      if (heroArchetypeScores(hero)[enemyArch] > 7) {
+        add(hero, `Compléterait parfaitement leur ${ARCHETYPE_LABELS[enemyArch]}`, 'high');
+      }
+    }
+  }
+
+  // Sort: critical first, then high, then medium. Return top 5.
+  const urgencyOrder: Record<AdaptiveBanSuggestion['urgency'], number> = { critical: 0, high: 1, medium: 2 };
+  return results
+    .sort((a, b) => urgencyOrder[a.urgency] - urgencyOrder[b.urgency])
+    .slice(0, 5);
+}
+
+// ─── Counterplay Tips ─────────────────────────────────────────────────────────
+//
+// Generates actionable French tips based on confirmed enemy heroes' stat profiles.
+// Items amplify base stats, so a high-CC hero will apply more CC with CC items —
+// we can reliably warn about their threats without knowing their specific items.
+
+export interface CounterplayTip {
+  targetHero: string;
+  tip:        string;
+  priority:   'critical' | 'high' | 'medium';
+}
+
+export function buildCounterplayTips(enemyPicks: HeroData[]): CounterplayTip[] {
+  if (enemyPicks.length === 0) return [];
+  const tips: CounterplayTip[] = [];
+
+  for (const hero of enemyPicks) {
+    // Dominant late game carry → time pressure
+    if (hero.late >= 8) {
+      tips.push({
+        targetHero: hero.name,
+        tip:        `${hero.name} devient dominant en late — forcez les objectifs avant 12 min et ne laissez pas le jeu s'étirer.`,
+        priority:   'critical',
+      });
+    }
+    // Massive CC → positioning discipline
+    if (hero.cc >= 8) {
+      tips.push({
+        targetHero: hero.name,
+        tip:        `${hero.name} possède un CC massif — restez dispersés, gardez votre Flicker pour esquiver son lockdown.`,
+        priority:   'critical',
+      });
+    }
+    // Mobile assassin → never split
+    if (hero.mobility >= 8 && hero.damage >= 7) {
+      tips.push({
+        targetHero: hero.name,
+        tip:        `${hero.name} est un assassin mobile et dévastateur — ne vous isolez jamais, restez en groupe lors des rotations.`,
+        priority:   'high',
+      });
+    }
+    // Extreme tankiness → penetration items hint
+    if (hero.tankiness >= 8) {
+      tips.push({
+        targetHero: hero.name,
+        tip:        `${hero.name} est extrêmement résistant — priorisez les objets de pénétration physique/magique ou de réduction défense.`,
+        priority:   'high',
+      });
+    }
+    // Heavy map pressure / split threat → map awareness
+    if (hero.pressure >= 8) {
+      tips.push({
+        targetHero: hero.name,
+        tip:        `${hero.name} impose une pression de carte massive — répondez à ses rotations, ne laissez pas les objectifs sans contestation.`,
+        priority:   'high',
+      });
+    }
+    // High damage but immobile → punish positioning
+    if (hero.damage >= 8 && hero.mobility <= 4) {
+      tips.push({
+        targetHero: hero.name,
+        tip:        `${hero.name} inflige d'énormes dégâts mais manque de mobilité — plongez dessus avant qu'il puisse s'installer en position.`,
+        priority:   'high',
+      });
+    }
+    // Early game dominant → survive early
+    if (hero.early >= 8) {
+      tips.push({
+        targetHero: hero.name,
+        tip:        `${hero.name} domine l'early game — évitez les trades défavorables jusqu'à vos premiers objets clés.`,
+        priority:   'medium',
+      });
+    }
+  }
+
+  const priorityOrder: Record<CounterplayTip['priority'], number> = { critical: 0, high: 1, medium: 2 };
+  return tips
+    .sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority])
+    .slice(0, 5);
 }
 
 // ─── Composition Hole Detection ───────────────────────────────────────────────

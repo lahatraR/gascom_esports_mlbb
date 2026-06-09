@@ -47,6 +47,40 @@ export interface HeroData {
   // Average win rate boost when playing with synergy partners (from /teammates)
   // 0 = no data, 5 = neutral, >5 = positive synergy → used for Team Coordination metric
   synergyBoost: number;  // 0–10
+
+  // Real pairwise synergy boosts from hero-detail-stats API
+  // Key = partner hero ID, value = increase_win_rate (in %, e.g. 6.8 = +6.8% WR)
+  // Used for accurate pair scoring in draft generator (Atlas+Mathilda = 6.8%)
+  synergyPairs?: Record<number, number>;
+
+  // Official MLBB speciality tags from /api/heroes/{name}
+  // e.g. ["Crowd Control", "Initiator"] — what the hero is designed to do
+  speciality?: string[];
+
+  // Unique skill type tags across all skills: ["CC", "AOE", "Mobility", "Buff", "Debuff"]
+  // Used to validate kit functions and detect combo potential
+  skillTags?: string[];
+
+  // Per-phase win rate from /api/academy/heroes/{name}/win-rate/timeline
+  // Represents actual power curve based on real match data at each game stage
+  powerCurve?: {
+    early: number;              // 0–10 normalized win rate at 0–10 min
+    mid:   number;              // 0–10 normalized win rate at 10–16 min
+    late:  number;              // 0–10 normalized win rate at 16+ min
+    peak:  'early' | 'mid' | 'late';
+  };
+
+  // Execution difficulty (1–5): how mechanically demanding is this hero to play optimally?
+  // 1 = beginner-friendly (Miya, Layla)
+  // 3 = moderate (most meta heroes)
+  // 5 = high-skill floor required (Fanny, Ling, Kagura)
+  // Used to penalise suggestions in ranked casual, flag in tournament mode.
+  difficulty?: 1 | 2 | 3 | 4 | 5;
+
+  // Patch momentum: direction of win-rate trend since heroes.json was baked.
+  // Computed live: liveWR − staticWR threshold ±0.02
+  wrTrend?: 'rising' | 'stable' | 'falling';
+  wrDelta?: number;  // raw delta (liveWR − staticWR), e.g. +0.035 or −0.018
 }
 
 // ─── Draft Structure ─────────────────────────────────────────────────────────
@@ -293,10 +327,13 @@ export interface DraftAnalysis {
   enemyCompAnalysis: EnemyCompAnalysis | null;
   winningLineup:     WinningLineup | null;
   // Draft intelligence
-  banAnalysis:       BanAnalysis | null;
-  archetypeProbability: ArchetypeProbability | null;
-  compositionHoles:  CompositionHole[];
-  currentAction:   DraftAction;   // 'ban' | 'pick' — drives which panel is shown
+  banAnalysis:             BanAnalysis | null;
+  archetypeProbability:    ArchetypeProbability | null;
+  compositionHoles:        CompositionHole[];
+  currentAction:           DraftAction;
+  strategicRead:           import('@/engine/intelligenceEngine').StrategicRead | null;
+  adaptiveBanSuggestions:  import('@/engine/intelligenceEngine').AdaptiveBanSuggestion[];
+  counterplayTips:         import('@/engine/intelligenceEngine').CounterplayTip[];
 }
 
 // ─── Draft intelligence types ─────────────────────────────────────────────────

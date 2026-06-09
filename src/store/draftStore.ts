@@ -2,9 +2,12 @@
 
 import { create } from 'zustand';
 import { HERO_STATS, getDefaultsForRoles, FALLBACK_HERO_NAMES } from '@/data/heroes';
-import type { HeroData, DraftAnalysis, GameMode, DraftTeam, SeriesMode, SeriesGame } from '@/types/draft';
+import type { HeroData, DraftAnalysis, GameMode, DraftTeam, SeriesMode, SeriesGame, DraftArchetype } from '@/types/draft';
+import { fetchHeroDetailStats, fetchHeroFullData, fetchHeroWinRateTimeline } from '@/lib/mlbbApi';
+import type { LaneKey } from '@/data/tierList';
 import { getDraftSequence, getBanCount } from '@/types/draft';
 import { runDraftAnalysis } from '@/engine/teamComparison';
+import { getHeroDifficulty } from '@/data/executionDifficulty';
 
 // ─── Offline fallback hero list ───────────────────────────────────────────────
 
@@ -65,12 +68,122 @@ function pushDraftUrl(
   window.history.replaceState(null, '', `?${p.toString()}`);
 }
 
+// ─── Background detail-stats enrichment ───────────────────────────────────────
+
+async function enrichWithDetailStats(
+  pool: HeroData[],
+  onDone: (enriched: HeroData[]) => void,
+): Promise<void> {
+  const BATCH = 10;
+  const detailMap = new Map<number, { winRate: number; banRate: number; pickRate: number; synergyPairs: Record<number, number>; synergyBoost: number }>();
+
+  for (let i = 0; i < pool.length; i += BATCH) {
+    const batch   = pool.slice(i, i + BATCH);
+    const results = await Promise.allSettled(
+      batch.map((h) => fetchHeroDetailStats(h.name)),
+    );
+    results.forEach((r, idx) => {
+      if (r.status !== 'fulfilled' || !r.value) return;
+      const detail = r.value;
+      const pairs: Record<number, number> = {};
+      for (const p of detail.synergyPairs) pairs[p.heroId] = p.boost;
+
+      const top3 = detail.synergyPairs.slice(0, 3).map((p) => p.boost);
+      const avgBoost = top3.length > 0 ? top3.reduce((a, b) => a + b, 0) / top3.length : 0;
+      const synergyBoost = Math.min(10, 5 + avgBoost * 0.5);
+
+      detailMap.set(batch[idx].id, {
+        winRate:      detail.winRate,
+        banRate:      detail.banRate,
+        pickRate:     detail.pickRate,
+        synergyPairs: pairs,
+        synergyBoost,
+      });
+    });
+  }
+
+  if (detailMap.size === 0) return;
+
+  const enriched = pool.map((h) => {
+    const d = detailMap.get(h.id);
+    if (!d) return h;
+    const bakedWR  = h.winRate ?? 0.50;
+    const wrDelta  = parseFloat((d.winRate - bakedWR).toFixed(4));
+    const wrTrend: 'rising' | 'stable' | 'falling' =
+      wrDelta >= 0.015 ? 'rising' : wrDelta <= -0.015 ? 'falling' : 'stable';
+    return {
+      ...h,
+      winRate:     d.winRate,
+      banRate:     d.banRate,
+      pickRate:    d.pickRate,
+      synergyPairs: d.synergyPairs,
+      synergyBoost: d.synergyBoost,
+      wrDelta,
+      wrTrend,
+    };
+  });
+
+  onDone(enriched);
+}
+
+// ─── Background full-data enrichment ──────────────────────────────────────────
+
+const ROLE_TO_LANE_KEY: Record<string, LaneKey> = {
+  Tank: 'Roam', Support: 'Roam', Fighter: 'EXP',
+  Mage: 'Mid', Assassin: 'Jungle', Marksman: 'Gold',
+};
+
+async function enrichWithFullData(
+  pool:   HeroData[],
+  onDone: (enriched: HeroData[]) => void,
+): Promise<void> {
+  const BATCH  = 5;
+  const fullMap = new Map<number, {
+    speciality: string[];
+    skillTags:  string[];
+    powerCurve: HeroData['powerCurve'];
+  }>();
+
+  for (let i = 0; i < pool.length; i += BATCH) {
+    const batch = pool.slice(i, i + BATCH);
+    await Promise.allSettled(
+      batch.map(async (h) => {
+        const primaryLane = ROLE_TO_LANE_KEY[h.roles[0] ?? 'Fighter'] ?? 'EXP';
+        const [fullRes, timelineRes] = await Promise.allSettled([
+          fetchHeroFullData(h.name),
+          fetchHeroWinRateTimeline(h.name, primaryLane),
+        ]);
+        const full     = fullRes.status     === 'fulfilled' ? fullRes.value     : null;
+        const timeline = timelineRes.status === 'fulfilled' ? timelineRes.value : null;
+        if (!full && !timeline) return;
+        fullMap.set(h.id, {
+          speciality: full?.speciality ?? [],
+          skillTags:  full?.skillTags  ?? [],
+          powerCurve: timeline ?? undefined,
+        });
+      }),
+    );
+  }
+
+  if (fullMap.size === 0) return;
+
+  const enriched = pool.map((h) => {
+    const d = fullMap.get(h.id);
+    return d ? { ...h, ...d } : h;
+  });
+
+  onDone(enriched);
+}
+
 // ─── Store shape ──────────────────────────────────────────────────────────────
 
 interface DraftStore {
   heroPool:       HeroData[];
   isLoadingPool:  boolean;
   poolError:      string | null;
+  // 'build'  → data from heroes.json (no live enrichment yet)
+  // 'live'   → at least one live enrichment pass succeeded
+  dataFreshness:  'build' | 'live';
 
   blueBans:    (HeroData | null)[];
   redBans:     (HeroData | null)[];
@@ -83,15 +196,16 @@ interface DraftStore {
   search:      string;
   roleFilter:  string;
 
-  // ── Feature 6: BO Series ───────────────────────────────────────────────────
   seriesMode:    SeriesMode;
   currentGame:   number;
   gamesHistory:  SeriesGame[];
 
-  // ── Feature 7: Enemy Pool restriction ─────────────────────────────────────
   restrictedEnemyIds: number[];
 
-  // ── Actions ───────────────────────────────────────────────────────────────
+  mySide:           'blue' | 'red' | null;
+  plannedArchetype: DraftArchetype | null;
+  uiMode:           'simple' | 'advanced';
+
   loadHeroPool:           () => Promise<void>;
   loadFromUrl:            () => void;
   selectHero:             (hero: HeroData) => void;
@@ -108,6 +222,10 @@ interface DraftStore {
   clearRestrictedEnemies: () => void;
 
   getFilteredHeroes:      () => HeroData[];
+
+  setMySide:           (side: 'blue' | 'red') => void;
+  setPlannedArchetype: (arch: DraftArchetype | null) => void;
+  setUiMode:           (mode: 'simple' | 'advanced') => void;
 }
 
 // ─── Analysis helper ──────────────────────────────────────────────────────────
@@ -135,17 +253,33 @@ function reanalyze(
 
 // ─── Store ────────────────────────────────────────────────────────────────────
 
+// ─── Lightweight localStorage helpers (SSR-safe) ─────────────────────────────
+
+function lsGet<T>(key: string, fallback: T): T {
+  if (typeof window === 'undefined') return fallback;
+  try {
+    const v = localStorage.getItem(key);
+    return v !== null ? (JSON.parse(v) as T) : fallback;
+  } catch { return fallback; }
+}
+
+function lsSet(key: string, value: unknown): void {
+  if (typeof window === 'undefined') return;
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* ignore */ }
+}
+
 export const useDraftStore = create<DraftStore>((set, get) => ({
   heroPool:       [],
   isLoadingPool:  false,
   poolError:      null,
+  dataFreshness:  'build',
 
-  blueBans:    makeSlots(getBanCount('ranked')),
-  redBans:     makeSlots(getBanCount('ranked')),
+  blueBans:    makeSlots(getBanCount(lsGet<GameMode>('ges_gameMode', 'ranked'))),
+  redBans:     makeSlots(getBanCount(lsGet<GameMode>('ges_gameMode', 'ranked'))),
   bluePicks:   makeSlots(5),
   redPicks:    makeSlots(5),
   currentStep: 0,
-  gameMode:    'ranked',
+  gameMode:    lsGet<GameMode>('ges_gameMode', 'ranked'),
 
   analysis:    null,
   search:      '',
@@ -157,6 +291,10 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
 
   restrictedEnemyIds: [],
 
+  mySide:           null,
+  plannedArchetype: lsGet<DraftArchetype | null>('ges_plannedArchetype', null),
+  uiMode:           lsGet<'simple' | 'advanced'>('ges_uiMode', 'simple'),
+
   // ── Load hero pool ────────────────────────────────────────────────────────
   loadHeroPool: async () => {
     set({ isLoadingPool: true, poolError: null });
@@ -164,9 +302,63 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
     try {
       const res = await fetch(`${basePath}/heroes.json`);
       if (res.ok) {
-        const pool: HeroData[] = await res.json();
+        let pool: HeroData[] = await res.json();
         if (Array.isArray(pool) && pool.length > 0) {
+          // Enrich with official positions from the hero-position API
+          try {
+            const posRes = await fetch('https://mlbb-stats.rone.dev/api/hero-position');
+            if (posRes.ok) {
+              const posJson = await posRes.json();
+              const posMap = new Map<number, { lanes: string[]; roles: string[] }>();
+              for (const rec of posJson?.data?.records ?? []) {
+                const d    = rec.data;
+                const hero = d?.hero?.data;
+                if (!hero || !d.hero_id) continue;
+                const LANE_MAP: Record<string, string> = {
+                  'Exp Lane': 'EXP', 'Gold Lane': 'Gold', 'Mid Lane': 'Mid',
+                  'Jungle': 'Jungle', 'Roam': 'Roam',
+                };
+                const ROLE_NORM: Record<string, string> = {
+                  fighter: 'Fighter', assassin: 'Assassin', marksman: 'Marksman',
+                  mage: 'Mage', tank: 'Tank', support: 'Support',
+                };
+                const lanes = (hero.roadsort ?? [])
+                  .filter((r: unknown) => r && typeof r === 'object' && (r as Record<string, unknown>).data)
+                  .map((r: unknown) => LANE_MAP[((r as Record<string, Record<string, string>>).data).road_sort_title])
+                  .filter(Boolean);
+                const roles = (hero.sortid ?? [])
+                  .filter((r: unknown) => r && typeof r === 'object' && (r as Record<string, unknown>).data)
+                  .map((r: unknown) => {
+                    const t = ((r as Record<string, Record<string, string>>).data).sort_title ?? '';
+                    return ROLE_NORM[t.toLowerCase()] ?? t;
+                  })
+                  .filter(Boolean);
+                posMap.set(d.hero_id, { lanes, roles });
+              }
+              // Merge: update roles for heroes that have API position data
+              pool = pool.map((h) => {
+                const pos = posMap.get(h.id);
+                if (!pos || pos.roles.length === 0) return h;
+                return { ...h, roles: pos.roles };
+              });
+            }
+          } catch { /* ignore — use heroes.json roles as-is */ }
+
+          // Enrich difficulty rating into every hero
+          pool = pool.map(h => ({ ...h, difficulty: h.difficulty ?? getHeroDifficulty(h.name) }));
+
           set({ heroPool: pool, isLoadingPool: false });
+
+          // Background enrichment pass 1: real stats + synergy pairs
+          // Background enrichment pass 2 (chained): speciality, skill tags, power curve
+          // On first success → mark dataFreshness as 'live'
+          enrichWithDetailStats(pool, (enriched1) => {
+            set({ heroPool: enriched1, dataFreshness: 'live' });
+            enrichWithFullData(enriched1, (enriched2) => {
+              set({ heroPool: enriched2 });
+            }).catch(() => { /* ignore */ });
+          }).catch(() => { /* ignore — enrichment is best-effort */ });
+
           return;
         }
       }
@@ -292,6 +484,7 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
     const { gameMode } = get();
     const bans = getBanCount(gameMode);
     pushDraftUrl(gameMode, makeSlots(bans), makeSlots(bans), makeSlots(5), makeSlots(5), 0);
+    lsSet('ges_plannedArchetype', null);
     set({
       blueBans:    makeSlots(bans),
       redBans:     makeSlots(bans),
@@ -299,12 +492,15 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
       redPicks:    makeSlots(5),
       currentStep: 0,
       analysis:    null,
+      mySide:      null,
+      plannedArchetype: null,
     });
   },
 
   setGameMode: (mode) => {
     const bans = getBanCount(mode);
     pushDraftUrl(mode, makeSlots(bans), makeSlots(bans), makeSlots(5), makeSlots(5), 0);
+    lsSet('ges_gameMode', mode);
     set({
       gameMode:    mode,
       blueBans:    makeSlots(bans),
@@ -319,7 +515,6 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
   setSearch:     (q)    => set({ search: q }),
   setRoleFilter: (role) => set({ roleFilter: role }),
 
-  // ── Series ────────────────────────────────────────────────────────────────
   setSeriesMode: (mode) => set({ seriesMode: mode }),
 
   recordGameWinner: (winner) => {
@@ -349,7 +544,6 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
     });
   },
 
-  // ── Enemy pool restriction ────────────────────────────────────────────────
   toggleRestrictedEnemy: (id) => {
     const { restrictedEnemyIds } = get();
     if (restrictedEnemyIds.includes(id)) {
@@ -361,7 +555,6 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
 
   clearRestrictedEnemies: () => set({ restrictedEnemyIds: [] }),
 
-  // ── Derived helper ────────────────────────────────────────────────────────
   getFilteredHeroes: () => {
     const { heroPool, search, roleFilter, blueBans, redBans, bluePicks, redPicks } = get();
     const usedIds = new Set<number>();
@@ -374,6 +567,10 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
       return true;
     });
   },
+
+  setMySide:           (side) => set({ mySide: side }),
+  setPlannedArchetype: (arch) => { lsSet('ges_plannedArchetype', arch); set({ plannedArchetype: arch }); },
+  setUiMode:           (mode) => { lsSet('ges_uiMode', mode);           set({ uiMode: mode }); },
 }));
 
 // ─── Derived selectors ────────────────────────────────────────────────────────
