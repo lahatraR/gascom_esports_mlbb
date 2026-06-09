@@ -10,6 +10,9 @@
  *   C  = 2.5  (needs buff)
  */
 
+export const TIER_LIST_PATCH = '1.9.18';
+export const TIER_LIST_DATE  = '2026-03-15';
+
 export type TierRank = 'S+' | 'S-' | 'A+' | 'A' | 'B' | 'C';
 export type LaneKey  = 'EXP' | 'Gold' | 'Jungle' | 'Mid' | 'Roam';
 

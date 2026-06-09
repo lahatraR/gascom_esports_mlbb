@@ -1,4 +1,4 @@
-import type { HeroData, DraftSuggestion, ScoreBreakdown, GameMode } from '@/types/draft';
+import type { HeroData, DraftSuggestion, BanSuggestion, ScoreBreakdown, GameMode } from '@/types/draft';
 import { getHeroTierScore } from '@/data/tierList';
 
 // ─── Weight configuration per game mode ─────────────────────────────────────
@@ -174,6 +174,81 @@ export function getSuggestions(
     breakdown: bd,
     reason: buildReason(hero, bd, alliedTeam, enemyTeam),
   }));
+}
+
+// ─── Ban suggestions ─────────────────────────────────────────────────────────
+//
+// Score each hero from the perspective of "should we ban this?"
+// High priority: counters OUR team + high meta priority + enemy likely to pick.
+
+export function getBanSuggestions(
+  allHeroes:   HeroData[],
+  alliedTeam:  HeroData[],   // our team's current picks
+  enemyTeam:   HeroData[],   // enemy's current picks
+  bannedIds:   Set<number>,
+  pickedIds:   Set<number>,
+  topN = 5
+): BanSuggestion[] {
+  const available = allHeroes.filter(
+    (h) => !bannedIds.has(h.id) && !pickedIds.has(h.id)
+  );
+  if (available.length === 0) return [];
+
+  const scored = available.map((hero) => {
+    // How dangerous is this hero for our team? (0-10, high = ban it)
+    const threatScore = calculateCounterScore(hero, alliedTeam);
+
+    // Meta priority
+    const metaScore = calculateMetaScore(hero);
+
+    // How likely is the enemy to pick this?
+    const enemyPriority = calcEnemyPickPriority(hero, enemyTeam);
+
+    const raw = threatScore * 0.40 + enemyPriority * 0.35 + metaScore * 0.25;
+
+    return { hero, raw, threatScore, metaScore };
+  });
+
+  scored.sort((a, b) => b.raw - a.raw);
+  const maxRaw = scored[0]?.raw ?? 10;
+
+  return scored.slice(0, topN).map(({ hero, raw, threatScore, metaScore }) => ({
+    hero,
+    score:       Math.round(clamp((raw / Math.max(maxRaw, 0.1)) * 100, 0, 100)),
+    threatScore,
+    metaScore,
+    reason: buildBanReason(hero, alliedTeam, threatScore, metaScore),
+  }));
+}
+
+function calcEnemyPickPriority(hero: HeroData, enemyTeam: HeroData[]): number {
+  let score = calculateMetaScore(hero);
+  const coveredRoles = new Set(enemyTeam.flatMap((h) => h.roles));
+  if (hero.roles.some((r) => !coveredRoles.has(r))) score += 2;
+  return clamp(score, 0, 10);
+}
+
+function buildBanReason(
+  hero: HeroData,
+  alliedTeam: HeroData[],
+  threatScore: number,
+  metaScore: number
+): string {
+  const parts: string[] = [];
+
+  if (threatScore >= 7) {
+    const threatened = alliedTeam.filter((a) => hero.counters.includes(a.id));
+    if (threatened.length > 0) {
+      parts.push(`hard counters ${threatened.map((h) => h.name).join(', ')}`);
+    } else {
+      parts.push('high threat to our team');
+    }
+  }
+
+  if (metaScore >= 8.5) parts.push('top-tier meta priority');
+  else if (metaScore >= 7)  parts.push('strong in current meta');
+
+  return parts.length > 0 ? parts.join(' · ') : 'high ban value';
 }
 
 // ─── Role coverage analysis ──────────────────────────────────────────────────

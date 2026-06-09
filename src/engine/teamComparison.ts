@@ -1,5 +1,5 @@
-import type { HeroData, TeamMetrics, DraftAnalysis, GameMode } from '@/types/draft';
-import { getSuggestions } from './draftEngine';
+import type { HeroData, TeamMetrics, DraftAnalysis, DraftAction, GameMode } from '@/types/draft';
+import { getSuggestions, getBanSuggestions } from './draftEngine';
 import { predictEnemyPicks } from './predictionEngine';
 import { detectTeamArchetype } from './archetypeEngine';
 import { buildEnemyCompAnalysis } from './compositionEngine';
@@ -147,7 +147,8 @@ export function runDraftAnalysis(
   blueBans: HeroData[],
   redBans: HeroData[],
   currentTeam: 'blue' | 'red',
-  gameMode: GameMode
+  gameMode: GameMode,
+  currentAction: DraftAction = 'pick'
 ): DraftAnalysis {
   const blueMetrics = calculateTeamMetrics(blueTeam);
   const redMetrics  = calculateTeamMetrics(redTeam);
@@ -171,6 +172,10 @@ export function runDraftAnalysis(
 
   const suggestions = getSuggestions(
     allHeroes, alliedTeam, enemyTeam, bannedIds, pickedIds, gameMode, 5
+  );
+
+  const banSuggestions = getBanSuggestions(
+    allHeroes, alliedTeam, enemyTeam, bannedIds, pickedIds, 5
   );
 
   const enemyNextTeam  = currentTeam === 'blue' ? redTeam  : blueTeam;
@@ -218,6 +223,7 @@ export function runDraftAnalysis(
     redRating,
     winProbability,
     suggestions,
+    banSuggestions,
     enemyPredictions,
     blueArchetype,
     redArchetype,
@@ -226,6 +232,7 @@ export function runDraftAnalysis(
     banAnalysis,
     archetypeProbability,
     compositionHoles,
+    currentAction,
   };
 }
 

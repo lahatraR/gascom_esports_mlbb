@@ -221,6 +221,29 @@ export interface EnemyCompAnalysis {
   counterComps:       CounterComposition[];  // top 2 counter archetypes
 }
 
+// ─── Ban Suggestion types ─────────────────────────────────────────────────────
+
+export interface BanSuggestion {
+  hero:        HeroData;
+  score:       number;       // 0–100 normalised
+  threatScore: number;       // 0–10: how dangerous this hero is for allied team
+  metaScore:   number;       // 0–10: overall meta priority
+  reason:      string;
+}
+
+// ─── Series types ─────────────────────────────────────────────────────────────
+
+export type SeriesMode = 'none' | 'bo3' | 'bo5';
+
+export interface SeriesGame {
+  gameNumber: number;
+  winner:     'blue' | 'red' | null;  // null = in progress / not recorded
+  bluePicks:  number[];   // hero IDs
+  redPicks:   number[];
+  blueBans:   number[];
+  redBans:    number[];
+}
+
 // ─── Analysis types ──────────────────────────────────────────────────────────
 
 export interface ScoreBreakdown {
@@ -262,7 +285,8 @@ export interface DraftAnalysis {
   blueRating: number;      // 0–10 overall lineup strength
   redRating: number;
   winProbability: number;  // 0–100 (blue win %)
-  suggestions: DraftSuggestion[];
+  suggestions:     DraftSuggestion[];
+  banSuggestions:  BanSuggestion[];   // top bans for current team
   enemyPredictions: EnemyPrediction[];
   blueArchetype: ArchetypeResult | null;
   redArchetype:  ArchetypeResult | null;
@@ -272,6 +296,7 @@ export interface DraftAnalysis {
   banAnalysis:       BanAnalysis | null;
   archetypeProbability: ArchetypeProbability | null;
   compositionHoles:  CompositionHole[];
+  currentAction:   DraftAction;   // 'ban' | 'pick' — drives which panel is shown
 }
 
 // ─── Draft intelligence types ─────────────────────────────────────────────────
